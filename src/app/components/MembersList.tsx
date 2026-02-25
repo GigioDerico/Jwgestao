@@ -1,0 +1,809 @@
+import React, { useState } from 'react';
+import {
+  members as allMembers,
+  getStatusLabel,
+  getStatusColor,
+  getRoleLabel,
+  fieldServiceGroups,
+  type Member,
+} from '../data/mockData';
+import {
+  Search,
+  Plus,
+  Phone,
+  Mail,
+  Filter,
+  X,
+  ChevronDown,
+  ChevronUp,
+  Shield,
+  Users,
+  List,
+  Home,
+  Crown,
+  Monitor,
+  ShoppingCart,
+  UserCheck,
+} from 'lucide-react';
+
+type ViewMode = 'list' | 'service_group' | 'family';
+
+export function MembersList() {
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [groupFilter, setGroupFilter] = useState('all');
+  const [showFilters, setShowFilters] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+
+  const filtered = allMembers.filter(m => {
+    const matchesSearch =
+      m.full_name.toLowerCase().includes(search.toLowerCase()) ||
+      m.email.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || m.spiritual_status === statusFilter;
+    const matchesGroup = groupFilter === 'all' || m.groupId === groupFilter;
+    return matchesSearch && matchesStatus && matchesGroup;
+  });
+
+  const statuses = [
+    'all',
+    'publicador',
+    'publicador_batizado',
+    'pioneiro_auxiliar',
+    'pioneiro_regular',
+    'estudante',
+  ];
+
+  const getGroupName = (groupId?: string) => {
+    return fieldServiceGroups.find(g => g.id === groupId)?.name || 'Sem grupo';
+  };
+
+  const getFamilyHead = (familyHeadId?: string) => {
+    return allMembers.find(m => m.id === familyHeadId);
+  };
+
+  const getFamilyMembers = (headId: string) => {
+    return allMembers.filter(m => m.familyHeadId === headId);
+  };
+
+  // ---------- grouped by service group ----------
+  const membersByServiceGroup = fieldServiceGroups.map(group => ({
+    group,
+    members: filtered.filter(m => m.groupId === group.id),
+  })).filter(g => g.members.length > 0);
+  const noGroupMembers = filtered.filter(m => !m.groupId);
+
+  // ---------- grouped by family ----------
+  const familyHeads = filtered.filter(m => m.isFamilyHead);
+  const membersByFamily = familyHeads.map(head => ({
+    head,
+    members: filtered.filter(m => m.familyHeadId === head.id),
+  }));
+  const noFamilyMembers = filtered.filter(
+    m => !m.isFamilyHead && !m.familyHeadId
+  );
+
+  const MemberCard = ({ member, isNested = false }: { member: Member; isNested?: boolean }) => (
+    <div className={`group ${isNested ? '' : ''}`}>
+      <button
+        onClick={() => setExpandedId(expandedId === member.id ? null : member.id)}
+        className={`w-full px-4 py-3.5 flex items-center gap-3 hover:bg-muted/30 transition-colors text-left ${isNested ? 'pl-10 bg-muted/5' : ''}`}
+      >
+        <div
+          className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${
+            member.isFamilyHead
+              ? 'bg-amber-50 text-amber-700 border-amber-200'
+              : member.gender === 'M'
+              ? 'bg-accent text-accent-foreground border-primary/5'
+              : 'bg-pink-50 text-pink-600 border-pink-100'
+          }`}
+        >
+          <span className="font-bold" style={{ fontSize: '0.8rem' }}>
+            {member.full_name
+              .split(' ')
+              .map(n => n[0])
+              .join('')
+              .slice(0, 2)}
+          </span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <p
+              className="text-foreground truncate font-medium group-hover:text-primary transition-colors"
+              style={{ fontSize: '0.9rem' }}
+            >
+              {member.full_name}
+            </p>
+            {member.isFamilyHead && (
+              <Crown size={12} className="text-amber-500 shrink-0" title="Chefe de família" />
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            <span
+              className={`px-2 py-0.5 rounded-full font-medium ${getStatusColor(member.spiritual_status)}`}
+              style={{ fontSize: '0.7rem' }}
+            >
+              {getStatusLabel(member.spiritual_status)}
+            </span>
+            {member.roles.length > 0 && (
+              <span
+                className="flex items-center gap-0.5 text-muted-foreground"
+                style={{ fontSize: '0.7rem' }}
+              >
+                <Shield size={10} />
+                {member.roles.map(r => getRoleLabel(r)).join(', ')}
+              </span>
+            )}
+            <span
+              className="flex items-center gap-0.5 text-primary/70"
+              style={{ fontSize: '0.7rem' }}
+            >
+              <Users size={10} />
+              {getGroupName(member.groupId)}
+            </span>
+            {member.familyHeadId && viewMode !== 'family' && (
+              <span
+                className="flex items-center gap-0.5 text-amber-600"
+                style={{ fontSize: '0.7rem' }}
+              >
+                <Home size={10} />
+                Família {getFamilyHead(member.familyHeadId)?.full_name.split(' ')[0]}
+              </span>
+            )}
+          </div>
+        </div>
+        {expandedId === member.id ? (
+          <ChevronUp size={16} className="text-primary" />
+        ) : (
+          <ChevronDown size={16} className="text-muted-foreground" />
+        )}
+      </button>
+
+      {expandedId === member.id && (
+        <div className="px-4 pb-4 bg-muted/10 border-t border-border/5 animate-in slide-in-from-top-1 duration-200">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 pl-13">
+            <div className="flex items-center gap-2 text-foreground/80" style={{ fontSize: '0.85rem' }}>
+              <div className="w-7 h-7 rounded-full bg-muted/50 flex items-center justify-center shrink-0">
+                <Phone size={14} className="text-muted-foreground" />
+              </div>
+              {member.phone}
+            </div>
+            <div className="flex items-center gap-2 text-foreground/80" style={{ fontSize: '0.85rem' }}>
+              <div className="w-7 h-7 rounded-full bg-muted/50 flex items-center justify-center shrink-0">
+                <Mail size={14} className="text-muted-foreground" />
+              </div>
+              {member.email}
+            </div>
+            {member.emergency_contact_name && (
+              <div className="sm:col-span-2 bg-primary/5 rounded-lg px-3 py-2 border border-primary/10">
+                <p className="text-primary font-bold" style={{ fontSize: '0.75rem' }}>
+                  Contato de Emergência
+                </p>
+                <p className="text-foreground/90 mt-0.5" style={{ fontSize: '0.85rem' }}>
+                  {member.emergency_contact_name} — {member.emergency_contact_phone}
+                </p>
+              </div>
+            )}
+            <div
+              className="sm:col-span-2 flex items-center gap-2 text-foreground/80 mt-1"
+              style={{ fontSize: '0.85rem' }}
+            >
+              <div className="w-7 h-7 rounded-full bg-accent/50 flex items-center justify-center shrink-0">
+                <Users size={14} className="text-accent-foreground" />
+              </div>
+              <span className="font-medium">Grupo:</span> {getGroupName(member.groupId)}
+            </div>
+            {member.isFamilyHead && (
+              <div
+                className="sm:col-span-2 flex items-center gap-2 text-amber-700 mt-1"
+                style={{ fontSize: '0.85rem' }}
+              >
+                <div className="w-7 h-7 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
+                  <Crown size={14} className="text-amber-500" />
+                </div>
+                <span className="font-medium">Chefe de família</span>
+                <span className="text-muted-foreground">
+                  — {getFamilyMembers(member.id).length} membro(s) na família
+                </span>
+              </div>
+            )}
+            {member.familyHeadId && (
+              <div
+                className="sm:col-span-2 flex items-center gap-2 text-amber-700 mt-1"
+                style={{ fontSize: '0.85rem' }}
+              >
+                <div className="w-7 h-7 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
+                  <Home size={14} className="text-amber-500" />
+                </div>
+                <span className="font-medium">Família de:</span>{' '}
+                {getFamilyHead(member.familyHeadId)?.full_name}
+              </div>
+            )}
+            {/* Approval badges */}
+            {(member.approvedAudioVideo || member.approvedIndicadores || member.approvedCarrinho) && (
+              <div className="sm:col-span-2 mt-2">
+                <p className="text-muted-foreground font-medium mb-1.5 flex items-center gap-1.5" style={{ fontSize: '0.75rem' }}>
+                  <UserCheck size={12} />
+                  Aprovado para
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {member.approvedAudioVideo && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-sky-100 text-sky-700" style={{ fontSize: '0.7rem' }}>
+                      <Monitor size={10} />
+                      Áudio e Vídeo
+                    </span>
+                  )}
+                  {member.approvedIndicadores && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700" style={{ fontSize: '0.7rem' }}>
+                      <Users size={10} />
+                      Indicadores
+                    </span>
+                  )}
+                  {member.approvedCarrinho && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 text-amber-700" style={{ fontSize: '0.7rem' }}>
+                      <ShoppingCart size={10} />
+                      Carrinho
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const GroupHeader = ({
+    title,
+    subtitle,
+    count,
+    color = 'blue',
+  }: {
+    title: string;
+    subtitle?: string;
+    count: number;
+    color?: 'blue' | 'amber';
+  }) => (
+    <div
+      className={`px-4 py-3 flex items-center gap-3 border-b border-border/60 ${
+        color === 'amber'
+          ? 'bg-amber-50/70'
+          : 'bg-primary/5'
+      }`}
+    >
+      <div
+        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+          color === 'amber'
+            ? 'bg-amber-100 text-amber-600'
+            : 'bg-primary/10 text-primary'
+        }`}
+      >
+        {color === 'amber' ? <Home size={15} /> : <Users size={15} />}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className={`font-bold truncate ${color === 'amber' ? 'text-amber-800' : 'text-primary'}`} style={{ fontSize: '0.85rem' }}>
+          {title}
+        </p>
+        {subtitle && (
+          <p className="text-muted-foreground truncate" style={{ fontSize: '0.72rem' }}>
+            {subtitle}
+          </p>
+        )}
+      </div>
+      <span
+        className={`px-2 py-0.5 rounded-full font-medium shrink-0 ${
+          color === 'amber'
+            ? 'bg-amber-100 text-amber-700'
+            : 'bg-primary/10 text-primary'
+        }`}
+        style={{ fontSize: '0.72rem' }}
+      >
+        {count} membro{count !== 1 ? 's' : ''}
+      </span>
+    </div>
+  );
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-foreground">Membros</h1>
+          <p className="text-muted-foreground" style={{ fontSize: '0.85rem' }}>
+            {filtered.length} membros encontrados
+          </p>
+        </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-bold rounded-xl hover:opacity-90 transition-colors shadow-sm"
+        >
+          <Plus size={16} />
+          <span className="hidden sm:inline" style={{ fontSize: '0.9rem' }}>
+            Novo Membro
+          </span>
+        </button>
+      </div>
+
+      {/* Search & Filters */}
+      <div className="bg-card rounded-xl border border-border p-3 space-y-3 shadow-sm">
+        <div className="flex gap-2">
+          <div className="flex-1 relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar por nome ou e-mail..."
+              className="w-full pl-9 pr-4 py-2 bg-muted/30 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-foreground"
+              style={{ fontSize: '0.9rem' }}
+            />
+          </div>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-colors ${
+              showFilters || statusFilter !== 'all' || groupFilter !== 'all'
+                ? 'bg-primary/10 border-primary/20 text-primary'
+                : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50'
+            }`}
+          >
+            <Filter size={16} />
+            <span className="hidden sm:inline" style={{ fontSize: '0.85rem' }}>
+              Filtros
+            </span>
+          </button>
+        </div>
+
+        {showFilters && (
+          <div className="space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+            <div className="flex flex-wrap gap-2">
+              <span
+                className="w-full text-muted-foreground font-medium mb-1"
+                style={{ fontSize: '0.75rem' }}
+              >
+                Situação Espiritual
+              </span>
+              {statuses.map(s => (
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s)}
+                  className={`px-3 py-1.5 rounded-full transition-all ${
+                    statusFilter === s
+                      ? 'bg-primary text-primary-foreground font-medium shadow-sm'
+                      : 'bg-muted/50 text-muted-foreground hover:bg-muted/80'
+                  }`}
+                  style={{ fontSize: '0.8rem' }}
+                >
+                  {s === 'all' ? 'Todos' : getStatusLabel(s)}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap gap-2 pt-2 border-t border-border/50">
+              <span
+                className="w-full text-muted-foreground font-medium mb-1"
+                style={{ fontSize: '0.75rem' }}
+              >
+                Grupo de Serviço
+              </span>
+              <button
+                onClick={() => setGroupFilter('all')}
+                className={`px-3 py-1.5 rounded-full transition-all ${
+                  groupFilter === 'all'
+                    ? 'bg-primary text-primary-foreground font-medium shadow-sm'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted/80'
+                }`}
+                style={{ fontSize: '0.8rem' }}
+              >
+                Todos
+              </button>
+              {fieldServiceGroups.map(g => (
+                <button
+                  key={g.id}
+                  onClick={() => setGroupFilter(g.id)}
+                  className={`px-3 py-1.5 rounded-full transition-all ${
+                    groupFilter === g.id
+                      ? 'bg-primary text-primary-foreground font-medium shadow-sm'
+                      : 'bg-muted/50 text-muted-foreground hover:bg-muted/80'
+                  }`}
+                  style={{ fontSize: '0.8rem' }}
+                >
+                  {g.name}
+                </button>
+              ))}
+            </div>
+
+            {(statusFilter !== 'all' || groupFilter !== 'all') && (
+              <button
+                onClick={() => {
+                  setStatusFilter('all');
+                  setGroupFilter('all');
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-red-500 hover:text-red-600 transition-colors font-medium"
+                style={{ fontSize: '0.8rem' }}
+              >
+                <X size={14} />
+                Limpar filtros
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* View mode toggle */}
+      <div className="flex items-center gap-1 bg-card rounded-xl border border-border p-1 shadow-sm w-fit">
+        <button
+          onClick={() => setViewMode('list')}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${
+            viewMode === 'list'
+              ? 'bg-primary text-primary-foreground shadow-sm'
+              : 'text-muted-foreground hover:bg-muted/50'
+          }`}
+          style={{ fontSize: '0.82rem' }}
+        >
+          <List size={14} />
+          Lista
+        </button>
+        <button
+          onClick={() => setViewMode('service_group')}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${
+            viewMode === 'service_group'
+              ? 'bg-primary text-primary-foreground shadow-sm'
+              : 'text-muted-foreground hover:bg-muted/50'
+          }`}
+          style={{ fontSize: '0.82rem' }}
+        >
+          <Users size={14} />
+          Por Grupo
+        </button>
+        <button
+          onClick={() => setViewMode('family')}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${
+            viewMode === 'family'
+              ? 'bg-amber-500 text-white shadow-sm'
+              : 'text-muted-foreground hover:bg-muted/50'
+          }`}
+          style={{ fontSize: '0.82rem' }}
+        >
+          <Home size={14} />
+          Por Família
+        </button>
+      </div>
+
+      {/* ---- VIEW: LIST ---- */}
+      {viewMode === 'list' && (
+        <div className="bg-card rounded-xl border border-border overflow-hidden divide-y divide-border shadow-sm">
+          {filtered.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground" style={{ fontSize: '0.9rem' }}>
+              Nenhum membro encontrado.
+            </div>
+          ) : (
+            filtered.map(member => <MemberCard key={member.id} member={member} />)
+          )}
+        </div>
+      )}
+
+      {/* ---- VIEW: BY SERVICE GROUP ---- */}
+      {viewMode === 'service_group' && (
+        <div className="space-y-4">
+          {membersByServiceGroup.map(({ group, members: groupMembers }) => (
+            <div
+              key={group.id}
+              className="bg-card rounded-xl border border-border overflow-hidden shadow-sm"
+            >
+              <GroupHeader
+                title={group.name}
+                subtitle={`Dirigente: ${group.overseer}`}
+                count={groupMembers.length}
+                color="blue"
+              />
+              <div className="divide-y divide-border">
+                {groupMembers.map(member => (
+                  <MemberCard key={member.id} member={member} />
+                ))}
+              </div>
+            </div>
+          ))}
+          {noGroupMembers.length > 0 && (
+            <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
+              <GroupHeader title="Sem Grupo" count={noGroupMembers.length} color="blue" />
+              <div className="divide-y divide-border">
+                {noGroupMembers.map(member => (
+                  <MemberCard key={member.id} member={member} />
+                ))}
+              </div>
+            </div>
+          )}
+          {membersByServiceGroup.length === 0 && noGroupMembers.length === 0 && (
+            <div className="bg-card rounded-xl border border-border py-12 text-center text-muted-foreground shadow-sm" style={{ fontSize: '0.9rem' }}>
+              Nenhum membro encontrado.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ---- VIEW: BY FAMILY ---- */}
+      {viewMode === 'family' && (
+        <div className="space-y-4">
+          {membersByFamily.map(({ head, members: familyMembers }) => (
+            <div
+              key={head.id}
+              className="bg-card rounded-xl border border-border overflow-hidden shadow-sm"
+            >
+              <GroupHeader
+                title={`Família ${head.full_name}`}
+                subtitle={
+                  familyMembers.length > 0
+                    ? `${familyMembers.length} membro(s) vinculado(s)`
+                    : 'Nenhum membro vinculado ainda'
+                }
+                count={1 + familyMembers.length}
+                color="amber"
+              />
+              <div className="divide-y divide-border">
+                {/* Head always first */}
+                <MemberCard key={head.id} member={head} />
+                {familyMembers.map(member => (
+                  <MemberCard key={member.id} member={member} isNested />
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {noFamilyMembers.length > 0 && (
+            <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
+              <div className="px-4 py-3 flex items-center gap-3 border-b border-border/60 bg-muted/30">
+                <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                  <Users size={15} className="text-muted-foreground" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-muted-foreground" style={{ fontSize: '0.85rem' }}>
+                    Sem família cadastrada
+                  </p>
+                </div>
+                <span
+                  className="px-2 py-0.5 bg-muted text-muted-foreground rounded-full font-medium shrink-0"
+                  style={{ fontSize: '0.72rem' }}
+                >
+                  {noFamilyMembers.length} membro{noFamilyMembers.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="divide-y divide-border">
+                {noFamilyMembers.map(member => (
+                  <MemberCard key={member.id} member={member} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {membersByFamily.length === 0 && noFamilyMembers.length === 0 && (
+            <div className="bg-card rounded-xl border border-border py-12 text-center text-muted-foreground shadow-sm" style={{ fontSize: '0.9rem' }}>
+              Nenhum membro encontrado.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Add Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-[#082c45]/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-border flex items-center justify-between sticky top-0 bg-white z-10">
+              <h3 className="text-[#082c45] font-bold">Novo Membro</h3>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="text-muted-foreground hover:text-foreground p-1 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              {[
+                { label: 'Nome Completo', type: 'text', placeholder: 'Ex: João da Silva' },
+                { label: 'E-mail', type: 'email', placeholder: 'joao@email.com' },
+                { label: 'Telefone', type: 'tel', placeholder: '(11) 99999-0000' },
+                { label: 'Contato de Emergência', type: 'text', placeholder: 'Nome do contato' },
+                { label: 'Telefone Emergência', type: 'tel', placeholder: '(11) 88888-0000' },
+              ].map(field => (
+                <div key={field.label}>
+                  <label
+                    className="block text-gray-600 mb-1 font-medium"
+                    style={{ fontSize: '0.85rem' }}
+                  >
+                    {field.label}
+                  </label>
+                  <input
+                    type={field.type}
+                    placeholder={field.placeholder}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
+                    style={{ fontSize: '0.9rem' }}
+                  />
+                </div>
+              ))}
+
+              <div>
+                <label
+                  className="block text-gray-600 mb-1 font-medium"
+                  style={{ fontSize: '0.85rem' }}
+                >
+                  Situação Espiritual
+                </label>
+                <select
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
+                  style={{ fontSize: '0.9rem' }}
+                >
+                  <option value="">Selecione...</option>
+                  <option value="estudante">Estudante</option>
+                  <option value="publicador">Publicador</option>
+                  <option value="publicador_batizado">Publicador Batizado</option>
+                  <option value="pioneiro_auxiliar">Pioneiro Auxiliar</option>
+                  <option value="pioneiro_regular">Pioneiro Regular</option>
+                </select>
+              </div>
+
+              <div>
+                <label
+                  className="block text-gray-600 mb-1 font-medium"
+                  style={{ fontSize: '0.85rem' }}
+                >
+                  Grupo de Saída de Campo
+                </label>
+                <select
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
+                  style={{ fontSize: '0.9rem' }}
+                >
+                  <option value="">Selecione um grupo...</option>
+                  {fieldServiceGroups.map(g => (
+                    <option key={g.id} value={g.id}>
+                      {g.name} — Dir. {g.overseer}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label
+                  className="block text-gray-600 mb-1 font-medium"
+                  style={{ fontSize: '0.85rem' }}
+                >
+                  Gênero
+                </label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <input
+                      type="radio"
+                      name="gender"
+                      value="M"
+                      className="accent-[#35bdf8] w-4 h-4"
+                    />
+                    <span
+                      className="text-gray-700 group-hover:text-[#082c45] transition-colors"
+                      style={{ fontSize: '0.9rem' }}
+                    >
+                      Masculino
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <input
+                      type="radio"
+                      name="gender"
+                      value="F"
+                      className="accent-[#35bdf8] w-4 h-4"
+                    />
+                    <span
+                      className="text-gray-700 group-hover:text-[#082c45] transition-colors"
+                      style={{ fontSize: '0.9rem' }}
+                    >
+                      Feminino
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Family head option — shown only for Masculino */}
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Crown size={14} className="text-amber-500 shrink-0" />
+                  <span className="text-amber-800 font-medium" style={{ fontSize: '0.85rem' }}>
+                    Família
+                  </span>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="accent-[#35bdf8] w-4 h-4 rounded"
+                  />
+                  <span className="text-gray-700" style={{ fontSize: '0.85rem' }}>
+                    Marcar como chefe de família (apenas masculino)
+                  </span>
+                </label>
+                <div>
+                  <label
+                    className="block text-gray-600 mb-1"
+                    style={{ fontSize: '0.82rem' }}
+                  >
+                    Ou vincular a uma família existente:
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 bg-white border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-300 text-foreground"
+                    style={{ fontSize: '0.9rem' }}
+                  >
+                    <option value="">Nenhuma família</option>
+                    {allMembers
+                      .filter(m => m.isFamilyHead)
+                      .map(head => (
+                        <option key={head.id} value={head.id}>
+                          Família {head.full_name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Approval section for assignments */}
+              <div className="bg-sky-50 border border-sky-100 rounded-xl p-3 space-y-3">
+                <div className="flex items-center gap-2">
+                  <UserCheck size={14} className="text-sky-600 shrink-0" />
+                  <span className="text-sky-800 font-medium" style={{ fontSize: '0.85rem' }}>
+                    Aprovações de Designação
+                  </span>
+                </div>
+                <p className="text-gray-500" style={{ fontSize: '0.75rem' }}>
+                  Marque para quais designações este membro está aprovado. Apenas membros aprovados poderão visualizar as respectivas abas.
+                </p>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2.5 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      className="accent-[#35bdf8] w-4 h-4 rounded"
+                    />
+                    <Monitor size={14} className="text-sky-500 shrink-0" />
+                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>
+                      Áudio e Vídeo
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-2.5 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      className="accent-[#35bdf8] w-4 h-4 rounded"
+                    />
+                    <Users size={14} className="text-indigo-500 shrink-0" />
+                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>
+                      Indicadores
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-2.5 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      className="accent-[#35bdf8] w-4 h-4 rounded"
+                    />
+                    <ShoppingCart size={14} className="text-amber-500 shrink-0" />
+                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>
+                      Carrinho
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div className="p-5 border-t border-border flex gap-3 justify-end sticky bottom-0 bg-white">
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium"
+                style={{ fontSize: '0.9rem' }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="px-6 py-2 bg-[#35bdf8] text-[#082c45] font-bold rounded-lg hover:opacity-90 transition-colors shadow-md shadow-[#35bdf8]/10"
+                style={{ fontSize: '0.9rem' }}
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
