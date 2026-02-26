@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Session, User } from '@supabase/supabase-js';
 
@@ -38,16 +38,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const loginResolverRef = useRef<((user: AuthUser | null) => void) | null>(null);
 
-  const buildAuthUser = async (supaUser: User): Promise<AuthUser | null> => {
+  const buildAuthUser = useCallback(async (supaUser: User): Promise<AuthUser> => {
+    const phoneDigits = supaUser.email?.replace(`@${PHONE_EMAIL_DOMAIN}`, '') || '';
     try {
       const { data: profile } = await supabase
         .from('user_profiles')
         .select('system_role, member_id')
         .eq('id', supaUser.id)
         .single();
-
-      const phoneDigits = supaUser.email?.replace(`@${PHONE_EMAIL_DOMAIN}`, '') || '';
 
       if (profile?.member_id) {
         const { data: member } = await supabase
@@ -73,22 +73,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       return {
         id: supaUser.id,
-        phone: supaUser.email?.replace(`@${PHONE_EMAIL_DOMAIN}`, '') || '',
+        phone: phoneDigits,
         role: 'publicador',
         name: 'Usuário',
       };
     }
-  };
+  }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session: s } }) => {
-      setSession(s);
-      if (s?.user) {
-        const authUser = await buildAuthUser(s.user);
-        setUser(authUser);
+    let cancelled = false;
+
+    const initSession = async () => {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+        const { data: { session: s } } = await supabase.auth.getSession();
+        clearTimeout(timeoutId);
+
+        if (cancelled) return;
+
+        setSession(s);
+        if (s?.user) {
+          const authUser = await buildAuthUser(s.user);
+          if (!cancelled) setUser(authUser);
+        }
+      } catch (err) {
+        console.warn('[Auth] Falha ao restaurar sessão:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setLoading(false);
-    });
+    };
+
+    initSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, s) => {
@@ -96,20 +113,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (s?.user) {
           const authUser = await buildAuthUser(s.user);
           setUser(authUser);
+          // Resolve pending login promise if exists
+          if (loginResolverRef.current) {
+            loginResolverRef.current(authUser);
+            loginResolverRef.current = null;
+          }
         } else {
           setUser(null);
+          if (loginResolverRef.current) {
+            loginResolverRef.current(null);
+            loginResolverRef.current = null;
+          }
         }
         setLoading(false);
       }
     );
 
-    return () => subscription.unsubscribe();
-  }, []);
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, [buildAuthUser]);
 
   const login = async (phone: string, password: string): Promise<string | null> => {
     const email = phoneToEmail(phone);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return error.message;
+
+    // Wait for onAuthStateChange to finish building the user (max 8s)
+    try {
+      await Promise.race([
+        new Promise<AuthUser | null>((resolve) => {
+          loginResolverRef.current = resolve;
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Login timeout')), 8000)
+        ),
+      ]);
+    } catch {
+      console.warn('[Auth] Timeout aguardando construção do perfil pós-login');
+    }
+
     return null;
   };
 

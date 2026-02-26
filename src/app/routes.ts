@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router';
+import { createBrowserRouter, redirect } from 'react-router';
 import { Layout } from './components/Layout';
 import { LoginPage } from './components/LoginPage';
 import { Dashboard } from './components/Dashboard';
@@ -13,6 +13,10 @@ export const router = createBrowserRouter([
     Component: LoginPage,
   },
   {
+    path: '/login',
+    Component: LoginPage,
+  },
+  {
     path: '/',
     Component: Layout,
     children: [
@@ -22,5 +26,9 @@ export const router = createBrowserRouter([
       { path: 'assignments', Component: AssignmentsPage },
       { path: 'settings', Component: SettingsPage },
     ],
+  },
+  {
+    path: '*',
+    loader: () => redirect('/'),
   },
 ]);

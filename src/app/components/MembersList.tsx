@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { type Member, type FieldServiceGroup } from '../types';
 import { getStatusLabel, getStatusColor, getRoleLabel } from '../helpers';
-import { api } from '../lib/api';
+import { api, type CreateMemberInput } from '../lib/api';
 import { supabase } from '../lib/supabase';
+import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
 import {
   Search,
   Plus,
@@ -35,21 +37,98 @@ export function MembersList() {
   const [allMembers, setAllMembers] = useState<Member[]>([]);
   const [fieldServiceGroups, setFieldServiceGroups] = useState<FieldServiceGroup[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savingMember, setSavingMember] = useState(false);
+
+  const formatPhoneMask = (digits: string): string => {
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
+  };
+
+  const [newMemberForm, setNewMemberForm] = useState<CreateMemberInput>({
+    full_name: '',
+    phone: '',
+    email: '',
+    emergency_contact_name: '',
+    emergency_contact_phone: '',
+    spiritual_status: 'estudante',
+    gender: 'M',
+    group_id: '',
+    is_family_head: false,
+    family_head_id: '',
+    approved_audio_video: false,
+    approved_indicadores: false,
+    approved_carrinho: false,
+    approved_pioneiro_auxiliar: false,
+    approved_pioneiro_regular: false,
+  });
+
+  const fetchMembers = async () => {
+    try {
+      setLoading(true);
+      const members = await api.getMembers();
+      setAllMembers(members as unknown as Member[]);
+      const { data: groups } = await supabase.from('field_service_groups').select('*');
+      if (groups) setFieldServiceGroups(groups);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    (async () => {
-      try {
-        const members = await api.getMembers();
-        setAllMembers(members as unknown as Member[]);
-        const { data: groups } = await supabase.from('field_service_groups').select('*');
-        if (groups) setFieldServiceGroups(groups);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    })();
+    fetchMembers();
   }, []);
+
+  const resetNewMemberForm = () => {
+    setNewMemberForm({
+      full_name: '',
+      phone: '',
+      email: '',
+      emergency_contact_name: '',
+      emergency_contact_phone: '',
+      spiritual_status: 'estudante',
+      gender: 'M',
+      group_id: '',
+      is_family_head: false,
+      family_head_id: '',
+      approved_audio_video: false,
+      approved_indicadores: false,
+      approved_carrinho: false,
+      approved_pioneiro_auxiliar: false,
+      approved_pioneiro_regular: false,
+    });
+  };
+
+  const handleSaveMember = async () => {
+    if (!newMemberForm.full_name.trim()) {
+      toast.error('O nome completo é obrigatório.');
+      return;
+    }
+    const digits = (newMemberForm.phone || '').replace(/\D/g, '');
+    if (!digits || digits.length < 10) {
+      toast.error('Telefone com DDD é obrigatório (mínimo 10 dígitos).');
+      return;
+    }
+
+    setSavingMember(true);
+    try {
+      await api.createMember({
+        ...newMemberForm,
+        group_id: newMemberForm.group_id || undefined,
+        family_head_id: newMemberForm.family_head_id || undefined,
+      });
+      toast.success(`Membro "${newMemberForm.full_name}" criado com sucesso! Senha padrão: 001914`);
+      setShowAddModal(false);
+      resetNewMemberForm();
+      await fetchMembers();
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao criar membro.');
+    } finally {
+      setSavingMember(false);
+    }
+  };
 
   const filtered = allMembers.filter(m => {
     const matchesSearch =
@@ -62,11 +141,11 @@ export function MembersList() {
 
   const statuses = [
     'all',
+    'estudante',
     'publicador',
     'publicador_batizado',
-    'pioneiro_auxiliar',
-    'pioneiro_regular',
-    'estudante',
+    'servo_ministerial',
+    'anciao',
   ];
 
   const getGroupName = (groupId?: string) => {
@@ -106,10 +185,10 @@ export function MembersList() {
       >
         <div
           className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${member.isFamilyHead
-              ? 'bg-amber-50 text-amber-700 border-amber-200'
-              : member.gender === 'M'
-                ? 'bg-accent text-accent-foreground border-primary/5'
-                : 'bg-pink-50 text-pink-600 border-pink-100'
+            ? 'bg-amber-50 text-amber-700 border-amber-200'
+            : member.gender === 'M'
+              ? 'bg-accent text-accent-foreground border-primary/5'
+              : 'bg-pink-50 text-pink-600 border-pink-100'
             }`}
         >
           <span className="font-bold" style={{ fontSize: '0.8rem' }}>
@@ -139,7 +218,7 @@ export function MembersList() {
             >
               {getStatusLabel(member.spiritual_status)}
             </span>
-            {member.roles.length > 0 && (
+            {(member.roles?.length ?? 0) > 0 && (
               <span
                 className="flex items-center gap-0.5 text-muted-foreground"
                 style={{ fontSize: '0.7rem' }}
@@ -281,14 +360,14 @@ export function MembersList() {
   }) => (
     <div
       className={`px-4 py-3 flex items-center gap-3 border-b border-border/60 ${color === 'amber'
-          ? 'bg-amber-50/70'
-          : 'bg-primary/5'
+        ? 'bg-amber-50/70'
+        : 'bg-primary/5'
         }`}
     >
       <div
         className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${color === 'amber'
-            ? 'bg-amber-100 text-amber-600'
-            : 'bg-primary/10 text-primary'
+          ? 'bg-amber-100 text-amber-600'
+          : 'bg-primary/10 text-primary'
           }`}
       >
         {color === 'amber' ? <Home size={15} /> : <Users size={15} />}
@@ -305,8 +384,8 @@ export function MembersList() {
       </div>
       <span
         className={`px-2 py-0.5 rounded-full font-medium shrink-0 ${color === 'amber'
-            ? 'bg-amber-100 text-amber-700'
-            : 'bg-primary/10 text-primary'
+          ? 'bg-amber-100 text-amber-700'
+          : 'bg-primary/10 text-primary'
           }`}
         style={{ fontSize: '0.72rem' }}
       >
@@ -352,8 +431,8 @@ export function MembersList() {
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-colors ${showFilters || statusFilter !== 'all' || groupFilter !== 'all'
-                ? 'bg-primary/10 border-primary/20 text-primary'
-                : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50'
+              ? 'bg-primary/10 border-primary/20 text-primary'
+              : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50'
               }`}
           >
             <Filter size={16} />
@@ -377,8 +456,8 @@ export function MembersList() {
                   key={s}
                   onClick={() => setStatusFilter(s)}
                   className={`px-3 py-1.5 rounded-full transition-all ${statusFilter === s
-                      ? 'bg-primary text-primary-foreground font-medium shadow-sm'
-                      : 'bg-muted/50 text-muted-foreground hover:bg-muted/80'
+                    ? 'bg-primary text-primary-foreground font-medium shadow-sm'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted/80'
                     }`}
                   style={{ fontSize: '0.8rem' }}
                 >
@@ -397,8 +476,8 @@ export function MembersList() {
               <button
                 onClick={() => setGroupFilter('all')}
                 className={`px-3 py-1.5 rounded-full transition-all ${groupFilter === 'all'
-                    ? 'bg-primary text-primary-foreground font-medium shadow-sm'
-                    : 'bg-muted/50 text-muted-foreground hover:bg-muted/80'
+                  ? 'bg-primary text-primary-foreground font-medium shadow-sm'
+                  : 'bg-muted/50 text-muted-foreground hover:bg-muted/80'
                   }`}
                 style={{ fontSize: '0.8rem' }}
               >
@@ -409,8 +488,8 @@ export function MembersList() {
                   key={g.id}
                   onClick={() => setGroupFilter(g.id)}
                   className={`px-3 py-1.5 rounded-full transition-all ${groupFilter === g.id
-                      ? 'bg-primary text-primary-foreground font-medium shadow-sm'
-                      : 'bg-muted/50 text-muted-foreground hover:bg-muted/80'
+                    ? 'bg-primary text-primary-foreground font-medium shadow-sm'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted/80'
                     }`}
                   style={{ fontSize: '0.8rem' }}
                 >
@@ -441,8 +520,8 @@ export function MembersList() {
         <button
           onClick={() => setViewMode('list')}
           className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${viewMode === 'list'
-              ? 'bg-primary text-primary-foreground shadow-sm'
-              : 'text-muted-foreground hover:bg-muted/50'
+            ? 'bg-primary text-primary-foreground shadow-sm'
+            : 'text-muted-foreground hover:bg-muted/50'
             }`}
           style={{ fontSize: '0.82rem' }}
         >
@@ -452,8 +531,8 @@ export function MembersList() {
         <button
           onClick={() => setViewMode('service_group')}
           className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${viewMode === 'service_group'
-              ? 'bg-primary text-primary-foreground shadow-sm'
-              : 'text-muted-foreground hover:bg-muted/50'
+            ? 'bg-primary text-primary-foreground shadow-sm'
+            : 'text-muted-foreground hover:bg-muted/50'
             }`}
           style={{ fontSize: '0.82rem' }}
         >
@@ -463,8 +542,8 @@ export function MembersList() {
         <button
           onClick={() => setViewMode('family')}
           className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${viewMode === 'family'
-              ? 'bg-amber-500 text-white shadow-sm'
-              : 'text-muted-foreground hover:bg-muted/50'
+            ? 'bg-amber-500 text-white shadow-sm'
+            : 'text-muted-foreground hover:bg-muted/50'
             }`}
           style={{ fontSize: '0.82rem' }}
         >
@@ -594,214 +673,212 @@ export function MembersList() {
             <div className="p-5 border-b border-border flex items-center justify-between sticky top-0 bg-white z-10">
               <h3 className="text-[#082c45] font-bold">Novo Membro</h3>
               <button
-                onClick={() => setShowAddModal(false)}
+                onClick={() => { setShowAddModal(false); resetNewMemberForm(); }}
                 className="text-muted-foreground hover:text-foreground p-1 transition-colors"
+                disabled={savingMember}
               >
                 <X size={20} />
               </button>
             </div>
             <div className="p-5 space-y-4">
-              {[
-                { label: 'Nome Completo', type: 'text', placeholder: 'Ex: João da Silva' },
-                { label: 'E-mail', type: 'email', placeholder: 'joao@email.com' },
-                { label: 'Telefone', type: 'tel', placeholder: '(11) 99999-0000' },
-                { label: 'Contato de Emergência', type: 'text', placeholder: 'Nome do contato' },
-                { label: 'Telefone Emergência', type: 'tel', placeholder: '(11) 88888-0000' },
-              ].map(field => (
-                <div key={field.label}>
-                  <label
-                    className="block text-gray-600 mb-1 font-medium"
-                    style={{ fontSize: '0.85rem' }}
-                  >
-                    {field.label}
-                  </label>
-                  <input
-                    type={field.type}
-                    placeholder={field.placeholder}
-                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
-                    style={{ fontSize: '0.9rem' }}
-                  />
-                </div>
-              ))}
-
+              {/* Nome Completo */}
               <div>
-                <label
-                  className="block text-gray-600 mb-1 font-medium"
-                  style={{ fontSize: '0.85rem' }}
-                >
-                  Situação Espiritual
-                </label>
+                <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Nome Completo *</label>
+                <input
+                  type="text"
+                  value={newMemberForm.full_name}
+                  onChange={e => setNewMemberForm(f => ({ ...f, full_name: e.target.value }))}
+                  placeholder="Ex: João da Silva"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
+                  style={{ fontSize: '0.9rem' }}
+                />
+              </div>
+              {/* Telefone */}
+              <div>
+                <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Telefone (WhatsApp) *</label>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  value={formatPhoneMask(newMemberForm.phone || '')}
+                  onChange={e => setNewMemberForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0, 11) }))}
+                  placeholder="(11) 99999-0000"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
+                  style={{ fontSize: '0.9rem' }}
+                />
+                <p className="text-gray-400 mt-1" style={{ fontSize: '0.72rem' }}>Será usado como login. Senha padrão: 001914</p>
+              </div>
+              {/* E-mail */}
+              <div>
+                <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>E-mail</label>
+                <input
+                  type="email"
+                  value={newMemberForm.email}
+                  onChange={e => setNewMemberForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="joao@email.com"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
+                  style={{ fontSize: '0.9rem' }}
+                />
+              </div>
+              {/* Contato de Emergência */}
+              <div>
+                <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Contato de Emergência</label>
+                <input
+                  type="text"
+                  value={newMemberForm.emergency_contact_name}
+                  onChange={e => setNewMemberForm(f => ({ ...f, emergency_contact_name: e.target.value }))}
+                  placeholder="Nome do contato"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
+                  style={{ fontSize: '0.9rem' }}
+                />
+              </div>
+              <div>
+                <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Telefone Emergência</label>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  value={formatPhoneMask(newMemberForm.emergency_contact_phone || '')}
+                  onChange={e => setNewMemberForm(f => ({ ...f, emergency_contact_phone: e.target.value.replace(/\D/g, '').slice(0, 11) }))}
+                  placeholder="(11) 88888-0000"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
+                  style={{ fontSize: '0.9rem' }}
+                />
+              </div>
+
+              {/* Situação Espiritual */}
+              <div>
+                <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Situação Espiritual</label>
                 <select
+                  value={newMemberForm.spiritual_status}
+                  onChange={e => setNewMemberForm(f => ({ ...f, spiritual_status: e.target.value as any }))}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
                   style={{ fontSize: '0.9rem' }}
                 >
-                  <option value="">Selecione...</option>
                   <option value="estudante">Estudante</option>
-                  <option value="publicador">Publicador</option>
+                  <option value="publicador">Publicador Não Batizado</option>
                   <option value="publicador_batizado">Publicador Batizado</option>
-                  <option value="pioneiro_auxiliar">Pioneiro Auxiliar</option>
-                  <option value="pioneiro_regular">Pioneiro Regular</option>
+                  <option value="servo_ministerial">Servo Ministerial</option>
+                  <option value="anciao">Ancião</option>
                 </select>
               </div>
 
+              {/* Grupo */}
               <div>
-                <label
-                  className="block text-gray-600 mb-1 font-medium"
-                  style={{ fontSize: '0.85rem' }}
-                >
-                  Grupo de Saída de Campo
-                </label>
+                <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Grupo de Saída de Campo</label>
                 <select
+                  value={newMemberForm.group_id}
+                  onChange={e => setNewMemberForm(f => ({ ...f, group_id: e.target.value }))}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
                   style={{ fontSize: '0.9rem' }}
                 >
                   <option value="">Selecione um grupo...</option>
                   {fieldServiceGroups.map(g => (
-                    <option key={g.id} value={g.id}>
-                      {g.name} — Dir. {g.overseer}
-                    </option>
+                    <option key={g.id} value={g.id}>{g.name}</option>
                   ))}
                 </select>
               </div>
 
+              {/* Gênero */}
               <div>
-                <label
-                  className="block text-gray-600 mb-1 font-medium"
-                  style={{ fontSize: '0.85rem' }}
-                >
-                  Gênero
-                </label>
+                <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Gênero *</label>
                 <div className="flex gap-4">
                   <label className="flex items-center gap-2 cursor-pointer group">
-                    <input
-                      type="radio"
-                      name="gender"
-                      value="M"
-                      className="accent-[#35bdf8] w-4 h-4"
-                    />
-                    <span
-                      className="text-gray-700 group-hover:text-[#082c45] transition-colors"
-                      style={{ fontSize: '0.9rem' }}
-                    >
-                      Masculino
-                    </span>
+                    <input type="radio" name="newGender" value="M" checked={newMemberForm.gender === 'M'} onChange={() => setNewMemberForm(f => ({ ...f, gender: 'M' }))} className="accent-[#35bdf8] w-4 h-4" />
+                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.9rem' }}>Masculino</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer group">
-                    <input
-                      type="radio"
-                      name="gender"
-                      value="F"
-                      className="accent-[#35bdf8] w-4 h-4"
-                    />
-                    <span
-                      className="text-gray-700 group-hover:text-[#082c45] transition-colors"
-                      style={{ fontSize: '0.9rem' }}
-                    >
-                      Feminino
-                    </span>
+                    <input type="radio" name="newGender" value="F" checked={newMemberForm.gender === 'F'} onChange={() => setNewMemberForm(f => ({ ...f, gender: 'F' }))} className="accent-[#35bdf8] w-4 h-4" />
+                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.9rem' }}>Feminino</span>
                   </label>
                 </div>
               </div>
 
-              {/* Family head option — shown only for Masculino */}
+              {/* Família */}
               <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 space-y-3">
                 <div className="flex items-center gap-2">
                   <Crown size={14} className="text-amber-500 shrink-0" />
-                  <span className="text-amber-800 font-medium" style={{ fontSize: '0.85rem' }}>
-                    Família
-                  </span>
+                  <span className="text-amber-800 font-medium" style={{ fontSize: '0.85rem' }}>Família</span>
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="accent-[#35bdf8] w-4 h-4 rounded"
-                  />
-                  <span className="text-gray-700" style={{ fontSize: '0.85rem' }}>
-                    Marcar como chefe de família (apenas masculino)
-                  </span>
+                  <input type="checkbox" checked={newMemberForm.is_family_head || false} onChange={e => setNewMemberForm(f => ({ ...f, is_family_head: e.target.checked, family_head_id: e.target.checked ? '' : f.family_head_id }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
+                  <span className="text-gray-700" style={{ fontSize: '0.85rem' }}>Marcar como chefe de família</span>
                 </label>
-                <div>
-                  <label
-                    className="block text-gray-600 mb-1"
-                    style={{ fontSize: '0.82rem' }}
-                  >
-                    Ou vincular a uma família existente:
-                  </label>
-                  <select
-                    className="w-full px-3 py-2 bg-white border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-300 text-foreground"
-                    style={{ fontSize: '0.9rem' }}
-                  >
-                    <option value="">Nenhuma família</option>
-                    {allMembers
-                      .filter(m => m.isFamilyHead)
-                      .map(head => (
-                        <option key={head.id} value={head.id}>
-                          Família {head.full_name}
-                        </option>
+                {!newMemberForm.is_family_head && (
+                  <div>
+                    <label className="block text-gray-600 mb-1" style={{ fontSize: '0.82rem' }}>Vincular a uma família existente:</label>
+                    <select
+                      value={newMemberForm.family_head_id}
+                      onChange={e => setNewMemberForm(f => ({ ...f, family_head_id: e.target.value }))}
+                      className="w-full px-3 py-2 bg-white border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-300 text-foreground"
+                      style={{ fontSize: '0.9rem' }}
+                    >
+                      <option value="">Nenhuma família</option>
+                      {allMembers.filter(m => m.isFamilyHead).map(head => (
+                        <option key={head.id} value={head.id}>Família {head.full_name}</option>
                       ))}
-                  </select>
-                </div>
+                    </select>
+                  </div>
+                )}
               </div>
 
-              {/* Approval section for assignments */}
+              {/* Privilégios */}
               <div className="bg-sky-50 border border-sky-100 rounded-xl p-3 space-y-3">
                 <div className="flex items-center gap-2">
                   <UserCheck size={14} className="text-sky-600 shrink-0" />
-                  <span className="text-sky-800 font-medium" style={{ fontSize: '0.85rem' }}>
-                    Aprovações de Designação
-                  </span>
+                  <span className="text-sky-800 font-medium" style={{ fontSize: '0.85rem' }}>Privilégios</span>
                 </div>
-                <p className="text-gray-500" style={{ fontSize: '0.75rem' }}>
-                  Marque para quais designações este membro está aprovado. Apenas membros aprovados poderão visualizar as respectivas abas.
-                </p>
+                <p className="text-gray-500" style={{ fontSize: '0.75rem' }}>Marque os privilégios atribuídos a este membro.</p>
                 <div className="space-y-2">
                   <label className="flex items-center gap-2.5 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      className="accent-[#35bdf8] w-4 h-4 rounded"
-                    />
-                    <Monitor size={14} className="text-sky-500 shrink-0" />
-                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>
-                      Áudio e Vídeo
-                    </span>
+                    <input type="checkbox" checked={newMemberForm.approved_pioneiro_auxiliar || false} onChange={e => setNewMemberForm(f => ({ ...f, approved_pioneiro_auxiliar: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
+                    <Shield size={14} className="text-emerald-500 shrink-0" />
+                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>Pioneiro Auxiliar</span>
                   </label>
                   <label className="flex items-center gap-2.5 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      className="accent-[#35bdf8] w-4 h-4 rounded"
-                    />
-                    <Users size={14} className="text-indigo-500 shrink-0" />
-                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>
-                      Indicadores
-                    </span>
+                    <input type="checkbox" checked={newMemberForm.approved_pioneiro_regular || false} onChange={e => setNewMemberForm(f => ({ ...f, approved_pioneiro_regular: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
+                    <Shield size={14} className="text-teal-500 shrink-0" />
+                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>Pioneiro Regular</span>
                   </label>
                   <label className="flex items-center gap-2.5 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      className="accent-[#35bdf8] w-4 h-4 rounded"
-                    />
+                    <input type="checkbox" checked={newMemberForm.approved_carrinho || false} onChange={e => setNewMemberForm(f => ({ ...f, approved_carrinho: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
                     <ShoppingCart size={14} className="text-amber-500 shrink-0" />
-                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>
-                      Carrinho
-                    </span>
+                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>Carrinho</span>
+                  </label>
+                  <label className="flex items-center gap-2.5 cursor-pointer group">
+                    <input type="checkbox" checked={newMemberForm.approved_audio_video || false} onChange={e => setNewMemberForm(f => ({ ...f, approved_audio_video: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
+                    <Monitor size={14} className="text-sky-500 shrink-0" />
+                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>Áudio e Vídeo</span>
+                  </label>
+                  <label className="flex items-center gap-2.5 cursor-pointer group">
+                    <input type="checkbox" checked={newMemberForm.approved_indicadores || false} onChange={e => setNewMemberForm(f => ({ ...f, approved_indicadores: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
+                    <Users size={14} className="text-indigo-500 shrink-0" />
+                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>Indicadores</span>
                   </label>
                 </div>
               </div>
             </div>
             <div className="p-5 border-t border-border flex gap-3 justify-end sticky bottom-0 bg-white">
               <button
-                onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium"
+                onClick={() => { setShowAddModal(false); resetNewMemberForm(); }}
+                disabled={savingMember}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium disabled:opacity-50"
                 style={{ fontSize: '0.9rem' }}
               >
                 Cancelar
               </button>
               <button
-                onClick={() => setShowAddModal(false)}
-                className="px-6 py-2 bg-[#35bdf8] text-[#082c45] font-bold rounded-lg hover:opacity-90 transition-colors shadow-md shadow-[#35bdf8]/10"
+                onClick={handleSaveMember}
+                disabled={savingMember}
+                className="px-6 py-2 bg-[#35bdf8] text-[#082c45] font-bold rounded-lg hover:opacity-90 transition-colors shadow-md shadow-[#35bdf8]/10 disabled:opacity-50 flex items-center gap-2"
                 style={{ fontSize: '0.9rem' }}
               >
-                Salvar
+                {savingMember ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Criando...
+                  </>
+                ) : (
+                  'Salvar'
+                )}
               </button>
             </div>
           </div>
