@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { midweekMeetings, weekendMeetings, members } from '../data/mockData';
+import React, { useState, useEffect } from 'react';
+import { api } from '../lib/api';
 import { Save, Plus, X, ChevronDown, BookOpen, Monitor, MapPin, ShoppingCart, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
@@ -17,15 +17,12 @@ const TABS: { key: AssignmentTab; label: string; shortLabel: string; icon: React
 ];
 
 export function AssignmentsPage() {
-  const { user, member } = useAuth();
+  const { user } = useAuth();
   const isAdminRole = user?.role === 'coordenador' || user?.role === 'secretario' || user?.role === 'designador';
 
-  // Determine which tabs are visible:
-  // - Reuniões & Saída de Campo: visible to everyone
-  // - Áudio e Vídeo: only if approved OR admin
-  // - Carrinho: only if approved OR admin
-  const canSeeAudioVideo = isAdminRole || !!member?.approvedAudioVideo || !!member?.approvedIndicadores;
-  const canSeeCart = isAdminRole || !!member?.approvedCarrinho;
+  // For MVP, show all tabs for admin users
+  const canSeeAudioVideo = isAdminRole;
+  const canSeeCart = isAdminRole;
 
   const visibleTabs = TABS.filter(tab => {
     if (tab.key === 'audioVideo') return canSeeAudioVideo;
@@ -39,9 +36,32 @@ export function AssignmentsPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editField, setEditField] = useState<{ label: string; currentValue: string } | null>(null);
 
-  const maleMembers = members.filter(m => m.gender === 'M');
-  const femaleMembers = members.filter(m => m.gender === 'F');
-  const allMembers = members;
+  const [midweekMeetings, setMidweekMeetings] = useState<any[]>([]);
+  const [weekendMeetings, setWeekendMeetings] = useState<any[]>([]);
+  const [allMembers, setAllMembers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [membersData, mwData, weData] = await Promise.all([
+        api.getMembers(),
+        api.getMidweekMeetings(),
+        api.getWeekendMeetings()
+      ]);
+      setAllMembers(membersData);
+      setMidweekMeetings(mwData);
+      setWeekendMeetings(weData);
+    } catch (e) {
+      console.error('Error fetching assignment data', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const openEdit = (label: string, currentValue: string) => {
     setEditField({ label, currentValue });
@@ -50,10 +70,12 @@ export function AssignmentsPage() {
 
   const saveAssignment = () => {
     setShowEditModal(false);
-    toast.success('Designação salva com sucesso!');
+    toast.success('Funcionalidade de salvação virá num próximo passo (Mutations)!');
   };
 
   const currentTab = TABS.find(t => t.key === activeTab)!;
+
+  if (loading) return <div className="p-8 text-center text-gray-500">Carregando designações do banco de dados...</div>;
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
@@ -84,11 +106,10 @@ export function AssignmentsPage() {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg transition-all ${
-                  isActive
-                    ? `${tab.color} text-white shadow-sm`
-                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-                }`}
+                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg transition-all ${isActive
+                  ? `${tab.color} text-white shadow-sm`
+                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                  }`}
                 style={{ fontSize: '0.82rem' }}
               >
                 <Icon size={16} />
@@ -107,6 +128,8 @@ export function AssignmentsPage() {
 
       {activeTab === 'meetings' && (
         <MeetingsAssignmentsContent
+          midweekMeetings={midweekMeetings}
+          weekendMeetings={weekendMeetings}
           meetingType={meetingType}
           setMeetingType={setMeetingType}
           selectedMeetingIdx={selectedMeetingIdx}
@@ -124,6 +147,8 @@ export function AssignmentsPage() {
 }
 
 function MeetingsAssignmentsContent({
+  midweekMeetings,
+  weekendMeetings,
   meetingType,
   setMeetingType,
   selectedMeetingIdx,
@@ -135,6 +160,8 @@ function MeetingsAssignmentsContent({
   onCloseModal,
   onSaveModal,
 }: {
+  midweekMeetings: any[];
+  weekendMeetings: any[];
   meetingType: 'midweek' | 'weekend';
   setMeetingType: (t: 'midweek' | 'weekend') => void;
   selectedMeetingIdx: number;
@@ -142,13 +169,32 @@ function MeetingsAssignmentsContent({
   openEdit: (label: string, currentValue: string) => void;
   showEditModal: boolean;
   editField: { label: string; currentValue: string } | null;
-  allMembers: typeof members;
+  allMembers: any[];
   onCloseModal: () => void;
   onSaveModal: () => void;
 }) {
   if (meetingType === 'midweek') {
     const meeting = midweekMeetings[selectedMeetingIdx];
-    if (!meeting) return null;
+    if (!meeting) return <div className="p-6 text-center text-gray-500 rounded-xl bg-white border border-gray-100">Não há reuniões de Meio de Semana cadastradas.</div>;
+
+    // Safety fallback properties mapping from Supabase payload
+    const mappedTreasureTitle = meeting.treasure_talk_title || 'Nenhum Tema';
+    const mappedPresident = meeting.president?.full_name || 'Desconhecido';
+    const mappedOpeningPrayer = meeting.opening_prayer?.full_name || 'Desconhecido';
+    const mappedClosingPrayer = meeting.closing_prayer?.full_name || 'Desconhecido';
+
+    // Treasures 
+    const mappedTalkSpeaker = meeting.treasure_talk_speaker?.full_name || 'Desconhecido';
+    const mappedGemsSpeaker = meeting.treasure_gems_speaker?.full_name || 'Desconhecido';
+    const mappedReadingStudent = meeting.treasure_reading_student?.full_name || 'Desconhecido';
+
+    // CBS
+    const mappedCbsConductor = meeting.cbs_conductor?.full_name || 'Desconhecido';
+    const mappedCbsReader = meeting.cbs_reader?.full_name || 'Desconhecido';
+
+    // Parts processing ensuring safely array map
+    const ministryParts = meeting.ministry_parts?.sort((a: any, b: any) => a.part_number - b.part_number) || [];
+    const lifeParts = meeting.christian_life_parts?.sort((a: any, b: any) => a.part_number - b.part_number) || [];
 
     return (
       <>
@@ -177,9 +223,9 @@ function MeetingsAssignmentsContent({
               className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg"
               style={{ fontSize: '0.9rem' }}
             >
-              {midweekMeetings.map((m, i) => (
+              {midweekMeetings.map((m: any, i: number) => (
                 <option key={m.id} value={i}>
-                  {new Date(m.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })} — {m.bible_reading}
+                  {new Date(m.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })} — {m.bible_reading || 'Sem Leitura Informada'}
                 </option>
               ))}
             </select>
@@ -189,30 +235,31 @@ function MeetingsAssignmentsContent({
         {/* Assignment cards */}
         <div className="space-y-4">
           <AssignmentSection title="Geral" color="bg-gray-700">
-            <AssignmentField label="Presidente" value={meeting.president} onClick={() => openEdit('Presidente', meeting.president)} />
-            <AssignmentField label="Oração Inicial" value={meeting.opening_prayer} onClick={() => openEdit('Oração Inicial', meeting.opening_prayer)} />
-            <AssignmentField label="Oração Final" value={meeting.closing_prayer} onClick={() => openEdit('Oração Final', meeting.closing_prayer)} />
+            <AssignmentField label="Presidente" value={mappedPresident} onClick={() => openEdit('Presidente', mappedPresident)} />
+            <AssignmentField label="Oração Inicial" value={mappedOpeningPrayer} onClick={() => openEdit('Oração Inicial', mappedOpeningPrayer)} />
+            <AssignmentField label="Oração Final" value={mappedClosingPrayer} onClick={() => openEdit('Oração Final', mappedClosingPrayer)} />
           </AssignmentSection>
 
           <AssignmentSection title="Tesouros da Palavra de Deus" color="bg-[#5b2c2c]">
-            <AssignmentField label={`1. ${meeting.treasures.talk.title}`} value={meeting.treasures.talk.speaker} onClick={() => openEdit('Discurso', meeting.treasures.talk.speaker)} />
-            <AssignmentField label="2. Joias Espirituais" value={meeting.treasures.spiritual_gems.speaker} onClick={() => openEdit('Joias Espirituais', meeting.treasures.spiritual_gems.speaker)} />
-            <AssignmentField label="3. Leitura da Bíblia" value={meeting.treasures.bible_reading.student} onClick={() => openEdit('Leitura da Bíblia', meeting.treasures.bible_reading.student)} />
+            <AssignmentField label={`1. ${mappedTreasureTitle}`} value={mappedTalkSpeaker} onClick={() => openEdit('Discurso', mappedTalkSpeaker)} />
+            <AssignmentField label="2. Joias Espirituais" value={mappedGemsSpeaker} onClick={() => openEdit('Joias Espirituais', mappedGemsSpeaker)} />
+            <AssignmentField label="3. Leitura da Bíblia" value={mappedReadingStudent} onClick={() => openEdit('Leitura da Bíblia', mappedReadingStudent)} />
           </AssignmentSection>
 
           <AssignmentSection title="Faça Seu Melhor no Ministério" color="bg-[#c4972a]">
-            {meeting.ministry.parts.map((part, idx) => (
+            {ministryParts.length === 0 && <div className="p-3 text-sm text-gray-500">Nenhuma parte cadastrada no banco.</div>}
+            {ministryParts.map((part: any, idx: number) => (
               <div key={idx} className="space-y-1">
                 <AssignmentField
-                  label={`${part.number}. ${part.title} (${part.duration} min) — Estudante`}
-                  value={part.student}
-                  onClick={() => openEdit(`Parte ${part.number} Estudante`, part.student)}
+                  label={`${part.part_number}. ${part.title} (${part.duration} min) — Estudante`}
+                  value={part.student?.full_name || 'Desconhecido'}
+                  onClick={() => openEdit(`Parte ${part.part_number} Estudante`, part.student?.full_name)}
                 />
-                {part.assistant && (
+                {part.assistant_id && (
                   <AssignmentField
-                    label={`${part.number}. ${part.title} — Ajudante`}
-                    value={part.assistant}
-                    onClick={() => openEdit(`Parte ${part.number} Ajudante`, part.assistant)}
+                    label={`${part.part_number}. ${part.title} — Ajudante`}
+                    value={part.assistant?.full_name || 'Desconhecido'}
+                    onClick={() => openEdit(`Parte ${part.part_number} Ajudante`, part.assistant?.full_name)}
                     indent
                   />
                 )}
@@ -221,23 +268,24 @@ function MeetingsAssignmentsContent({
           </AssignmentSection>
 
           <AssignmentSection title="Nossa Vida Cristã" color="bg-[#5b2c2c]">
-            {meeting.christian_life.parts.map((part, idx) => (
+            {lifeParts.length === 0 && <div className="p-3 text-sm text-gray-500">Nenhuma parte cadastrada no banco.</div>}
+            {lifeParts.map((part: any, idx: number) => (
               <AssignmentField
                 key={idx}
-                label={`${part.number}. ${part.title} (${part.duration} min)`}
-                value={part.speaker}
-                onClick={() => openEdit(part.title, part.speaker)}
+                label={`${part.part_number}. ${part.title} (${part.duration} min)`}
+                value={part.speaker?.full_name || 'Desconhecido'}
+                onClick={() => openEdit(part.title, part.speaker?.full_name)}
               />
             ))}
             <AssignmentField
               label="Estudo Bíblico — Dirigente"
-              value={meeting.christian_life.congregation_bible_study.conductor}
-              onClick={() => openEdit('Dirigente EBC', meeting.christian_life.congregation_bible_study.conductor)}
+              value={mappedCbsConductor}
+              onClick={() => openEdit('Dirigente EBC', mappedCbsConductor)}
             />
             <AssignmentField
               label="Estudo Bíblico — Leitor"
-              value={meeting.christian_life.congregation_bible_study.reader}
-              onClick={() => openEdit('Leitor EBC', meeting.christian_life.congregation_bible_study.reader)}
+              value={mappedCbsReader}
+              onClick={() => openEdit('Leitor EBC', mappedCbsReader)}
             />
           </AssignmentSection>
         </div>
@@ -256,8 +304,9 @@ function MeetingsAssignmentsContent({
   }
 
   // Weekend view
+  // Weekend view
   const meeting = weekendMeetings[selectedMeetingIdx];
-  if (!meeting) return null;
+  if (!meeting) return <div className="p-6 text-center text-gray-500 rounded-xl bg-white border border-gray-100">Não há reuniões de Fim de Semana cadastradas.</div>;
 
   return (
     <>
@@ -285,9 +334,9 @@ function MeetingsAssignmentsContent({
             className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg"
             style={{ fontSize: '0.9rem' }}
           >
-            {weekendMeetings.map((m, i) => (
+            {weekendMeetings.map((m: any, i: number) => (
               <option key={m.id} value={i}>
-                {new Date(m.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })} — {m.public_talk.theme}
+                {new Date(m.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })} — {m.talk_theme || 'Reunião Pública'}
               </option>
             ))}
           </select>
@@ -296,18 +345,18 @@ function MeetingsAssignmentsContent({
 
       <div className="space-y-4">
         <AssignmentSection title="Conferência Pública" color="bg-[#1a5fb4]">
-          <AssignmentField label="Presidente" value={meeting.president} onClick={() => openEdit('Presidente', meeting.president)} />
-          <AssignmentField label="Tema" value={meeting.public_talk.theme} onClick={() => openEdit('Tema', meeting.public_talk.theme)} />
-          <AssignmentField label="Orador" value={`${meeting.public_talk.speaker} (${meeting.public_talk.congregation})`} onClick={() => openEdit('Orador', meeting.public_talk.speaker)} />
+          <AssignmentField label="Presidente" value={meeting.president?.full_name || 'Desconhecido'} onClick={() => openEdit('Presidente', meeting.president?.full_name)} />
+          <AssignmentField label="Tema" value={meeting.talk_theme || 'Não definido'} onClick={() => openEdit('Tema', meeting.talk_theme)} />
+          <AssignmentField label="Orador" value={`${meeting.talk_speaker_name || 'Desconhecido'} (${meeting.talk_congregation || ''})`} onClick={() => openEdit('Orador', meeting.talk_speaker_name)} />
         </AssignmentSection>
 
         <AssignmentSection title="Estudo de A Sentinela" color="bg-[#1a5fb4]">
-          <AssignmentField label="Dirigente" value={meeting.watchtower_study.conductor} onClick={() => openEdit('Dirigente', meeting.watchtower_study.conductor)} />
-          <AssignmentField label="Leitor" value={meeting.watchtower_study.reader} onClick={() => openEdit('Leitor', meeting.watchtower_study.reader)} />
+          <AssignmentField label="Dirigente" value={meeting.watchtower_conductor?.full_name || 'Desconhecido'} onClick={() => openEdit('Dirigente', meeting.watchtower_conductor?.full_name)} />
+          <AssignmentField label="Leitor" value={meeting.watchtower_reader?.full_name || 'Desconhecido'} onClick={() => openEdit('Leitor', meeting.watchtower_reader?.full_name)} />
         </AssignmentSection>
 
         <AssignmentSection title="Encerramento" color="bg-gray-700">
-          <AssignmentField label="Oração Final" value={meeting.closing_prayer} onClick={() => openEdit('Oração Final', meeting.closing_prayer)} />
+          <AssignmentField label="Oração Final" value={meeting.closing_prayer?.full_name || 'Desconhecido'} onClick={() => openEdit('Oração Final', meeting.closing_prayer?.full_name)} />
         </AssignmentSection>
       </div>
 
@@ -371,7 +420,7 @@ function EditModal({
 }: {
   label: string;
   currentValue: string;
-  members: typeof import('../data/mockData').members;
+  members: any[];
   onClose: () => void;
   onSave: () => void;
 }) {
@@ -412,17 +461,11 @@ function EditModal({
             <button
               key={m.id}
               onClick={() => setSelected(m.full_name)}
-              className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${
-                selected === m.full_name ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'
-              }`}
+              className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${selected === m.full_name ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'
+                }`}
               style={{ fontSize: '0.9rem' }}
             >
               {m.full_name}
-              {m.roles.length > 0 && (
-                <span className="text-gray-400 ml-2" style={{ fontSize: '0.75rem' }}>
-                  ({m.roles.map(r => r === 'anciao' ? 'Ancião' : r === 'servo_ministerial' ? 'Servo' : r).join(', ')})
-                </span>
-              )}
             </button>
           ))}
         </div>

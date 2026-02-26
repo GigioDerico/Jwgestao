@@ -1,0 +1,11 @@
+node_modules
+dist
+.env
+.env-dev
+.env-homolog
+.env-prod
+create_user.js
+create_user.cjs
+seed.js
+*.local
+.DS_Store

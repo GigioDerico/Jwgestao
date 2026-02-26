@@ -1,12 +1,8 @@
-import React, { useState } from 'react';
-import {
-  members as allMembers,
-  getStatusLabel,
-  getStatusColor,
-  getRoleLabel,
-  fieldServiceGroups,
-  type Member,
-} from '../data/mockData';
+import React, { useState, useEffect } from 'react';
+import { type Member, type FieldServiceGroup } from '../types';
+import { getStatusLabel, getStatusColor, getRoleLabel } from '../helpers';
+import { api } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import {
   Search,
   Plus,
@@ -36,11 +32,29 @@ export function MembersList() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [allMembers, setAllMembers] = useState<Member[]>([]);
+  const [fieldServiceGroups, setFieldServiceGroups] = useState<FieldServiceGroup[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const members = await api.getMembers();
+        setAllMembers(members as unknown as Member[]);
+        const { data: groups } = await supabase.from('field_service_groups').select('*');
+        if (groups) setFieldServiceGroups(groups);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   const filtered = allMembers.filter(m => {
     const matchesSearch =
       m.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      m.email.toLowerCase().includes(search.toLowerCase());
+      (m.email || '').toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === 'all' || m.spiritual_status === statusFilter;
     const matchesGroup = groupFilter === 'all' || m.groupId === groupFilter;
     return matchesSearch && matchesStatus && matchesGroup;
@@ -91,13 +105,12 @@ export function MembersList() {
         className={`w-full px-4 py-3.5 flex items-center gap-3 hover:bg-muted/30 transition-colors text-left ${isNested ? 'pl-10 bg-muted/5' : ''}`}
       >
         <div
-          className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${
-            member.isFamilyHead
+          className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${member.isFamilyHead
               ? 'bg-amber-50 text-amber-700 border-amber-200'
               : member.gender === 'M'
-              ? 'bg-accent text-accent-foreground border-primary/5'
-              : 'bg-pink-50 text-pink-600 border-pink-100'
-          }`}
+                ? 'bg-accent text-accent-foreground border-primary/5'
+                : 'bg-pink-50 text-pink-600 border-pink-100'
+            }`}
         >
           <span className="font-bold" style={{ fontSize: '0.8rem' }}>
             {member.full_name
@@ -267,18 +280,16 @@ export function MembersList() {
     color?: 'blue' | 'amber';
   }) => (
     <div
-      className={`px-4 py-3 flex items-center gap-3 border-b border-border/60 ${
-        color === 'amber'
+      className={`px-4 py-3 flex items-center gap-3 border-b border-border/60 ${color === 'amber'
           ? 'bg-amber-50/70'
           : 'bg-primary/5'
-      }`}
+        }`}
     >
       <div
-        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-          color === 'amber'
+        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${color === 'amber'
             ? 'bg-amber-100 text-amber-600'
             : 'bg-primary/10 text-primary'
-        }`}
+          }`}
       >
         {color === 'amber' ? <Home size={15} /> : <Users size={15} />}
       </div>
@@ -293,11 +304,10 @@ export function MembersList() {
         )}
       </div>
       <span
-        className={`px-2 py-0.5 rounded-full font-medium shrink-0 ${
-          color === 'amber'
+        className={`px-2 py-0.5 rounded-full font-medium shrink-0 ${color === 'amber'
             ? 'bg-amber-100 text-amber-700'
             : 'bg-primary/10 text-primary'
-        }`}
+          }`}
         style={{ fontSize: '0.72rem' }}
       >
         {count} membro{count !== 1 ? 's' : ''}
@@ -341,11 +351,10 @@ export function MembersList() {
           </div>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-colors ${
-              showFilters || statusFilter !== 'all' || groupFilter !== 'all'
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-colors ${showFilters || statusFilter !== 'all' || groupFilter !== 'all'
                 ? 'bg-primary/10 border-primary/20 text-primary'
                 : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50'
-            }`}
+              }`}
           >
             <Filter size={16} />
             <span className="hidden sm:inline" style={{ fontSize: '0.85rem' }}>
@@ -367,11 +376,10 @@ export function MembersList() {
                 <button
                   key={s}
                   onClick={() => setStatusFilter(s)}
-                  className={`px-3 py-1.5 rounded-full transition-all ${
-                    statusFilter === s
+                  className={`px-3 py-1.5 rounded-full transition-all ${statusFilter === s
                       ? 'bg-primary text-primary-foreground font-medium shadow-sm'
                       : 'bg-muted/50 text-muted-foreground hover:bg-muted/80'
-                  }`}
+                    }`}
                   style={{ fontSize: '0.8rem' }}
                 >
                   {s === 'all' ? 'Todos' : getStatusLabel(s)}
@@ -388,11 +396,10 @@ export function MembersList() {
               </span>
               <button
                 onClick={() => setGroupFilter('all')}
-                className={`px-3 py-1.5 rounded-full transition-all ${
-                  groupFilter === 'all'
+                className={`px-3 py-1.5 rounded-full transition-all ${groupFilter === 'all'
                     ? 'bg-primary text-primary-foreground font-medium shadow-sm'
                     : 'bg-muted/50 text-muted-foreground hover:bg-muted/80'
-                }`}
+                  }`}
                 style={{ fontSize: '0.8rem' }}
               >
                 Todos
@@ -401,11 +408,10 @@ export function MembersList() {
                 <button
                   key={g.id}
                   onClick={() => setGroupFilter(g.id)}
-                  className={`px-3 py-1.5 rounded-full transition-all ${
-                    groupFilter === g.id
+                  className={`px-3 py-1.5 rounded-full transition-all ${groupFilter === g.id
                       ? 'bg-primary text-primary-foreground font-medium shadow-sm'
                       : 'bg-muted/50 text-muted-foreground hover:bg-muted/80'
-                  }`}
+                    }`}
                   style={{ fontSize: '0.8rem' }}
                 >
                   {g.name}
@@ -434,11 +440,10 @@ export function MembersList() {
       <div className="flex items-center gap-1 bg-card rounded-xl border border-border p-1 shadow-sm w-fit">
         <button
           onClick={() => setViewMode('list')}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${
-            viewMode === 'list'
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${viewMode === 'list'
               ? 'bg-primary text-primary-foreground shadow-sm'
               : 'text-muted-foreground hover:bg-muted/50'
-          }`}
+            }`}
           style={{ fontSize: '0.82rem' }}
         >
           <List size={14} />
@@ -446,11 +451,10 @@ export function MembersList() {
         </button>
         <button
           onClick={() => setViewMode('service_group')}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${
-            viewMode === 'service_group'
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${viewMode === 'service_group'
               ? 'bg-primary text-primary-foreground shadow-sm'
               : 'text-muted-foreground hover:bg-muted/50'
-          }`}
+            }`}
           style={{ fontSize: '0.82rem' }}
         >
           <Users size={14} />
@@ -458,11 +462,10 @@ export function MembersList() {
         </button>
         <button
           onClick={() => setViewMode('family')}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${
-            viewMode === 'family'
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all ${viewMode === 'family'
               ? 'bg-amber-500 text-white shadow-sm'
               : 'text-muted-foreground hover:bg-muted/50'
-          }`}
+            }`}
           style={{ fontSize: '0.82rem' }}
         >
           <Home size={14} />

@@ -1,24 +1,58 @@
-import { Users, Calendar, CheckCircle, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Users, Calendar, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router';
+import { api } from '../lib/api';
 
 export default function Dashboard() {
+  const [publisherCount, setPublisherCount] = useState(0);
+  const [meetings, setMeetings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const membersData = await api.getMembers();
+      setPublisherCount(membersData.length);
+
+      const midweek = await api.getMidweekMeetings();
+      const weekend = await api.getWeekendMeetings();
+      // Combine and interleave
+      setMeetings([...midweek.map(m => ({ ...m, _type: 'Vida e Ministério' })), ...weekend.map(w => ({ ...w, _type: 'Reunião Pública' }))].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
   const stats = [
-    { label: 'Total de Publicadores', value: '118', icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Reuniões este Mês', value: '8', icon: Calendar, color: 'text-green-600', bg: 'bg-green-50' },
-    { label: 'Designações Pendentes', value: '12', icon: AlertCircle, color: 'text-orange-600', bg: 'bg-orange-50' },
-    { label: 'Designações Confirmadas', value: '45', icon: CheckCircle, color: 'text-purple-600', bg: 'bg-purple-50' },
+    { label: 'Total de Publicadores', value: loading ? '...' : publisherCount.toString(), icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: 'Reuniões este Mês', value: loading ? '...' : meetings.length.toString(), icon: Calendar, color: 'text-green-600', bg: 'bg-green-50' },
+    { label: 'Designações Pendentes', value: '-', icon: AlertCircle, color: 'text-orange-600', bg: 'bg-orange-50' },
+    { label: 'Designações Confirmadas', value: '-', icon: CheckCircle, color: 'text-purple-600', bg: 'bg-purple-50' },
   ];
 
-  const upcomingAssignments = [
-    { date: '12 Fev', part: 'Leitura da Bíblia', role: 'Estudante', status: 'Confirmado' },
-    { date: '19 Fev', part: 'Indicador', role: 'Ajudante', status: 'Pendente' },
-  ];
+  const upcomingAssignments: any[] = [];
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Painel de Controle</h1>
-        <p className="text-muted-foreground mt-1">Bem-vindo, Vicente Nunes.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Painel de Controle</h1>
+          <p className="text-muted-foreground mt-1">Bem-vindo, utilizador remoto.</p>
+        </div>
+        <button
+          onClick={fetchData}
+          className="p-2.5 bg-card hover:bg-muted border border-border text-foreground rounded-lg transition-colors shadow-sm"
+          title="Recarregar Dados"
+          disabled={loading}
+        >
+          <RefreshCw size={18} className={loading ? 'animate-spin opacity-50' : ''} />
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -44,26 +78,30 @@ export default function Dashboard() {
               <Link to="/meetings" className="text-sm font-medium text-primary hover:underline">Ver todas</Link>
             </div>
             <div className="divide-y divide-border">
-              {[
-                { date: '12 de Fevereiro', theme: 'Isaías 33-35', type: 'Vida e Ministério', president: 'Conrado Silva' },
-                { date: '15 de Fevereiro', theme: 'Fiquem parados e vejam...', type: 'Reunião Pública', president: 'Ronaldo Xavier' },
-                { date: '19 de Fevereiro', theme: 'Isaías 36-37', type: 'Vida e Ministério', president: 'Edvan Poscai' },
-              ].map((meeting, idx) => (
-                <div key={idx} className="p-4 hover:bg-muted/50 transition-colors flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-foreground">{meeting.date}</p>
-                    <p className="text-sm text-muted-foreground">{meeting.theme}</p>
+              {loading ? (
+                <div className="p-6 text-center text-muted-foreground text-sm">Carregando compromissos da nuvem...</div>
+              ) : meetings.length === 0 ? (
+                <div className="p-6 text-center text-muted-foreground text-sm">Nenhuma reunião detectada no banco.</div>
+              ) : (
+                meetings.slice(0, 5).map((meeting, idx) => (
+                  <div key={idx} className="p-4 hover:bg-muted/50 transition-colors flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-foreground">
+                        {new Date(meeting.date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
+                      </p>
+                      <p className="text-sm text-muted-foreground">{meeting.bible_reading || meeting.talk_theme || 'Sem tema cadastrado'}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${meeting._type === 'Vida e Ministério' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'
+                        }`}>
+                        {meeting._type}
+                      </span>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Pres: {meeting.president?.full_name || 'Não definido'}
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      meeting.type === 'Vida e Ministério' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'
-                    }`}>
-                      {meeting.type}
-                    </span>
-                    <p className="text-xs text-muted-foreground mt-1">Pres: {meeting.president}</p>
-                  </div>
-                </div>
-              ))}
+                )))}
             </div>
           </div>
         </div>

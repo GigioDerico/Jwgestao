@@ -1,41 +1,62 @@
 import React, { useState } from 'react';
 import { useNavigate, Navigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { BookOpen, Eye, EyeOff } from 'lucide-react';
+import { BookOpen, Eye, EyeOff, Phone, Loader2 } from 'lucide-react';
+
+function formatPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
+}
 
 export function LoginPage() {
-  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const [showDemo, setShowDemo] = useState(false);
-  const { login, user } = useAuth();
+  const [submitting, setSubmitting] = useState(false);
+  const { login, user, loading } = useAuth();
   const navigate = useNavigate();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="animate-spin text-[#35bdf8]" size={32} />
+      </div>
+    );
+  }
 
   if (user) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    if (login(email, password)) {
-      navigate('/dashboard');
-    } else {
-      setError('Credenciais inválidas. Use uma das contas de demonstração.');
-      setShowDemo(true);
-    }
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/\D/g, '').slice(0, 11);
+    setPhone(raw);
   };
 
-  const demoAccounts = [
-    { email: 'admin@congregacao.com', role: 'Coordenador (Admin)', desc: 'Acesso completo' },
-    { email: 'secretario@congregacao.com', role: 'Secretário', desc: 'Membros + Reuniões' },
-    { email: 'designador@congregacao.com', role: 'Designador', desc: 'Reuniões + Designações' },
-    { email: 'publicador@congregacao.com', role: 'Publicador', desc: 'Apenas visualização' },
-  ];
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
 
-  const quickLogin = (demoEmail: string) => {
-    if (login(demoEmail, 'demo')) {
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length < 10) {
+      setError('Digite um número de telefone válido com DDD.');
+      return;
+    }
+
+    setSubmitting(true);
+    const errorMsg = await login(digits, password);
+    setSubmitting(false);
+
+    if (errorMsg) {
+      if (errorMsg.includes('Invalid login credentials')) {
+        setError('Telefone ou senha incorretos. Solicite seu acesso ao coordenador.');
+      } else {
+        setError(errorMsg);
+      }
+    } else {
       navigate('/dashboard');
     }
   };
@@ -58,15 +79,20 @@ export function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-gray-600 mb-1.5" style={{ fontSize: '0.85rem' }}>E-mail</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="seu@email.com"
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#35bdf8] focus:border-transparent transition"
-                required
-              />
+              <label className="block text-gray-600 mb-1.5" style={{ fontSize: '0.85rem' }}>Telefone (WhatsApp)</label>
+              <div className="relative">
+                <Phone size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  value={formatPhone(phone)}
+                  onChange={handlePhoneChange}
+                  placeholder="(11) 99999-9999"
+                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#35bdf8] focus:border-transparent transition"
+                  required
+                  autoComplete="tel"
+                />
+              </div>
             </div>
 
             <div>
@@ -79,6 +105,7 @@ export function LoginPage() {
                   placeholder="••••••••"
                   className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#35bdf8] focus:border-transparent transition pr-10"
                   required
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
@@ -96,42 +123,19 @@ export function LoginPage() {
 
             <button
               type="submit"
-              className="w-full py-2.5 bg-[#35bdf8] text-[#082c45] font-bold rounded-xl hover:bg-[#29abe2] transition-colors shadow-md shadow-[#35bdf8]/20"
+              disabled={submitting}
+              className="w-full py-2.5 bg-[#35bdf8] text-[#082c45] font-bold rounded-xl hover:bg-[#29abe2] transition-colors shadow-md shadow-[#35bdf8]/20 disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              Entrar
+              {submitting ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  Entrando...
+                </>
+              ) : (
+                'Entrar'
+              )}
             </button>
           </form>
-
-          {/* Demo accounts */}
-          <div className="mt-6 pt-5 border-t border-gray-100">
-            <button
-              onClick={() => setShowDemo(!showDemo)}
-              className="w-full text-center text-[#35bdf8] hover:text-[#29abe2] font-medium mb-3"
-              style={{ fontSize: '0.85rem' }}
-            >
-              {showDemo ? 'Ocultar contas demo' : 'Ver contas de demonstração'}
-            </button>
-
-            {showDemo && (
-              <div className="space-y-2">
-                {demoAccounts.map(acc => (
-                  <button
-                    key={acc.email}
-                    onClick={() => quickLogin(acc.email)}
-                    className="w-full text-left px-3 py-2.5 bg-gray-50 hover:bg-blue-50 rounded-xl transition-colors group"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-gray-800 group-hover:text-[#082c45]" style={{ fontSize: '0.85rem' }}>{acc.role}</p>
-                        <p className="text-gray-400" style={{ fontSize: '0.75rem' }}>{acc.desc}</p>
-                      </div>
-                      <span className="text-[#35bdf8] group-hover:translate-x-1 transition-transform" style={{ fontSize: '0.75rem' }}>→</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
 
         <p className="text-center text-gray-400 mt-6" style={{ fontSize: '0.75rem' }}>

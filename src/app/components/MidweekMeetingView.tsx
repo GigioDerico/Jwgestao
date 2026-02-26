@@ -1,5 +1,5 @@
 import React from 'react';
-import { MidweekMeeting } from '../data/mockData';
+import { MidweekMeeting } from '../types';
 import { Music, User, BookOpen } from 'lucide-react';
 
 interface Props {

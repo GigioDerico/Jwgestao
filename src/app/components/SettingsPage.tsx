@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Shield, Save, Check, Plus, Users, Trash2, Edit2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { fieldServiceGroups as initialGroups, members } from '../data/mockData';
+import { supabase } from '../lib/supabase';
 
 const roles = [
   { key: 'coordenador', label: 'Coordenador (Admin)' },
@@ -48,8 +48,15 @@ const defaultMatrix: Record<string, Record<string, boolean>> = {
 export function SettingsPage() {
   const { user } = useAuth();
   const [matrix, setMatrix] = useState(defaultMatrix);
-  const [groups, setGroups] = useState(initialGroups);
+  const [groups, setGroups] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'permissions' | 'groups'>('permissions');
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from('field_service_groups').select('*');
+      if (data) setGroups(data);
+    })();
+  }, []);
 
   const canManageGroups = user?.role === 'coordenador' || user?.role === 'secretario';
 
@@ -84,18 +91,16 @@ export function SettingsPage() {
       <div className="flex gap-2 border-b border-border mb-4">
         <button
           onClick={() => setActiveTab('permissions')}
-          className={`px-4 py-2 font-medium transition-colors border-b-2 ${
-            activeTab === 'permissions' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
+          className={`px-4 py-2 font-medium transition-colors border-b-2 ${activeTab === 'permissions' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
           style={{ fontSize: '0.9rem' }}
         >
           Permissões (RBAC)
         </button>
         <button
           onClick={() => setActiveTab('groups')}
-          className={`px-4 py-2 font-medium transition-colors border-b-2 ${
-            activeTab === 'groups' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
-          }`}
+          className={`px-4 py-2 font-medium transition-colors border-b-2 ${activeTab === 'groups' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
           style={{ fontSize: '0.9rem' }}
         >
           Grupos de Serviço
@@ -132,11 +137,10 @@ export function SettingsPage() {
                         <td key={role.key} className="text-center px-3 py-3">
                           <button
                             onClick={() => toggle(role.key, perm.key)}
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center mx-auto transition-colors ${
-                              matrix[role.key][perm.key]
-                                ? 'bg-green-100 text-green-600'
-                                : 'bg-gray-100 text-gray-300 hover:bg-gray-200'
-                            } ${role.key === 'coordenador' ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center mx-auto transition-colors ${matrix[role.key][perm.key]
+                              ? 'bg-green-100 text-green-600'
+                              : 'bg-gray-100 text-gray-300 hover:bg-gray-200'
+                              } ${role.key === 'coordenador' ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                             disabled={role.key === 'coordenador'}
                           >
                             {matrix[role.key][perm.key] && <Check size={16} />}
@@ -166,11 +170,10 @@ export function SettingsPage() {
                       className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50/50 transition-colors"
                     >
                       <span className="text-gray-700" style={{ fontSize: '0.85rem' }}>{perm.label}</span>
-                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                        matrix[role.key][perm.key]
-                          ? 'bg-green-100 text-green-600'
-                          : 'bg-gray-100 text-gray-300'
-                      }`}>
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${matrix[role.key][perm.key]
+                        ? 'bg-green-100 text-green-600'
+                        : 'bg-gray-100 text-gray-300'
+                        }`}>
                         {matrix[role.key][perm.key] && <Check size={14} />}
                       </div>
                     </button>
@@ -234,7 +237,7 @@ export function SettingsPage() {
                 </div>
                 <div className="mt-4 pt-4 border-t border-border flex justify-between items-center">
                   <span className="text-muted-foreground" style={{ fontSize: '0.75rem' }}>
-                    {members.filter(m => m.groupId === group.id).length} membros vinculados
+                    0 membros vinculados
                   </span>
                   <button className="text-primary hover:underline font-medium" style={{ fontSize: '0.75rem' }}>
                     Ver lista

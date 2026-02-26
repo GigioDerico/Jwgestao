@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { fieldServiceGroups, members as allMembers, getStatusLabel, getStatusColor, getRoleLabel } from '../data/mockData';
 import {
   X,
   User,
@@ -14,8 +13,12 @@ import {
   AlertCircle,
   Camera,
   Trash2,
+  Bell,
+  MapPin,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Geolocation } from '@capacitor/geolocation';
+import { PushNotifications } from '@capacitor/push-notifications';
 
 interface ProfileDrawerProps {
   open: boolean;
@@ -35,7 +38,7 @@ const genderLabels: Record<string, string> = {
 };
 
 export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
-  const { user, member, updateMember } = useAuth();
+  const { user } = useAuth();
 
   const [form, setForm] = useState({
     full_name: '',
@@ -50,21 +53,72 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
   const [removePhoto, setRemovePhoto] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Sync form whenever member changes or drawer opens
+  const [geoStatus, setGeoStatus] = useState<string>('unknown');
+  const [pushStatus, setPushStatus] = useState<string>('unknown');
+
+  // Check initial permission status for native features
   useEffect(() => {
-    if (member) {
+    const checkPermissions = async () => {
+      try {
+        const geoCheck = await Geolocation.checkPermissions();
+        setGeoStatus(geoCheck.location);
+      } catch (e) {
+        // Not natively supported or running in simple web context
+      }
+      try {
+        const pushCheck = await PushNotifications.checkPermissions();
+        setPushStatus(pushCheck.receive);
+      } catch (e) { }
+    };
+    if (open) {
+      checkPermissions();
+    }
+  }, [open]);
+
+  const requestGeolocation = async () => {
+    try {
+      const status = await Geolocation.requestPermissions();
+      setGeoStatus(status.location);
+      if (status.location === 'granted') {
+        toast.success('Permissão de localização concedida.');
+      } else {
+        toast.error('Permissão de localização negada.');
+      }
+    } catch (e) {
+      toast.error('Dispositivo/Navegador sem suporte nativo.');
+    }
+  };
+
+  const requestPush = async () => {
+    try {
+      const status = await PushNotifications.requestPermissions();
+      setPushStatus(status.receive);
+      if (status.receive === 'granted') {
+        await PushNotifications.register();
+        toast.success('Permissão de notificações concedida.');
+      } else {
+        toast.error('Permissão de notificações negada.');
+      }
+    } catch (e) {
+      toast.error('Dispositivo/Navegador sem suporte central Push.');
+    }
+  };
+
+  // Sync form whenever drawer opens
+  useEffect(() => {
+    if (user) {
       setForm({
-        full_name: member.full_name,
-        email: member.email,
-        phone: member.phone,
-        emergency_contact_name: member.emergency_contact_name,
-        emergency_contact_phone: member.emergency_contact_phone,
+        full_name: user.name || '',
+        email: '',
+        phone: user.phone || '',
+        emergency_contact_name: '',
+        emergency_contact_phone: '',
       });
       setPhotoPreview(null);
       setRemovePhoto(false);
       setDirty(false);
     }
-  }, [member, open]);
+  }, [user, open]);
 
   const handleChange = (field: string, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -106,8 +160,8 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
     }
     setSaving(true);
     setTimeout(() => {
-      const avatarValue = removePhoto ? undefined : (photoPreview ?? member?.avatar);
-      updateMember({ ...form, avatar: avatarValue });
+      const avatarValue = removePhoto ? undefined : (photoPreview ?? undefined);
+      toast.info('Salvamento de perfil será conectado ao Supabase em breve.');
       setSaving(false);
       setDirty(false);
       setPhotoPreview(null);
@@ -124,13 +178,9 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
     onClose();
   };
 
-  const groupName = fieldServiceGroups.find(g => g.id === member?.groupId)?.name || 'Sem grupo';
-  const familyHead = member?.familyHeadId
-    ? allMembers.find(m => m.id === member.familyHeadId)
-    : null;
-  const familyMembersCount = member?.isFamilyHead
-    ? allMembers.filter(m => m.familyHeadId === member.id).length
-    : 0;
+  const groupName = 'Sem grupo'; // TODO: load from Supabase
+  const familyHead = null;
+  const familyMembersCount = 0;
 
   const initials = (name: string) =>
     name
@@ -140,17 +190,16 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
       .slice(0, 2)
       .toUpperCase();
 
-  if (!user || !member) return null;
+  if (!user) return null;
 
-  const currentPhoto = removePhoto ? null : (photoPreview ?? member.avatar ?? null);
+  const currentPhoto: string | null = removePhoto ? null : (photoPreview ?? null);
 
   return (
     <>
       {/* Backdrop */}
       <div
-        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] transition-opacity duration-300 ${
-          open ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
+        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
         onClick={handleClose}
       />
 
@@ -165,9 +214,8 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
 
       {/* Drawer */}
       <div
-        className={`fixed top-0 right-0 z-50 h-full w-full max-w-md bg-white shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
-          open ? 'translate-x-0' : 'translate-x-full'
-        }`}
+        className={`fixed top-0 right-0 z-50 h-full w-full max-w-md bg-white shadow-2xl flex flex-col transition-transform duration-300 ease-out ${open ? 'translate-x-0' : 'translate-x-full'
+          }`}
       >
         {/* Header */}
         <div className="relative bg-gradient-to-br from-[#082c45] to-[#0a4a7a] px-6 pt-6 pb-16 shrink-0">
@@ -189,13 +237,13 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
                 {currentPhoto ? (
                   <img
                     src={currentPhoto}
-                    alt={member.full_name}
+                    alt={user.name}
                     className="w-full h-full object-cover"
                   />
                 ) : (
                   <div className="w-full h-full bg-[#35bdf8] flex items-center justify-center">
                     <span className="text-[#082c45] font-black" style={{ fontSize: '1.5rem' }}>
-                      {initials(member.full_name)}
+                      {initials(user.name)}
                     </span>
                   </div>
                 )}
@@ -228,18 +276,13 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
 
             <div className="pb-1 min-w-0">
               <h2 className="text-white truncate" style={{ fontSize: '1.1rem' }}>
-                {member.full_name}
+                {user.name}
               </h2>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className="px-2 py-0.5 bg-[#35bdf8]/20 border border-[#35bdf8]/30 text-[#35bdf8] rounded-full" style={{ fontSize: '0.72rem' }}>
                   {roleLabels[user.role]}
                 </span>
-                {member.isFamilyHead && (
-                  <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-400/20 border border-amber-400/30 text-amber-300 rounded-full" style={{ fontSize: '0.72rem' }}>
-                    <Crown size={10} />
-                    Chefe de Família
-                  </span>
-                )}
+
               </div>
               {/* Photo hint */}
               <button
@@ -274,37 +317,11 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
               </div>
               <div className="min-w-0">
                 <p className="text-gray-400 truncate" style={{ fontSize: '0.65rem' }}>GÊNERO</p>
-                <p className="text-gray-800 truncate" style={{ fontSize: '0.78rem' }}>{genderLabels[member.gender]}</p>
+                <p className="text-gray-800 truncate" style={{ fontSize: '0.78rem' }}>-</p>
               </div>
             </div>
 
-            {member.isFamilyHead && (
-              <div className="col-span-2 bg-amber-50 rounded-xl border border-amber-100 px-3 py-3 flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
-                  <Home size={14} className="text-amber-600" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-amber-500" style={{ fontSize: '0.65rem' }}>FAMÍLIA</p>
-                  <p className="text-amber-800" style={{ fontSize: '0.78rem' }}>
-                    Chefe de família · {familyMembersCount} membro(s) vinculado(s)
-                  </p>
-                </div>
-              </div>
-            )}
 
-            {familyHead && (
-              <div className="col-span-2 bg-amber-50 rounded-xl border border-amber-100 px-3 py-3 flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
-                  <Home size={14} className="text-amber-600" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-amber-500" style={{ fontSize: '0.65rem' }}>FAMÍLIA</p>
-                  <p className="text-amber-800" style={{ fontSize: '0.78rem' }}>
-                    Família de {familyHead.full_name}
-                  </p>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Situação espiritual */}
@@ -314,14 +331,11 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
               <span className="text-gray-500 font-medium" style={{ fontSize: '0.8rem' }}>SITUAÇÃO ESPIRITUAL</span>
             </div>
             <div className="flex flex-wrap gap-2">
-              <span className={`px-3 py-1.5 rounded-full font-medium ${getStatusColor(member.spiritual_status)}`} style={{ fontSize: '0.8rem' }}>
-                {getStatusLabel(member.spiritual_status)}
+              <span className="px-3 py-1.5 rounded-full font-medium bg-gray-100 text-gray-700" style={{ fontSize: '0.8rem' }}>
+                {user.role === 'coordenador' ? 'Coordenador' :
+                  user.role === 'secretario' ? 'Secretário' :
+                    user.role === 'designador' ? 'Designador' : 'Publicador'}
               </span>
-              {member.roles.map(r => (
-                <span key={r} className="px-3 py-1.5 bg-purple-50 text-purple-700 border border-purple-100 rounded-full" style={{ fontSize: '0.8rem' }}>
-                  {getRoleLabel(r)}
-                </span>
-              ))}
             </div>
           </div>
 
@@ -414,6 +428,59 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
               </div>
             </div>
 
+            {/* Permissões Mobile */}
+            <div>
+              <h3 className="text-gray-700 font-bold mb-3 flex items-center gap-1.5" style={{ fontSize: '0.85rem' }}>
+                <Shield size={14} className="text-[#35bdf8]" />
+                Integrações Mobile
+              </h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-[#35bdf8]/10 flex flex-col items-center justify-center text-[#35bdf8]">
+                      <MapPin size={16} />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-800" style={{ fontSize: '0.85rem' }}>Localização em Fundo</p>
+                      <p className="text-gray-500" style={{ fontSize: '0.75rem' }}>
+                        {geoStatus === 'granted' ? 'Acesso Concedido' : geoStatus === 'denied' ? 'Acesso Negado' : 'Não Solicitado'}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={requestGeolocation}
+                    disabled={geoStatus === 'granted'}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${geoStatus === 'granted' ? 'bg-green-100 text-green-700 cursor-not-allowed border border-green-200' : 'bg-[#082c45] text-white hover:bg-[#0a4a7a]'
+                      }`}
+                  >
+                    {geoStatus === 'granted' ? 'Ativo' : 'Permitir'}
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-[#35bdf8]/10 flex flex-col items-center justify-center text-[#35bdf8]">
+                      <Bell size={16} />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-800" style={{ fontSize: '0.85rem' }}>Notificações Push</p>
+                      <p className="text-gray-500" style={{ fontSize: '0.75rem' }}>
+                        {pushStatus === 'granted' ? 'Acesso Concedido' : pushStatus === 'denied' ? 'Acesso Negado' : 'Não Solicitadas'}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={requestPush}
+                    disabled={pushStatus === 'granted'}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${pushStatus === 'granted' ? 'bg-green-100 text-green-700 cursor-not-allowed border border-green-200' : 'bg-[#082c45] text-white hover:bg-[#0a4a7a]'
+                      }`}
+                  >
+                    {pushStatus === 'granted' ? 'Ativo' : 'Permitir'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
             {/* Unsaved indicator */}
             {dirty && (
               <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-amber-700" style={{ fontSize: '0.8rem' }}>
@@ -436,11 +503,10 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
           <button
             onClick={handleSave}
             disabled={!dirty || saving}
-            className={`flex-1 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
-              dirty && !saving
-                ? 'bg-[#35bdf8] text-[#082c45] hover:bg-[#29abe2] shadow-md shadow-[#35bdf8]/20'
-                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-            }`}
+            className={`flex-1 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${dirty && !saving
+              ? 'bg-[#35bdf8] text-[#082c45] hover:bg-[#29abe2] shadow-md shadow-[#35bdf8]/20'
+              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              }`}
             style={{ fontSize: '0.9rem' }}
           >
             {saving ? (

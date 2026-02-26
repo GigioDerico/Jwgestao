@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">JWGestao</string>
+    <string name="title_activity_main">JWGestao</string>
+    <string name="package_name">com.jwgestao.app</string>
+    <string name="custom_url_scheme">com.jwgestao.app</string>
+</resources>

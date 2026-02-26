@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { audioVideoAssignments, AudioVideoAssignment } from '../data/mechanicalData';
-import { members } from '../data/mockData';
+import { api } from '../lib/api';
 import { ChevronLeft, ChevronRight, Edit3, X, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -14,6 +14,11 @@ export function AudioVideoAssignments() {
   const [currentYear, setCurrentYear] = useState(2026);
   const [data, setData] = useState<AudioVideoAssignment[]>(audioVideoAssignments);
   const [editModal, setEditModal] = useState<{ id: string; field: string; value: string } | null>(null);
+  const [members, setMembers] = useState<{ id: string; full_name: string }[]>([]);
+
+  useEffect(() => {
+    api.getMembers().then(data => setMembers(data.map((m: any) => ({ id: m.id, full_name: m.full_name })))).catch(console.error);
+  }, []);
 
   const prevMonth = () => {
     if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear(y => y - 1); }
@@ -223,6 +228,7 @@ export function AudioVideoAssignments() {
           currentValue={editModal.value}
           onClose={() => setEditModal(null)}
           onSave={handleSave}
+          members={members}
         />
       )}
     </div>
@@ -234,16 +240,18 @@ function MemberSelectModal({
   currentValue,
   onClose,
   onSave,
+  members,
 }: {
   label: string;
   currentValue: string;
   onClose: () => void;
   onSave: (value: string) => void;
+  members: { id: string; full_name: string }[];
 }) {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(currentValue);
 
-  const filtered = members.filter(m =>
+  const filtered = members.filter((m: { full_name: string }) =>
     m.full_name.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -278,9 +286,8 @@ function MemberSelectModal({
             <button
               key={m.id}
               onClick={() => setSelected(m.full_name)}
-              className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${
-                selected === m.full_name ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'
-              }`}
+              className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${selected === m.full_name ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'
+                }`}
               style={{ fontSize: '0.9rem' }}
             >
               {m.full_name}

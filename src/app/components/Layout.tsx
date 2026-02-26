@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export function Layout() {
-  const { user, member, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -60,9 +60,8 @@ export function Layout() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-primary-foreground text-white transform transition-transform duration-200 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-        } flex flex-col`}
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-primary-foreground text-white transform transition-transform duration-200 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          } flex flex-col`}
       >
         <div className="p-5 border-b border-white/10">
           <div className="flex items-center justify-between">
@@ -83,11 +82,10 @@ export function Layout() {
               <button
                 key={item.path}
                 onClick={() => { navigate(item.path); setSidebarOpen(false); }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-                  isActive
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-white/60 hover:bg-white/8 hover:text-white/90'
-                }`}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${isActive
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-white/60 hover:bg-white/8 hover:text-white/90'
+                  }`}
               >
                 <item.icon size={18} />
                 <span style={{ fontSize: '0.9rem' }}>{item.label}</span>
@@ -104,13 +102,9 @@ export function Layout() {
             className="w-full flex items-center gap-3 mb-3 px-3 py-2.5 rounded-xl hover:bg-white/8 transition-colors group text-left"
           >
             <div className="w-9 h-9 rounded-full overflow-hidden bg-primary flex items-center justify-center shrink-0 group-hover:ring-2 group-hover:ring-[#35bdf8]/40 transition-all">
-              {member?.avatar ? (
-                <img src={member.avatar} alt={user.name} className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-primary-foreground font-bold" style={{ fontSize: '0.8rem' }}>
-                  {user.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                </span>
-              )}
+              <span className="text-primary-foreground font-bold" style={{ fontSize: '0.8rem' }}>
+                {user.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+              </span>
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-white truncate group-hover:text-[#35bdf8] transition-colors" style={{ fontSize: '0.85rem' }}>{user.name}</p>
@@ -145,18 +139,14 @@ export function Layout() {
             className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-muted/50 transition-colors group"
           >
             <div className="w-6 h-6 rounded-full overflow-hidden bg-primary flex items-center justify-center shrink-0">
-              {member?.avatar ? (
-                <img src={member.avatar} alt={user.name} className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-primary-foreground font-bold" style={{ fontSize: '0.65rem' }}>
-                  {user.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                </span>
-              )}
+              <span className="text-primary-foreground font-bold" style={{ fontSize: '0.65rem' }}>
+                {user.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+              </span>
             </div>
             <span className="text-foreground group-hover:text-primary transition-colors" style={{ fontSize: '0.82rem' }}>{user.name}</span>
           </button>
           <div className="flex items-center gap-2">
-            
+
           </div>
         </header>
 

@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
-import { members, midweekMeetings, weekendMeetings, getStatusLabel, getStatusColor } from '../data/mockData';
+import { api } from '../lib/api';
 import {
   Users,
   CalendarDays,
@@ -16,15 +16,37 @@ import {
 export function Dashboard() {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
+  const [membersCount, setMembersCount] = useState(0);
+  const [midweekCount, setMidweekCount] = useState(0);
+  const [weekendCount, setWeekendCount] = useState(0);
+  const [recentMembers, setRecentMembers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Find user's upcoming assignments
-  const myAssignments = findMyAssignments(user?.name || '');
+  useEffect(() => {
+    (async () => {
+      try {
+        const members = await api.getMembers();
+        setMembersCount(members.length);
+        setRecentMembers(members.slice(0, 5));
+        const mw = await api.getMidweekMeetings();
+        setMidweekCount(mw.length);
+        const we = await api.getWeekendMeetings();
+        setWeekendCount(we.length);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const myAssignments: Assignment[] = [];
 
   const stats = [
-    { label: 'Membros', value: members.length, icon: Users, color: 'bg-blue-500', path: '/members' },
-    { label: 'Reuniões Meio de Semana', value: midweekMeetings.length, icon: CalendarDays, color: 'bg-amber-500', path: '/meetings' },
-    { label: 'Reuniões Fim de Semana', value: weekendMeetings.length, icon: BookOpen, color: 'bg-green-500', path: '/meetings' },
-    { label: 'Anciãos', value: members.filter(m => m.roles.includes('anciao')).length, icon: UserCheck, color: 'bg-purple-500', path: '/members' },
+    { label: 'Membros', value: loading ? '...' : membersCount, icon: Users, color: 'bg-blue-500', path: '/members' },
+    { label: 'Reuniões Meio de Semana', value: loading ? '...' : midweekCount, icon: CalendarDays, color: 'bg-amber-500', path: '/meetings' },
+    { label: 'Reuniões Fim de Semana', value: loading ? '...' : weekendCount, icon: BookOpen, color: 'bg-green-500', path: '/meetings' },
+    { label: 'Anciãos', value: '-', icon: UserCheck, color: 'bg-purple-500', path: '/members' },
   ];
 
   return (
@@ -84,11 +106,10 @@ export function Dashboard() {
                     assignment.confirmed = !assignment.confirmed;
                     navigate('/dashboard');
                   }}
-                  className={`shrink-0 px-3 py-1 rounded-full transition-colors font-medium ${
-                    assignment.confirmed
+                  className={`shrink-0 px-3 py-1 rounded-full transition-colors font-medium ${assignment.confirmed
                       ? 'bg-green-50 text-green-700 hover:bg-green-100'
                       : 'bg-primary/10 text-primary hover:bg-primary/20'
-                  }`}
+                    }`}
                   style={{ fontSize: '0.75rem' }}
                 >
                   {assignment.confirmed ? 'Confirmado ✓' : 'Confirmar'}
@@ -139,19 +160,21 @@ export function Dashboard() {
             </button>
           </div>
           <div className="divide-y divide-border">
-            {members.slice(0, 5).map((member) => (
+            {recentMembers.map((member) => (
               <div key={member.id} className="px-4 md:px-5 py-3 flex items-center gap-3 hover:bg-muted/30 transition-colors">
                 <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center shrink-0 border border-primary/10">
                   <span className="text-accent-foreground font-bold" style={{ fontSize: '0.75rem' }}>
-                    {member.full_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                    {member.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-foreground truncate font-medium" style={{ fontSize: '0.9rem' }}>{member.full_name}</p>
-                  <p className="text-muted-foreground truncate" style={{ fontSize: '0.75rem' }}>{member.phone}</p>
+                  <p className="text-muted-foreground truncate" style={{ fontSize: '0.75rem' }}>{member.phone || 'Sem telefone'}</p>
                 </div>
-                <span className={`px-2 py-0.5 rounded-full font-medium ${getStatusColor(member.spiritual_status)}`} style={{ fontSize: '0.7rem' }}>
-                  {getStatusLabel(member.spiritual_status)}
+                <span className="px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-700" style={{ fontSize: '0.7rem' }}>
+                  {member.spiritual_status === 'publicador_batizado' ? 'Pub. Batizado' :
+                    member.spiritual_status === 'publicador' ? 'Publicador' :
+                      member.spiritual_status === 'estudante' ? 'Estudante' : 'Membro'}
                 </span>
               </div>
             ))}
@@ -167,40 +190,4 @@ interface Assignment {
   meeting: string;
   date: string;
   confirmed: boolean;
-}
-
-function findMyAssignments(name: string): Assignment[] {
-  const assignments: Assignment[] = [];
-
-  midweekMeetings.forEach(m => {
-    const dateFormatted = new Date(m.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' });
-
-    if (m.president === name) assignments.push({ part: 'Presidente', meeting: 'Meio de Semana', date: dateFormatted, confirmed: false });
-    if (m.opening_prayer === name) assignments.push({ part: 'Oração Inicial', meeting: 'Meio de Semana', date: dateFormatted, confirmed: false });
-    if (m.closing_prayer === name) assignments.push({ part: 'Oração Final', meeting: 'Meio de Semana', date: dateFormatted, confirmed: false });
-    if (m.treasures.talk.speaker === name) assignments.push({ part: `Discurso: ${m.treasures.talk.title}`, meeting: 'Meio de Semana', date: dateFormatted, confirmed: false });
-    if (m.treasures.spiritual_gems.speaker === name) assignments.push({ part: 'Joias Espirituais', meeting: 'Meio de Semana', date: dateFormatted, confirmed: false });
-    if (m.treasures.bible_reading.student === name) assignments.push({ part: 'Leitura da Bíblia', meeting: 'Meio de Semana', date: dateFormatted, confirmed: false });
-    m.ministry.parts.forEach(p => {
-      if (p.student === name) assignments.push({ part: `${p.title} (Estudante)`, meeting: 'Meio de Semana', date: dateFormatted, confirmed: false });
-      if (p.assistant === name) assignments.push({ part: `${p.title} (Ajudante)`, meeting: 'Meio de Semana', date: dateFormatted, confirmed: false });
-    });
-    m.christian_life.parts.forEach(p => {
-      if (p.speaker === name) assignments.push({ part: p.title, meeting: 'Meio de Semana', date: dateFormatted, confirmed: false });
-    });
-    if (m.christian_life.congregation_bible_study.conductor === name) assignments.push({ part: 'Dirigente - Estudo Bíblico de Congregação', meeting: 'Meio de Semana', date: dateFormatted, confirmed: false });
-    if (m.christian_life.congregation_bible_study.reader === name) assignments.push({ part: 'Leitor - Estudo Bíblico de Congregação', meeting: 'Meio de Semana', date: dateFormatted, confirmed: false });
-  });
-
-  weekendMeetings.forEach(m => {
-    const dateFormatted = new Date(m.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' });
-
-    if (m.president === name) assignments.push({ part: 'Presidente', meeting: 'Fim de Semana', date: dateFormatted, confirmed: false });
-    if (m.public_talk.speaker === name) assignments.push({ part: `Orador: ${m.public_talk.theme}`, meeting: 'Fim de Semana', date: dateFormatted, confirmed: false });
-    if (m.watchtower_study.conductor === name) assignments.push({ part: 'Dirigente - A Sentinela', meeting: 'Fim de Semana', date: dateFormatted, confirmed: false });
-    if (m.watchtower_study.reader === name) assignments.push({ part: 'Leitor - A Sentinela', meeting: 'Fim de Semana', date: dateFormatted, confirmed: false });
-    if (m.closing_prayer === name) assignments.push({ part: 'Oração Final', meeting: 'Fim de Semana', date: dateFormatted, confirmed: false });
-  });
-
-  return assignments;
 }
