@@ -9,3 +9,6 @@ create_user.cjs
 seed.js
 *.local
 .DS_Store
+android/
+ios/
+.agent/
