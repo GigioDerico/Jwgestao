@@ -23,6 +23,7 @@ import {
   ShoppingCart,
   UserCheck,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 type ViewMode = 'list' | 'service_group' | 'family';
 
@@ -38,6 +39,8 @@ export function MembersList() {
   const [fieldServiceGroups, setFieldServiceGroups] = useState<FieldServiceGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingMember, setSavingMember] = useState(false);
+
+  const { user: authUser, isAdmin } = useAuth();
 
   const formatPhoneMask = (digits: string): string => {
     if (digits.length <= 2) return digits;
@@ -61,6 +64,7 @@ export function MembersList() {
     approved_carrinho: false,
     approved_pioneiro_auxiliar: false,
     approved_pioneiro_regular: false,
+    system_role: 'publicador',
   });
 
   const fetchMembers = async () => {
@@ -98,6 +102,7 @@ export function MembersList() {
       approved_carrinho: false,
       approved_pioneiro_auxiliar: false,
       approved_pioneiro_regular: false,
+      system_role: 'publicador',
     });
   };
 
@@ -208,7 +213,7 @@ export function MembersList() {
               {member.full_name}
             </p>
             {member.isFamilyHead && (
-              <Crown size={12} className="text-amber-500 shrink-0" title="Chefe de família" />
+              <Crown size={12} className="text-amber-500 shrink-0" />
             )}
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
@@ -227,6 +232,18 @@ export function MembersList() {
                 {member.roles.map(r => getRoleLabel(r)).join(', ')}
               </span>
             )}
+
+            {member.system_role && member.system_role !== 'publicador' && (
+              <span
+                className="px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700"
+                style={{ fontSize: '0.7rem' }}
+              >
+                {member.system_role === 'coordenador' ? 'Coordenador do Sistema' :
+                  member.system_role === 'secretario' ? 'Secretário do Sistema' :
+                    member.system_role === 'designador' ? 'Designador de Reuniões' : ''}
+              </span>
+            )}
+
             <span
               className="flex items-center gap-0.5 text-primary/70"
               style={{ fontSize: '0.7rem' }}
@@ -341,6 +358,44 @@ export function MembersList() {
                 </div>
               </div>
             )}
+
+            {/* System Role Editor */}
+            {isAdmin && (
+              <div className="sm:col-span-2 mt-4 bg-white rounded-lg border border-border p-3">
+                <p className="text-muted-foreground font-medium mb-2 flex items-center gap-1.5" style={{ fontSize: '0.75rem' }}>
+                  <Shield size={12} className="text-purple-500" />
+                  Permissão de Acesso ao Sistema
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                  <select
+                    value={member.system_role || 'publicador'}
+                    onChange={async (e) => {
+                      try {
+                        setSavingMember(true);
+                        await api.updateMemberSystemRole(member.id, e.target.value);
+                        toast.success('Permissão atualizada com sucesso!');
+                        await fetchMembers();
+                      } catch (err: any) {
+                        toast.error('Erro ao atualizar permissão: ' + err.message);
+                      } finally {
+                        setSavingMember(false);
+                      }
+                    }}
+                    disabled={savingMember || member.id === authUser?.id} // Don't let users edit their own permission here
+                    className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground text-sm"
+                  >
+                    <option value="publicador">Publicador (Acesso Padrão)</option>
+                    <option value="designador">Designador de Reuniões</option>
+                    <option value="secretario">Secretário</option>
+                    <option value="coordenador">Coordenador</option>
+                  </select>
+                  {member.id === authUser?.id && (
+                    <span className="text-amber-600 text-xs mt-1 sm:mt-0">Você não pode alterar sua própria permissão.</span>
+                  )}
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
       )}

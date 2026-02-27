@@ -24,6 +24,7 @@ export interface Member {
   approvedAudioVideo?: boolean;
   approvedIndicadores?: boolean;
   approvedCarrinho?: boolean;
+  system_role?: 'coordenador' | 'secretario' | 'designador' | 'publicador';
 }
 
 export interface MidweekMeeting {

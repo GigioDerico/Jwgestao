@@ -21,6 +21,7 @@ export interface CreateMemberInput {
   approved_carrinho?: boolean;
   approved_pioneiro_auxiliar?: boolean;
   approved_pioneiro_regular?: boolean;
+  system_role?: Database['public']['Enums']['system_role_enum'];
 }
 
 // Isolated client for signUp — must include noOpLock to avoid NavigatorLockAcquireTimeoutError
@@ -45,11 +46,23 @@ function createIsolatedAuthClient() {
 }
 
 export const api = {
-  // Members
+  // Members (includes system_role from user_profiles via join)
   async getMembers() {
-    const { data, error } = await supabase.from('members').select('*').order('full_name');
+    const { data, error } = await supabase
+      .from('members')
+      .select('*, user_profiles(system_role)')
+      .order('full_name');
+
     if (error) throw error;
-    return data;
+
+    // Flatten system_role from the joined user_profiles onto each member
+    return (data || []).map((m: any) => ({
+      ...m,
+      system_role: Array.isArray(m.user_profiles)
+        ? m.user_profiles[0]?.system_role ?? 'publicador'
+        : m.user_profiles?.system_role ?? 'publicador',
+      user_profiles: undefined,
+    }));
   },
 
   async createMember(input: CreateMemberInput): Promise<{ member_id: string; auth_user_id: string }> {
@@ -128,7 +141,7 @@ export const api = {
       .insert({
         id: authData.user.id,
         member_id: member.id,
-        system_role: 'publicador',
+        system_role: input.system_role || 'publicador',
       });
 
     console.log('[createMember] Step 3 done:', { err: profileError?.message });
@@ -139,6 +152,28 @@ export const api = {
     await isolatedClient.auth.signOut();
     console.log('[createMember] ✅ Completed!');
     return { member_id: member.id, auth_user_id: authData.user.id };
+  },
+
+  // Get System Role
+  async getMemberSystemRole(memberId: string) {
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('system_role')
+      .eq('member_id', memberId)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data?.system_role || 'publicador';
+  },
+
+  // Update System Role via RPC (bypasses RLS with SECURITY DEFINER)
+  async updateMemberSystemRole(memberId: string, role: string) {
+    const { error } = await supabase.rpc('update_member_system_role', {
+      p_member_id: memberId,
+      p_role: role,
+    });
+
+    if (error) throw new Error(error.message);
   },
 
   // Midweek Meetings 
