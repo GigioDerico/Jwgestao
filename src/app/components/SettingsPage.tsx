@@ -3,6 +3,8 @@ import { toast } from 'sonner';
 import { Shield, Check, Plus, Users, Trash2, Edit2, Loader2, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
+import { api } from '../lib/api';
+import { DEFAULT_CONGREGATION_NAME } from '../lib/midweek-schedule';
 import { supabase } from '../lib/supabase';
 
 const roles = [
@@ -36,6 +38,8 @@ export function SettingsPage() {
   const [savingGroup, setSavingGroup] = useState(false);
   const [editingGroup, setEditingGroup] = useState<{ id: string; name: string; overseer_id: string; overseer_name?: string; assistant_ids: string[] } | null>(null);
   const [deleteConfirmGroup, setDeleteConfirmGroup] = useState<{ id: string; name: string } | null>(null);
+  const [congregationName, setCongregationName] = useState('');
+  const [savingCongregationName, setSavingCongregationName] = useState(false);
 
   const isCoordinator = user?.role === 'coordenador';
   const canManageGroups = user?.role === 'coordenador' || user?.role === 'secretario';
@@ -75,8 +79,18 @@ export function SettingsPage() {
     }
   };
 
+  const fetchCongregationName = async () => {
+    try {
+      const value = await api.getAppSetting('congregation_name');
+      setCongregationName(!value || value === 'Congregação local' ? DEFAULT_CONGREGATION_NAME : value);
+    } catch (err) {
+      console.error('Erro ao buscar nome da congregacao', err);
+    }
+  };
+
   useEffect(() => {
     fetchGroups();
+    fetchCongregationName();
   }, []);
 
   useEffect(() => {
@@ -191,6 +205,18 @@ export function SettingsPage() {
     }
   };
 
+  const handleSaveCongregationName = async () => {
+    setSavingCongregationName(true);
+    try {
+      await api.setAppSetting('congregation_name', congregationName.trim());
+      toast.success('Nome da congregacao salvo com sucesso!');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao salvar nome da congregacao.');
+    } finally {
+      setSavingCongregationName(false);
+    }
+  };
+
   const PermCell = ({ roleKey, permKey }: { roleKey: string; permKey: string }) => {
     const isLocked = roleKey === 'coordenador';
     const value = matrix[roleKey]?.[permKey] ?? false;
@@ -222,6 +248,29 @@ export function SettingsPage() {
         <div>
           <h1 className="text-gray-900">Configurações</h1>
           <p className="text-gray-500" style={{ fontSize: '0.85rem' }}>Gerenciamento do sistema e permissões</p>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="flex-1">
+            <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Nome da congregação</label>
+            <input
+              type="text"
+              value={congregationName}
+              onChange={e => setCongregationName(e.target.value)}
+              placeholder="Ex.: Vicente Nunes"
+              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <button
+            onClick={handleSaveCongregationName}
+            disabled={savingCongregationName}
+            className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
+            style={{ fontSize: '0.9rem' }}
+          >
+            {savingCongregationName ? 'Salvando...' : 'Salvar nome'}
+          </button>
         </div>
       </div>
 

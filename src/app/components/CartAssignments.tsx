@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { cartAssignments, CartAssignment } from '../data/mechanicalData';
 import { api } from '../lib/api';
-import { ChevronLeft, ChevronRight, X, Search, MapPin, Clock, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Search, MapPin, Clock, Users, Plus } from 'lucide-react';
 import { toast } from 'sonner';
+import type { CartAssignment } from '../types';
 
 const MONTHS = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -28,13 +28,41 @@ const WEEKDAY_COLORS: Record<string, string> = {
 export function CartAssignments() {
   const [currentMonth, setCurrentMonth] = useState(0); // Jan
   const [currentYear, setCurrentYear] = useState(2026);
-  const [data, setData] = useState<CartAssignment[]>(cartAssignments);
+  const [data, setData] = useState<CartAssignment[]>([]);
   const [editModal, setEditModal] = useState<{ id: string; field: 'publisher1' | 'publisher2'; currentValue: string } | null>(null);
   const [members, setMembers] = useState<{ id: string; full_name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newAssignment, setNewAssignment] = useState({
+    day: '',
+    weekday: 'Terça-feira',
+    time: '',
+    location: '',
+    publisher1: '',
+    publisher2: '',
+    week: '1',
+  });
+
+  const fetchAssignments = async () => {
+    try {
+      setLoading(true);
+      const rows = await api.getCartAssignments(currentMonth, currentYear);
+      setData(rows);
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao carregar designações de carrinho.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     api.getMembers().then(data => setMembers(data.map((m: any) => ({ id: m.id, full_name: m.full_name })))).catch(console.error);
   }, []);
+
+  useEffect(() => {
+    fetchAssignments();
+  }, [currentMonth, currentYear]);
 
   const prevMonth = () => {
     if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear(y => y - 1); }
@@ -49,13 +77,55 @@ export function CartAssignments() {
     setEditModal({ id, field, currentValue });
   };
 
-  const handleSave = (newValue: string) => {
+  const handleSave = async (newValue: string) => {
     if (!editModal) return;
-    setData(prev => prev.map(item =>
-      item.id === editModal.id ? { ...item, [editModal.field]: newValue } : item
-    ));
-    setEditModal(null);
-    toast.success('Designação atualizada!');
+
+    try {
+      const updated = await api.updateCartAssignment(editModal.id, {
+        [editModal.field]: newValue,
+      } as any);
+      setData(prev => prev.map(item => (item.id === editModal.id ? updated : item)));
+      setEditModal(null);
+      toast.success('Designação atualizada!');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao atualizar designação de carrinho.');
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!newAssignment.day || !newAssignment.time.trim() || !newAssignment.location.trim() || !newAssignment.publisher1 || !newAssignment.publisher2) {
+      toast.error('Preencha dia, horário, local e os dois publicadores.');
+      return;
+    }
+
+    try {
+      const created = await api.createCartAssignment({
+        month: currentMonth + 1,
+        year: currentYear,
+        day: Number(newAssignment.day),
+        weekday: newAssignment.weekday,
+        time: newAssignment.time.trim(),
+        location: newAssignment.location.trim(),
+        publisher1: newAssignment.publisher1,
+        publisher2: newAssignment.publisher2,
+        week: Number(newAssignment.week),
+      });
+
+      setData(prev => [...prev, created].sort((a, b) => a.week - b.week || a.day - b.day));
+      setNewAssignment({
+        day: '',
+        weekday: 'Terça-feira',
+        time: '',
+        location: '',
+        publisher1: '',
+        publisher2: '',
+        week: '1',
+      });
+      setShowCreateForm(false);
+      toast.success('Nova designação de carrinho salva no banco.');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao criar designação de carrinho.');
+    }
   };
 
   // Group by week
@@ -70,11 +140,11 @@ export function CartAssignments() {
   return (
     <div className="space-y-4">
       {/* Month Navigator */}
-      <div className="bg-white rounded-xl border border-gray-100 p-3 flex items-center justify-between">
+      <div className="bg-card rounded-xl border border-border p-3 flex items-center justify-between shadow-sm">
         <button onClick={prevMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
           <ChevronLeft size={18} className="text-gray-600" />
         </button>
-        <h3 className="text-gray-900" style={{ fontSize: '1rem' }}>
+        <h3 className="text-foreground" style={{ fontSize: '1rem' }}>
           {MONTHS[currentMonth]} {currentYear}
         </h3>
         <button onClick={nextMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
@@ -82,9 +152,128 @@ export function CartAssignments() {
         </button>
       </div>
 
-      {grouped.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-100 p-12 text-center">
-          <p className="text-gray-400" style={{ fontSize: '0.9rem' }}>Nenhuma designação de carrinho para este mês.</p>
+      <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <div>
+            <h4 className="text-foreground" style={{ fontSize: '0.95rem' }}>Criar nova escala de carrinho</h4>
+            <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>Cadastre uma nova linha de trabalho com carrinho organizada por semana.</p>
+          </div>
+          <button
+            onClick={() => setShowCreateForm(prev => !prev)}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
+            style={{ fontSize: '0.85rem' }}
+          >
+            <Plus size={14} />
+            {showCreateForm ? 'Fechar' : 'Nova escala'}
+          </button>
+        </div>
+
+        {showCreateForm && (
+          <div className="grid gap-4 px-4 py-4 md:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Semana</label>
+              <select
+                value={newAssignment.week}
+                onChange={e => setNewAssignment(prev => ({ ...prev, week: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="1">Semana 1</option>
+                <option value="2">Semana 2</option>
+                <option value="3">Semana 3</option>
+                <option value="4">Semana 4</option>
+                <option value="5">Semana 5</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Dia do mês</label>
+              <input
+                type="number"
+                min="1"
+                max="31"
+                value={newAssignment.day}
+                onChange={e => setNewAssignment(prev => ({ ...prev, day: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Dia da semana</label>
+              <select
+                value={newAssignment.weekday}
+                onChange={e => setNewAssignment(prev => ({ ...prev, weekday: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="Terça-feira">Terça-feira</option>
+                <option value="Quarta-feira">Quarta-feira</option>
+                <option value="Quinta-feira">Quinta-feira</option>
+                <option value="Sexta-feira">Sexta-feira</option>
+                <option value="Sábado">Sábado</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Horário</label>
+              <input
+                type="text"
+                value={newAssignment.time}
+                onChange={e => setNewAssignment(prev => ({ ...prev, time: e.target.value }))}
+                placeholder="09:00 às 11:00"
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Local</label>
+              <input
+                type="text"
+                value={newAssignment.location}
+                onChange={e => setNewAssignment(prev => ({ ...prev, location: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Publicador 1</label>
+              <select
+                value={newAssignment.publisher1}
+                onChange={e => setNewAssignment(prev => ({ ...prev, publisher1: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="">Selecione...</option>
+                {members.map(member => (
+                  <option key={`p1-${member.id}`} value={member.full_name}>{member.full_name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Publicador 2</label>
+              <select
+                value={newAssignment.publisher2}
+                onChange={e => setNewAssignment(prev => ({ ...prev, publisher2: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="">Selecione...</option>
+                {members.map(member => (
+                  <option key={`p2-${member.id}`} value={member.full_name}>{member.full_name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="md:col-span-2 flex justify-end">
+              <button
+                onClick={handleCreate}
+                className="rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
+                style={{ fontSize: '0.9rem' }}
+              >
+                Criar designação
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="bg-card rounded-xl border border-border p-12 text-center">
+          <p className="text-muted-foreground" style={{ fontSize: '0.9rem' }}>Carregando designações de carrinho...</p>
+        </div>
+      ) : grouped.length === 0 ? (
+        <div className="bg-card rounded-xl border border-border p-12 text-center">
+          <p className="text-muted-foreground" style={{ fontSize: '0.9rem' }}>Nenhuma designação de carrinho para este mês.</p>
         </div>
       ) : (
         <div>

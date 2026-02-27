@@ -17,6 +17,7 @@ export function Dashboard() {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [membersCount, setMembersCount] = useState(0);
+  const [eldersCount, setEldersCount] = useState(0);
   const [midweekCount, setMidweekCount] = useState(0);
   const [weekendCount, setWeekendCount] = useState(0);
   const [recentMembers, setRecentMembers] = useState<any[]>([]);
@@ -27,6 +28,12 @@ export function Dashboard() {
       try {
         const members = await api.getMembers();
         setMembersCount(members.length);
+        setEldersCount(
+          members.filter((member: any) =>
+            (Array.isArray(member.roles) && member.roles.includes('anciao')) ||
+            member.spiritual_status === 'anciao'
+          ).length
+        );
         setRecentMembers(members.slice(0, 5));
         const mw = await api.getMidweekMeetings();
         setMidweekCount(mw.length);
@@ -46,7 +53,7 @@ export function Dashboard() {
     { label: 'Membros', value: loading ? '...' : membersCount, icon: Users, color: 'bg-blue-500', path: '/members' },
     { label: 'Reuniões Meio de Semana', value: loading ? '...' : midweekCount, icon: CalendarDays, color: 'bg-amber-500', path: '/meetings' },
     { label: 'Reuniões Fim de Semana', value: loading ? '...' : weekendCount, icon: BookOpen, color: 'bg-green-500', path: '/meetings' },
-    { label: 'Anciãos', value: '-', icon: UserCheck, color: 'bg-purple-500', path: '/members' },
+    { label: 'Anciãos', value: loading ? '...' : eldersCount, icon: UserCheck, color: 'bg-purple-500', path: '/members' },
   ];
 
   return (

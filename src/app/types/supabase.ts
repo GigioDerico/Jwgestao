@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          key: string
+          updated_at: string | null
+          value: string
+        }
+        Insert: {
+          key: string
+          updated_at?: string | null
+          value: string
+        }
+        Update: {
+          key?: string
+          updated_at?: string | null
+          value?: string
+        }
+        Relationships: []
+      }
       field_service_groups: {
         Row: {
           created_at: string | null
@@ -151,6 +169,7 @@ export type Database = {
           id: string
           meeting_id: string | null
           part_number: number
+          scheduled_time: string | null
           speaker_id: string | null
           title: string
         }
@@ -160,6 +179,7 @@ export type Database = {
           id?: string
           meeting_id?: string | null
           part_number: number
+          scheduled_time?: string | null
           speaker_id?: string | null
           title: string
         }
@@ -169,6 +189,7 @@ export type Database = {
           id?: string
           meeting_id?: string | null
           part_number?: number
+          scheduled_time?: string | null
           speaker_id?: string | null
           title?: string
         }
@@ -192,58 +213,103 @@ export type Database = {
       midweek_meetings: {
         Row: {
           bible_reading: string | null
+          cbs_duration: number | null
+          cbs_time: string | null
           cbs_conductor_id: string | null
           cbs_reader_id: string | null
+          closing_comments_duration: number | null
+          closing_comments_time: string | null
           closing_prayer_id: string | null
           closing_song: number | null
+          closing_song_time: string | null
           created_at: string | null
           date: string
           id: string
+          middle_song_time: string | null
           middle_song: number | null
+          opening_comments_duration: number | null
+          opening_comments_time: string | null
           opening_prayer_id: string | null
           opening_song: number | null
+          opening_song_time: string | null
           president_id: string | null
+          treasure_gems_duration: number | null
+          treasure_gems_time: string | null
           treasure_gems_speaker_id: string | null
           treasure_reading_room: string | null
+          treasure_reading_duration: number | null
+          treasure_reading_time: string | null
           treasure_reading_student_id: string | null
+          treasure_talk_duration: number | null
+          treasure_talk_time: string | null
           treasure_talk_speaker_id: string | null
           treasure_talk_title: string | null
         }
         Insert: {
           bible_reading?: string | null
+          cbs_duration?: number | null
+          cbs_time?: string | null
           cbs_conductor_id?: string | null
           cbs_reader_id?: string | null
+          closing_comments_duration?: number | null
+          closing_comments_time?: string | null
           closing_prayer_id?: string | null
           closing_song?: number | null
+          closing_song_time?: string | null
           created_at?: string | null
           date: string
           id?: string
+          middle_song_time?: string | null
           middle_song?: number | null
+          opening_comments_duration?: number | null
+          opening_comments_time?: string | null
           opening_prayer_id?: string | null
           opening_song?: number | null
+          opening_song_time?: string | null
           president_id?: string | null
+          treasure_gems_duration?: number | null
+          treasure_gems_time?: string | null
           treasure_gems_speaker_id?: string | null
           treasure_reading_room?: string | null
+          treasure_reading_duration?: number | null
+          treasure_reading_time?: string | null
           treasure_reading_student_id?: string | null
+          treasure_talk_duration?: number | null
+          treasure_talk_time?: string | null
           treasure_talk_speaker_id?: string | null
           treasure_talk_title?: string | null
         }
         Update: {
           bible_reading?: string | null
+          cbs_duration?: number | null
+          cbs_time?: string | null
           cbs_conductor_id?: string | null
           cbs_reader_id?: string | null
+          closing_comments_duration?: number | null
+          closing_comments_time?: string | null
           closing_prayer_id?: string | null
           closing_song?: number | null
+          closing_song_time?: string | null
           created_at?: string | null
           date?: string
           id?: string
+          middle_song_time?: string | null
           middle_song?: number | null
+          opening_comments_duration?: number | null
+          opening_comments_time?: string | null
           opening_prayer_id?: string | null
           opening_song?: number | null
+          opening_song_time?: string | null
           president_id?: string | null
+          treasure_gems_duration?: number | null
+          treasure_gems_time?: string | null
           treasure_gems_speaker_id?: string | null
           treasure_reading_room?: string | null
+          treasure_reading_duration?: number | null
+          treasure_reading_time?: string | null
           treasure_reading_student_id?: string | null
+          treasure_talk_duration?: number | null
+          treasure_talk_time?: string | null
           treasure_talk_speaker_id?: string | null
           treasure_talk_title?: string | null
         }
@@ -315,6 +381,7 @@ export type Database = {
           meeting_id: string | null
           part_number: number
           room: string | null
+          scheduled_time: string | null
           student_id: string | null
           title: string
         }
@@ -326,6 +393,7 @@ export type Database = {
           meeting_id?: string | null
           part_number: number
           room?: string | null
+          scheduled_time?: string | null
           student_id?: string | null
           title: string
         }
@@ -337,6 +405,7 @@ export type Database = {
           meeting_id?: string | null
           part_number?: number
           room?: string | null
+          scheduled_time?: string | null
           student_id?: string | null
           title?: string
         }

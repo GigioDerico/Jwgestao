@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { fieldServiceAssignments, FieldServiceAssignment } from '../data/mechanicalData';
 import { api } from '../lib/api';
-import { ChevronLeft, ChevronRight, X, Search, MapPin, Clock, User } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Search, MapPin, Clock, User, Plus } from 'lucide-react';
 import { toast } from 'sonner';
+import type { FieldServiceAssignment } from '../types';
 
 const MONTHS = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -21,13 +21,39 @@ const CATEGORY_COLORS: Record<string, { bg: string; header: string; border: stri
 export function FieldServiceAssignments() {
   const [currentMonth, setCurrentMonth] = useState(1);
   const [currentYear, setCurrentYear] = useState(2026);
-  const [data, setData] = useState<FieldServiceAssignment[]>(fieldServiceAssignments);
+  const [data, setData] = useState<FieldServiceAssignment[]>([]);
   const [editModal, setEditModal] = useState<{ id: string; currentValue: string } | null>(null);
   const [members, setMembers] = useState<{ id: string; full_name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newAssignment, setNewAssignment] = useState({
+    weekday: '',
+    time: '',
+    responsible: '',
+    location: 'Salão do Reino',
+    category: 'Terça-feira',
+  });
+
+  const fetchAssignments = async () => {
+    try {
+      setLoading(true);
+      const rows = await api.getFieldServiceAssignments(currentMonth, currentYear);
+      setData(rows);
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao carregar saídas de campo.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     api.getMembers().then(data => setMembers(data.map((m: any) => ({ id: m.id, full_name: m.full_name })))).catch(console.error);
   }, []);
+
+  useEffect(() => {
+    fetchAssignments();
+  }, [currentMonth, currentYear]);
 
   const prevMonth = () => {
     if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear(y => y - 1); }
@@ -42,13 +68,51 @@ export function FieldServiceAssignments() {
     setEditModal({ id, currentValue });
   };
 
-  const handleSave = (newValue: string) => {
+  const handleSave = async (newValue: string) => {
     if (!editModal) return;
-    setData(prev => prev.map(item =>
-      item.id === editModal.id ? { ...item, responsible: newValue } : item
-    ));
-    setEditModal(null);
-    toast.success('Designação atualizada!');
+
+    try {
+      const updated = await api.updateFieldServiceAssignment(editModal.id, {
+        responsible: newValue,
+      });
+      setData(prev => prev.map(item => (item.id === editModal.id ? updated : item)));
+      setEditModal(null);
+      toast.success('Designação atualizada!');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao atualizar saída de campo.');
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!newAssignment.weekday.trim() || !newAssignment.time.trim() || !newAssignment.responsible.trim()) {
+      toast.error('Preencha dia, horário e responsável.');
+      return;
+    }
+
+    try {
+      const created = await api.createFieldServiceAssignment({
+        month: currentMonth + 1,
+        year: currentYear,
+        weekday: newAssignment.weekday.trim(),
+        time: newAssignment.time.trim(),
+        responsible: newAssignment.responsible.trim(),
+        location: newAssignment.location.trim(),
+        category: newAssignment.category,
+      });
+
+      setData(prev => [...prev, created]);
+      setNewAssignment({
+        weekday: '',
+        time: '',
+        responsible: '',
+        location: 'Salão do Reino',
+        category: 'Terça-feira',
+      });
+      setShowCreateForm(false);
+      toast.success('Nova designação de saída de campo salva no banco.');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao criar saída de campo.');
+    }
   };
 
   // Group by category
@@ -63,16 +127,105 @@ export function FieldServiceAssignments() {
   return (
     <div className="space-y-4">
       {/* Month Navigator */}
-      <div className="bg-white rounded-xl border border-gray-100 p-3 flex items-center justify-between">
+      <div className="bg-card rounded-xl border border-border p-3 flex items-center justify-between shadow-sm">
         <button onClick={prevMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
           <ChevronLeft size={18} className="text-gray-600" />
         </button>
-        <h3 className="text-gray-900" style={{ fontSize: '1rem' }}>
+        <h3 className="text-foreground" style={{ fontSize: '1rem' }}>
           {MONTHS[currentMonth]} {currentYear}
         </h3>
         <button onClick={nextMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
           <ChevronRight size={18} className="text-gray-600" />
         </button>
+      </div>
+
+      <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <div>
+            <h4 className="text-foreground" style={{ fontSize: '0.95rem' }}>Criar nova saída de campo</h4>
+            <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>Cadastre um novo arranjo de saída mantendo o agrupamento por categoria.</p>
+          </div>
+          <button
+            onClick={() => setShowCreateForm(prev => !prev)}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
+            style={{ fontSize: '0.85rem' }}
+          >
+            <Plus size={14} />
+            {showCreateForm ? 'Fechar' : 'Nova saída'}
+          </button>
+        </div>
+
+        {showCreateForm && (
+          <div className="grid gap-4 px-4 py-4 md:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Categoria</label>
+              <select
+                value={newAssignment.category}
+                onChange={e => setNewAssignment(prev => ({ ...prev, category: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="Terça-feira">Terça-feira</option>
+                <option value="Quarta-feira">Quarta-feira</option>
+                <option value="Sexta-feira">Sexta-feira</option>
+                <option value="Sábado">Sábado</option>
+                <option value="Sábado - Rural">Sábado - Rural</option>
+                <option value="Domingo">Domingo</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Dia</label>
+              <input
+                type="text"
+                value={newAssignment.weekday}
+                onChange={e => setNewAssignment(prev => ({ ...prev, weekday: e.target.value }))}
+                placeholder="Ex.: Sábado 14/03"
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Horário</label>
+              <input
+                type="text"
+                value={newAssignment.time}
+                onChange={e => setNewAssignment(prev => ({ ...prev, time: e.target.value }))}
+                placeholder="08:45"
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Responsável</label>
+              <select
+                value={newAssignment.responsible}
+                onChange={e => setNewAssignment(prev => ({ ...prev, responsible: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="">Selecione...</option>
+                <option value="Saída dos Grupos">Saída dos Grupos</option>
+                {members.map(member => (
+                  <option key={member.id} value={member.full_name}>{member.full_name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Local</label>
+              <input
+                type="text"
+                value={newAssignment.location}
+                onChange={e => setNewAssignment(prev => ({ ...prev, location: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            <div className="md:col-span-2 flex justify-end">
+              <button
+                onClick={handleCreate}
+                className="rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
+                style={{ fontSize: '0.9rem' }}
+              >
+                Criar designação
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Quote */}
@@ -84,7 +237,12 @@ export function FieldServiceAssignments() {
       </div>
 
       {/* Categories */}
-      <div className="space-y-4">
+      {loading ? (
+        <div className="rounded-xl border border-border bg-card p-12 text-center text-muted-foreground">
+          Carregando saídas de campo...
+        </div>
+      ) : (
+        <div className="space-y-4">
         {grouped.map(group => {
           const colors = CATEGORY_COLORS[group.category] || CATEGORY_COLORS['Terça-feira'];
           return (
@@ -166,7 +324,8 @@ export function FieldServiceAssignments() {
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
 
       {/* Edit Modal */}
       {editModal && (

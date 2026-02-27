@@ -91,7 +91,7 @@ export function MembersList() {
         emergency_contact_phone: m.emergency_contact_phone || '',
         spiritual_status: m.spiritual_status,
         gender: m.gender,
-        roles: [],
+        roles: Array.isArray(m.roles) ? m.roles : [],
         groupId: m.group_id || undefined,
         isFamilyHead: m.is_family_head || false,
         familyHeadId: m.family_head_id || undefined,

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { audioVideoAssignments, AudioVideoAssignment } from '../data/mechanicalData';
 import { api } from '../lib/api';
-import { ChevronLeft, ChevronRight, Edit3, X, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Search, Plus } from 'lucide-react';
 import { toast } from 'sonner';
+import type { AudioVideoAssignment } from '../types';
 
 const MONTHS = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -12,13 +12,42 @@ const MONTHS = [
 export function AudioVideoAssignments() {
   const [currentMonth, setCurrentMonth] = useState(1); // Feb (0-indexed)
   const [currentYear, setCurrentYear] = useState(2026);
-  const [data, setData] = useState<AudioVideoAssignment[]>(audioVideoAssignments);
+  const [data, setData] = useState<AudioVideoAssignment[]>([]);
   const [editModal, setEditModal] = useState<{ id: string; field: string; value: string } | null>(null);
   const [members, setMembers] = useState<{ id: string; full_name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newAssignment, setNewAssignment] = useState({
+    date: '',
+    weekday: 'Domingo',
+    sound: '',
+    image: '',
+    stage: '',
+    rovingMic1: '',
+    rovingMic2: '',
+    attendants: '',
+  });
+
+  const fetchAssignments = async () => {
+    try {
+      setLoading(true);
+      const rows = await api.getAudioVideoAssignments(currentMonth, currentYear);
+      setData(rows);
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao carregar designações de áudio e vídeo.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     api.getMembers().then(data => setMembers(data.map((m: any) => ({ id: m.id, full_name: m.full_name })))).catch(console.error);
   }, []);
+
+  useEffect(() => {
+    fetchAssignments();
+  }, [currentMonth, currentYear]);
 
   const prevMonth = () => {
     if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear(y => y - 1); }
@@ -29,10 +58,7 @@ export function AudioVideoAssignments() {
     else setCurrentMonth(m => m + 1);
   };
 
-  const filteredData = data.filter(d => {
-    const date = new Date(d.date + 'T12:00:00');
-    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-  });
+  const filteredData = data;
 
   // Group by week pairs (Sunday + Thursday)
   const weekPairs: AudioVideoAssignment[][] = [];
@@ -44,14 +70,72 @@ export function AudioVideoAssignments() {
     setEditModal({ id, field, value });
   };
 
-  const handleSave = (newValue: string) => {
+  const handleSave = async (newValue: string) => {
     if (!editModal) return;
-    setData(prev => prev.map(item => {
-      if (item.id !== editModal.id) return item;
-      return { ...item, [editModal.field]: newValue };
-    }));
-    setEditModal(null);
-    toast.success('Designação atualizada!');
+
+    const fieldMap: Record<string, string> = {
+      sound: 'sound',
+      image: 'image',
+      stage: 'stage',
+      rovingMic1: 'roving_mic_1',
+      rovingMic2: 'roving_mic_2',
+    };
+
+    try {
+      const updated = await api.updateAudioVideoAssignment(editModal.id, {
+        [fieldMap[editModal.field] || editModal.field]: newValue,
+      } as any);
+      setData(prev => prev.map(item => (item.id === editModal.id ? updated : item)));
+      setEditModal(null);
+      toast.success('Designação atualizada!');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao atualizar designação.');
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!newAssignment.date || !newAssignment.sound || !newAssignment.image || !newAssignment.stage) {
+      toast.error('Preencha data, som, imagem e palco.');
+      return;
+    }
+
+    try {
+      const created = await api.createAudioVideoAssignment({
+        date: newAssignment.date,
+        weekday: newAssignment.weekday,
+        sound: newAssignment.sound,
+        image: newAssignment.image,
+        stage: newAssignment.stage,
+        roving_mic_1: newAssignment.rovingMic1 || 'A definir',
+        roving_mic_2: newAssignment.rovingMic2 || 'A definir',
+        attendants: newAssignment.attendants
+          .split(',')
+          .map(item => item.trim())
+          .filter(Boolean),
+      });
+
+      const createdDate = new Date(`${created.date}T12:00:00`);
+      if (createdDate.getMonth() !== currentMonth || createdDate.getFullYear() !== currentYear) {
+        setCurrentMonth(createdDate.getMonth());
+        setCurrentYear(createdDate.getFullYear());
+      } else {
+        setData(prev => [...prev, created].sort((a, b) => a.date.localeCompare(b.date)));
+      }
+      setNewAssignment({
+        date: '',
+        weekday: 'Domingo',
+        sound: '',
+        image: '',
+        stage: '',
+        rovingMic1: '',
+        rovingMic2: '',
+        attendants: '',
+      });
+      setShowCreateForm(false);
+      toast.success('Nova designação de Áudio e Vídeo salva no banco.');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao criar designação de áudio e vídeo.');
+    }
   };
 
   const formatDate = (dateStr: string) => {
@@ -80,11 +164,11 @@ export function AudioVideoAssignments() {
   return (
     <div className="space-y-4">
       {/* Month Navigator */}
-      <div className="bg-white rounded-xl border border-gray-100 p-3 flex items-center justify-between">
+      <div className="bg-card rounded-xl border border-border p-3 flex items-center justify-between shadow-sm">
         <button onClick={prevMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
           <ChevronLeft size={18} className="text-gray-600" />
         </button>
-        <h3 className="text-gray-900" style={{ fontSize: '1rem' }}>
+        <h3 className="text-foreground" style={{ fontSize: '1rem' }}>
           {MONTHS[currentMonth]} {currentYear}
         </h3>
         <button onClick={nextMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
@@ -92,9 +176,95 @@ export function AudioVideoAssignments() {
         </button>
       </div>
 
-      {filteredData.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-100 p-12 text-center">
-          <p className="text-gray-400" style={{ fontSize: '0.9rem' }}>Nenhuma designação para este mês.</p>
+      <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <div>
+            <h4 className="text-foreground" style={{ fontSize: '0.95rem' }}>Criar nova escala</h4>
+            <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>Cadastre uma nova linha de A/V seguindo o mesmo padrao da tabela.</p>
+          </div>
+          <button
+            onClick={() => setShowCreateForm(prev => !prev)}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
+            style={{ fontSize: '0.85rem' }}
+          >
+            <Plus size={14} />
+            {showCreateForm ? 'Fechar' : 'Nova escala'}
+          </button>
+        </div>
+
+        {showCreateForm && (
+          <div className="grid gap-4 px-4 py-4 md:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Data</label>
+              <input
+                type="date"
+                value={newAssignment.date}
+                onChange={e => setNewAssignment(prev => ({ ...prev, date: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Dia da semana</label>
+              <select
+                value={newAssignment.weekday}
+                onChange={e => setNewAssignment(prev => ({ ...prev, weekday: e.target.value }))}
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="Domingo">Domingo</option>
+                <option value="Quinta">Quinta</option>
+              </select>
+            </div>
+            {[
+              { key: 'sound', label: 'Som' },
+              { key: 'image', label: 'Imagem' },
+              { key: 'stage', label: 'Palco' },
+              { key: 'rovingMic1', label: 'Mic. Volante 1' },
+              { key: 'rovingMic2', label: 'Mic. Volante 2' },
+            ].map(field => (
+              <div key={field.key}>
+                <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>{field.label}</label>
+                <select
+                  value={newAssignment[field.key as keyof typeof newAssignment] as string}
+                  onChange={e => setNewAssignment(prev => ({ ...prev, [field.key]: e.target.value }))}
+                  className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">Selecione...</option>
+                  {members.map(member => (
+                    <option key={`${field.key}-${member.id}`} value={member.full_name}>{member.full_name}</option>
+                  ))}
+                </select>
+              </div>
+            ))}
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Entradas / Auditório</label>
+              <input
+                type="text"
+                value={newAssignment.attendants}
+                onChange={e => setNewAssignment(prev => ({ ...prev, attendants: e.target.value }))}
+                placeholder="Separe por vírgula"
+                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            <div className="md:col-span-2 flex justify-end">
+              <button
+                onClick={handleCreate}
+                className="rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
+                style={{ fontSize: '0.9rem' }}
+              >
+                Criar designação
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="bg-card rounded-xl border border-border p-12 text-center">
+          <p className="text-muted-foreground" style={{ fontSize: '0.9rem' }}>Carregando designações...</p>
+        </div>
+      ) : filteredData.length === 0 ? (
+        <div className="bg-card rounded-xl border border-border p-12 text-center">
+          <p className="text-muted-foreground" style={{ fontSize: '0.9rem' }}>Nenhuma designação para este mês.</p>
         </div>
       ) : (
         <div>

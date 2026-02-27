@@ -16,7 +16,7 @@ export interface Member {
   phone: string;
   emergency_contact_name: string;
   emergency_contact_phone: string;
-  spiritual_status: 'publicador' | 'publicador_batizado' | 'pioneiro_auxiliar' | 'pioneiro_regular' | 'estudante';
+  spiritual_status: 'publicador' | 'publicador_batizado' | 'pioneiro_auxiliar' | 'pioneiro_regular' | 'estudante' | 'servo_ministerial' | 'anciao';
   roles: string[];
   gender: 'M' | 'F';
   groupId?: string;
@@ -37,16 +37,24 @@ export interface MidweekMeeting {
   opening_prayer: string;
   closing_prayer: string;
   opening_song: number;
+  opening_song_time: string;
+  opening_comments: {
+    time: string;
+    duration: number;
+  };
   middle_song: number;
+  middle_song_time: string;
   closing_song: number;
+  closing_song_time: string;
   treasures: {
-    talk: { title: string; duration: number; speaker: string };
-    spiritual_gems: { duration: number; speaker: string };
-    bible_reading: { duration: number; student: string; room: string };
+    talk: { title: string; duration: number; time: string; speaker: string };
+    spiritual_gems: { duration: number; time: string; speaker: string };
+    bible_reading: { duration: number; time: string; student: string; room: string };
   };
   ministry: {
     parts: {
       number: number;
+      time: string;
       title: string;
       duration: number;
       student: string;
@@ -55,13 +63,17 @@ export interface MidweekMeeting {
     }[];
   };
   christian_life: {
-    parts: { number: number; title: string; duration: number; speaker: string }[];
+    parts: { number: number; time: string; title: string; duration: number; speaker: string }[];
     congregation_bible_study: {
+      time: string;
       duration: number;
       conductor: string;
       reader: string;
     };
-    closing_comments: { duration: number };
+    closing_comments: {
+      time: string;
+      duration: number;
+    };
   };
 }
 
