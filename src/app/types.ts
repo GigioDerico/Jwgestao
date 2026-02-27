@@ -5,6 +5,8 @@ export interface FieldServiceGroup {
   id: string;
   name: string;
   overseer: string;
+  overseer_id?: string;
+  assistants?: { member_id: string; assistant?: { full_name: string } }[];
 }
 
 export interface Member {

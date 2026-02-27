@@ -97,7 +97,6 @@ export const api = {
     }
 
     // Step 1: Insert into members table
-    console.log('[createMember] Step 1: Inserting member...');
     const { data: member, error: memberError } = await supabase
       .from('members')
       .insert({
@@ -120,13 +119,11 @@ export const api = {
       .select('id')
       .single();
 
-    console.log('[createMember] Step 1 done:', { id: member?.id, err: memberError?.message });
     if (memberError) {
       throw new Error(`Erro ao criar membro: ${memberError.message}`);
     }
 
     // Step 2: Create auth user with isolated client
-    console.log('[createMember] Step 2: Creating auth user...');
     const authEmail = `${phoneDigits}@${PHONE_EMAIL_DOMAIN}`;
     const isolatedClient = createIsolatedAuthClient();
 
@@ -148,9 +145,31 @@ export const api = {
       throw new Error(`Erro ao criar acesso: ${e.message}`);
     }
 
-    console.log('[createMember] Step 2 done:', { userId: authData?.user?.id, err: authError?.message });
-
     if (authError) {
+      const isUserExists = authError.code === 'user_already_exists' || authError.code === 'email_exists' || /already exists|already registered/i.test(authError.message || '');
+      if (isUserExists) {
+        await supabase.from('members').delete().eq('id', member.id);
+        const { data: existingMember } = await supabase.from('members').select('id').eq('phone', phoneDigits).maybeSingle();
+        if (!existingMember) {
+          throw new Error('Este telefone já está cadastrado no sistema. Use outro número ou entre em contato com o administrador.');
+        }
+        const { data: existingProfile } = await supabase.from('user_profiles').select('id').eq('member_id', existingMember.id).maybeSingle();
+        if (existingProfile) {
+          throw new Error('Este telefone já está cadastrado. O membro já existe na lista.');
+        }
+        const signInResult = await isolatedClient.auth.signInWithPassword({ email: authEmail, password: DEFAULT_PASSWORD });
+        if (signInResult.data?.user) {
+          const { error: profileErr } = await supabase.from('user_profiles').insert({
+            id: signInResult.data.user.id,
+            member_id: existingMember.id,
+            system_role: input.system_role || 'publicador',
+          });
+          await isolatedClient.auth.signOut();
+          if (profileErr) throw new Error(`Erro ao vincular acesso: ${profileErr.message}`);
+          return { member_id: existingMember.id, auth_user_id: signInResult.data.user.id };
+        }
+        throw new Error('Este telefone já está cadastrado. O membro pode já existir na lista.');
+      }
       await supabase.from('members').delete().eq('id', member.id);
       throw new Error(`Erro ao criar acesso: ${authError.message}`);
     }
@@ -160,7 +179,6 @@ export const api = {
     }
 
     // Step 3: Insert into user_profiles
-    console.log('[createMember] Step 3: Creating user_profile...');
     const { error: profileError } = await supabase
       .from('user_profiles')
       .insert({
@@ -169,13 +187,17 @@ export const api = {
         system_role: input.system_role || 'publicador',
       });
 
-    console.log('[createMember] Step 3 done:', { err: profileError?.message });
     if (profileError) {
+      const isDuplicateProfile = profileError.code === '23505' || /duplicate|unique|already exists/i.test(profileError.message || '');
+      if (isDuplicateProfile) {
+        await supabase.from('members').delete().eq('id', member.id);
+        await isolatedClient.auth.signOut();
+        throw new Error('Este telefone já está cadastrado. O membro pode já existir na lista.');
+      }
       console.error('[API] Falha ao criar user_profiles:', profileError.message);
     }
 
     await isolatedClient.auth.signOut();
-    console.log('[createMember] ✅ Completed!');
     return { member_id: member.id, auth_user_id: authData.user.id };
   },
 

@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      field_service_group_assistants: {
+        Row: {
+          group_id: string
+          member_id: string
+        }
+        Insert: {
+          group_id: string
+          member_id: string
+        }
+        Update: {
+          group_id?: string
+          member_id?: string
+        }
+        Relationships: [
+          { foreignKeyName: "field_service_group_assistants_group_id_fkey"; columns: ["group_id"]; referencedRelation: "field_service_groups"; referencedColumns: ["id"] },
+          { foreignKeyName: "field_service_group_assistants_member_id_fkey"; columns: ["member_id"]; referencedRelation: "members"; referencedColumns: ["id"] },
+        ]
+      }
       field_service_groups: {
         Row: {
           created_at: string | null
