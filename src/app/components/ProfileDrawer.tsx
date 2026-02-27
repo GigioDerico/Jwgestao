@@ -19,6 +19,7 @@ import {
 import { toast } from 'sonner';
 import { Geolocation } from '@capacitor/geolocation';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { supabase } from '../lib/supabase';
 
 interface ProfileDrawerProps {
   open: boolean;
@@ -38,7 +39,7 @@ const genderLabels: Record<string, string> = {
 };
 
 export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
 
   const [form, setForm] = useState({
     full_name: '',
@@ -114,7 +115,7 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
         emergency_contact_name: '',
         emergency_contact_phone: '',
       });
-      setPhotoPreview(null);
+      setPhotoPreview(user.avatar || null);
       setRemovePhoto(false);
       setDirty(false);
     }
@@ -153,21 +154,74 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
     setDirty(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.full_name.trim()) {
       toast.error('O nome completo é obrigatório.');
       return;
     }
+    if (!user?.member_id) {
+      toast.error('Nenhum membro vinculado a este perfil.');
+      return;
+    }
     setSaving(true);
-    setTimeout(() => {
-      const avatarValue = removePhoto ? undefined : (photoPreview ?? undefined);
-      toast.info('Salvamento de perfil será conectado ao Supabase em breve.');
-      setSaving(false);
-      setDirty(false);
-      setPhotoPreview(null);
-      setRemovePhoto(false);
+    try {
+      let newAvatarUrl: string | null | undefined = undefined; // undefined = don't change
+
+      // 1) Handle photo
+      if (removePhoto) {
+        // Delete from storage if there was a previous avatar
+        if (user.avatar) {
+          const path = user.avatar.split('/avatars/')[1];
+          if (path) await supabase.storage.from('avatars').remove([path]);
+        }
+        newAvatarUrl = null;
+      } else if (photoPreview && photoPreview !== user.avatar) {
+        // Upload new photo
+        const base64 = photoPreview.split(',')[1];
+        const mimeMatch = photoPreview.match(/data:([^;]+);/);
+        const mime = mimeMatch?.[1] || 'image/jpeg';
+        const ext = mime.split('/')[1] || 'jpg';
+        const fileName = `${user.member_id}-${Date.now()}.${ext}`;
+
+        const byteChars = atob(base64);
+        const byteArr = new Uint8Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+        const blob = new Blob([byteArr], { type: mime });
+
+        const { error: uploadErr } = await supabase.storage
+          .from('avatars')
+          .upload(fileName, blob, { upsert: true, contentType: mime });
+
+        if (uploadErr) throw new Error('Falha no upload da foto: ' + uploadErr.message);
+
+        const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
+        newAvatarUrl = urlData.publicUrl;
+      }
+
+      // 2) Update members table
+      const updatePayload: Record<string, any> = {
+        full_name: form.full_name.trim(),
+      };
+      if (newAvatarUrl !== undefined) updatePayload.avatar_url = newAvatarUrl;
+
+      const { error: updateErr } = await supabase
+        .from('members')
+        .update(updatePayload)
+        .eq('id', user.member_id);
+
+      if (updateErr) throw new Error('Falha ao salvar perfil: ' + updateErr.message);
+
+      // 3) Refresh auth user to propagate changes throughout the app
+      await refreshUser();
+
       toast.success('Perfil atualizado com sucesso!');
-    }, 600);
+      setDirty(false);
+      setRemovePhoto(false);
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao salvar perfil.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleClose = () => {
@@ -192,7 +246,9 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
 
   if (!user) return null;
 
-  const currentPhoto: string | null = removePhoto ? null : (photoPreview ?? null);
+  const currentPhoto: string | null = removePhoto
+    ? null
+    : (photoPreview ?? user?.avatar ?? null);
 
   return (
     <>
@@ -317,7 +373,9 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
               </div>
               <div className="min-w-0">
                 <p className="text-gray-400 truncate" style={{ fontSize: '0.65rem' }}>GÊNERO</p>
-                <p className="text-gray-800 truncate" style={{ fontSize: '0.78rem' }}>-</p>
+                <p className="text-gray-800 truncate" style={{ fontSize: '0.78rem' }}>
+                  {user.gender === 'M' ? 'Masculino' : user.gender === 'F' ? 'Feminino' : '-'}
+                </p>
               </div>
             </div>
 
@@ -332,9 +390,14 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
             </div>
             <div className="flex flex-wrap gap-2">
               <span className="px-3 py-1.5 rounded-full font-medium bg-gray-100 text-gray-700" style={{ fontSize: '0.8rem' }}>
-                {user.role === 'coordenador' ? 'Coordenador' :
-                  user.role === 'secretario' ? 'Secretário' :
-                    user.role === 'designador' ? 'Designador' : 'Publicador'}
+                {user.spiritual_status === 'publicador_batizado' ? 'Publicador Batizado' :
+                  user.spiritual_status === 'publicador' ? 'Publicador Não Batizado' :
+                    user.spiritual_status === 'pioneiro_auxiliar' ? 'Pioneiro Auxiliar' :
+                      user.spiritual_status === 'pioneiro_regular' ? 'Pioneiro Regular' :
+                        user.spiritual_status === 'estudante' ? 'Estudante' :
+                          user.spiritual_status === 'anciao' ? 'Ancão' :
+                            user.spiritual_status === 'servo_ministerial' ? 'Servo Ministerial' :
+                              'Não informado'}
               </span>
             </div>
           </div>

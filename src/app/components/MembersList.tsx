@@ -79,8 +79,35 @@ export function MembersList() {
   const fetchMembers = async () => {
     try {
       setLoading(true);
-      const members = await api.getMembers();
-      setAllMembers(members as unknown as Member[]);
+      const raw = await api.getMembers();
+
+      // Map snake_case DB fields → camelCase Member type
+      const mapped: Member[] = raw.map((m: any) => ({
+        id: m.id,
+        full_name: m.full_name,
+        email: m.email || '',
+        phone: m.phone || '',
+        emergency_contact_name: m.emergency_contact_name || '',
+        emergency_contact_phone: m.emergency_contact_phone || '',
+        spiritual_status: m.spiritual_status,
+        gender: m.gender,
+        roles: [],
+        groupId: m.group_id || undefined,
+        isFamilyHead: m.is_family_head || false,
+        familyHeadId: m.family_head_id || undefined,
+        avatar: m.avatar_url || undefined,
+        approvedAudioVideo: m.approved_audio_video || false,
+        approvedIndicadores: m.approved_indicadores || false,
+        approvedCarrinho: m.approved_carrinho || false,
+        // Keep snake_case copies too so updateMember/handleOpenEdit can read them
+        approved_pioneiro_auxiliar: m.approved_pioneiro_auxiliar || false,
+        approved_pioneiro_regular: m.approved_pioneiro_regular || false,
+        group_id: m.group_id || undefined,
+        family_head_id: m.family_head_id || undefined,
+        system_role: m.system_role || 'publicador',
+      }));
+
+      setAllMembers(mapped);
       const { data: groups } = await supabase.from('field_service_groups').select('*');
       if (groups) setFieldServiceGroups(groups);
     } catch (e) {
@@ -88,6 +115,7 @@ export function MembersList() {
     } finally {
       setLoading(false);
     }
+
   };
 
   useEffect(() => {
@@ -156,7 +184,7 @@ export function MembersList() {
       gender: member.gender,
       group_id: (member as any).group_id || '',
       is_family_head: member.isFamilyHead || false,
-      family_head_id: member.familyHeadId || '',
+      family_head_id: (member as any).family_head_id || member.familyHeadId || '',
       approved_audio_video: member.approvedAudioVideo || false,
       approved_indicadores: member.approvedIndicadores || false,
       approved_carrinho: member.approvedCarrinho || false,
@@ -244,20 +272,28 @@ export function MembersList() {
         className={`w-full px-4 py-3.5 flex items-center gap-3 hover:bg-muted/30 transition-colors text-left ${isNested ? 'pl-10 bg-muted/5' : ''}`}
       >
         <div
-          className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${member.isFamilyHead
+          className={`w-10 h-10 rounded-full overflow-hidden flex items-center justify-center shrink-0 border ${member.isFamilyHead
             ? 'bg-amber-50 text-amber-700 border-amber-200'
             : member.gender === 'M'
               ? 'bg-accent text-accent-foreground border-primary/5'
               : 'bg-pink-50 text-pink-600 border-pink-100'
             }`}
         >
-          <span className="font-bold" style={{ fontSize: '0.8rem' }}>
-            {member.full_name
-              .split(' ')
-              .map(n => n[0])
-              .join('')
-              .slice(0, 2)}
-          </span>
+          {((member as any).avatar_url || member.avatar) ? (
+            <img
+              src={(member as any).avatar_url || member.avatar}
+              alt={member.full_name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span className="font-bold" style={{ fontSize: '0.8rem' }}>
+              {member.full_name
+                .split(' ')
+                .map(n => n[0])
+                .join('')
+                .slice(0, 2)}
+            </span>
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
@@ -1069,8 +1105,44 @@ export function MembersList() {
                   <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="editGender" value="F" checked={editForm.gender === 'F'} onChange={() => setEditForm(f => ({ ...f, gender: 'F' }))} className="accent-[#35bdf8] w-4 h-4" /><span className="text-gray-700" style={{ fontSize: '0.9rem' }}>Feminino</span></label>
                 </div>
               </div>
+
+              {/* Família */}
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Crown size={14} className="text-amber-500 shrink-0" />
+                  <span className="text-amber-800 font-medium" style={{ fontSize: '0.85rem' }}>Família</span>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editForm.is_family_head || false}
+                    onChange={e => setEditForm(f => ({ ...f, is_family_head: e.target.checked, family_head_id: e.target.checked ? '' : f.family_head_id }))}
+                    className="accent-[#35bdf8] w-4 h-4 rounded"
+                  />
+                  <span className="text-gray-700" style={{ fontSize: '0.85rem' }}>Marcar como chefe de família</span>
+                </label>
+                {!editForm.is_family_head && (
+                  <div>
+                    <label className="block text-gray-600 mb-1" style={{ fontSize: '0.82rem' }}>Vincular a uma família existente:</label>
+                    <select
+                      value={editForm.family_head_id || ''}
+                      onChange={e => setEditForm(f => ({ ...f, family_head_id: e.target.value }))}
+                      className="w-full px-3 py-2 bg-white border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-300 text-foreground"
+                      style={{ fontSize: '0.9rem' }}
+                    >
+                      <option value="">Nenhuma família</option>
+                      {allMembers.filter(m => m.isFamilyHead && m.id !== editingMember?.id).map(head => (
+                        <option key={head.id} value={head.id}>Família {head.full_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* Privilégios */}
               <div className="bg-sky-50 border border-sky-100 rounded-xl p-3 space-y-2">
                 <div className="flex items-center gap-2 mb-1"><UserCheck size={14} className="text-sky-600 shrink-0" /><span className="text-sky-800 font-medium" style={{ fontSize: '0.85rem' }}>Privilégios</span></div>
+                <p className="text-gray-500" style={{ fontSize: '0.75rem' }}>Marque os privilégios atribuídos a este membro.</p>
                 {[
                   { key: 'approved_pioneiro_auxiliar', label: 'Pioneiro Auxiliar' },
                   { key: 'approved_pioneiro_regular', label: 'Pioneiro Regular' },
@@ -1084,6 +1156,7 @@ export function MembersList() {
                   </label>
                 ))}
               </div>
+
             </div>
             <div className="p-5 border-t border-border flex gap-3 justify-end sticky bottom-0 bg-white">
               <button onClick={() => setEditingMember(null)} disabled={savingMember} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium disabled:opacity-50" style={{ fontSize: '0.9rem' }}>Cancelar</button>

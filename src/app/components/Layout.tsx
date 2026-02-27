@@ -102,9 +102,13 @@ export function Layout() {
             className="w-full flex items-center gap-3 mb-3 px-3 py-2.5 rounded-xl hover:bg-white/8 transition-colors group text-left"
           >
             <div className="w-9 h-9 rounded-full overflow-hidden bg-primary flex items-center justify-center shrink-0 group-hover:ring-2 group-hover:ring-[#35bdf8]/40 transition-all">
-              <span className="text-primary-foreground font-bold" style={{ fontSize: '0.8rem' }}>
-                {user.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-              </span>
+              {user.avatar ? (
+                <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-primary-foreground font-bold" style={{ fontSize: '0.8rem' }}>
+                  {user.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                </span>
+              )}
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-white truncate group-hover:text-[#35bdf8] transition-colors" style={{ fontSize: '0.85rem' }}>{user.name}</p>
@@ -139,9 +143,13 @@ export function Layout() {
             className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-muted/50 transition-colors group"
           >
             <div className="w-6 h-6 rounded-full overflow-hidden bg-primary flex items-center justify-center shrink-0">
-              <span className="text-primary-foreground font-bold" style={{ fontSize: '0.65rem' }}>
-                {user.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-              </span>
+              {user.avatar ? (
+                <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-primary-foreground font-bold" style={{ fontSize: '0.65rem' }}>
+                  {user.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                </span>
+              )}
             </div>
             <span className="text-foreground group-hover:text-primary transition-colors" style={{ fontSize: '0.82rem' }}>{user.name}</span>
           </button>

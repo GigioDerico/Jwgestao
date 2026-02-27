@@ -14,6 +14,10 @@ interface AuthUser {
   phone: string;
   role: string;
   name: string;
+  gender?: string;
+  spiritual_status?: string;
+  member_id?: string;
+  avatar?: string;
 }
 
 interface AuthContextType {
@@ -23,6 +27,7 @@ interface AuthContextType {
   login: (phone: string, password: string) => Promise<string | null>;
   logout: () => Promise<void>;
   isAdmin: boolean;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -32,6 +37,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => 'not initialized',
   logout: async () => { },
   isAdmin: false,
+  refreshUser: async () => { },
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -52,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (profile?.member_id) {
         const { data: member } = await supabase
           .from('members')
-          .select('full_name')
+          .select('full_name, gender, spiritual_status, avatar_url')
           .eq('id', profile.member_id)
           .single();
 
@@ -61,6 +67,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           phone: phoneDigits,
           role: profile.system_role || 'publicador',
           name: member?.full_name || 'Usuário',
+          gender: member?.gender || undefined,
+          spiritual_status: member?.spiritual_status || undefined,
+          member_id: profile.member_id,
+          avatar: (member as any)?.avatar_url || undefined,
         };
       }
 
@@ -165,8 +175,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAdmin = user?.role === 'coordenador' || user?.role === 'secretario' || user?.role === 'designador';
 
+  const refreshUser = async () => {
+    if (!session?.user) return;
+    const updated = await buildAuthUser(session.user);
+    setUser(updated);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, loading, login, logout, isAdmin }}>
+    <AuthContext.Provider value={{ user, session, loading, login, logout, isAdmin, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

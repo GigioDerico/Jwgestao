@@ -120,8 +120,12 @@ export default function Members() {
                   <tr key={member.id} className="bg-card border-b border-border hover:bg-muted/30 transition-colors last:border-0">
                     <td className="px-6 py-4 font-medium text-foreground whitespace-nowrap">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-accent-foreground font-bold text-xs border border-primary/10">
-                          {member.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2) || '?'}
+                        <div className="w-8 h-8 rounded-full overflow-hidden bg-accent flex items-center justify-center text-accent-foreground font-bold text-xs border border-primary/10">
+                          {member.avatar_url ? (
+                            <img src={member.avatar_url} alt={member.full_name || ''} className="w-full h-full object-cover" />
+                          ) : (
+                            member.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2) || '?'
+                          )}
                         </div>
                         {member.full_name}
                       </div>
