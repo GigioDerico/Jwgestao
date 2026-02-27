@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { ChevronLeft, ChevronRight, X, Search, MapPin, Clock, Users, Plus } from 'lucide-react';
 import { toast } from 'sonner';
+import { downloadElementAsImage, downloadElementAsPdf } from '../lib/dom-export';
+import { ExportActions } from './ExportActions';
 import type { CartAssignment } from '../types';
 
 const MONTHS = [
@@ -33,6 +35,8 @@ export function CartAssignments() {
   const [members, setMembers] = useState<{ id: string; full_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [exporting, setExporting] = useState<'image' | 'pdf' | null>(null);
+  const exportRef = useRef<HTMLDivElement>(null);
   const [newAssignment, setNewAssignment] = useState({
     day: '',
     weekday: 'Terça-feira',
@@ -137,8 +141,32 @@ export function CartAssignments() {
     }))
     .filter(g => g.items.length > 0);
 
+  const handleExport = async (type: 'image' | 'pdf') => {
+    if (!exportRef.current) {
+      toast.error('Não foi possível preparar a exportação.');
+      return;
+    }
+
+    const baseFilename = `carrinho-${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+
+    setExporting(type);
+    try {
+      if (type === 'image') {
+        await downloadElementAsImage(exportRef.current, `${baseFilename}.png`);
+        toast.success('Imagem gerada com sucesso.');
+      } else {
+        await downloadElementAsPdf(exportRef.current, `${baseFilename}.pdf`);
+        toast.success('PDF gerado com sucesso.');
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Não foi possível exportar a escala de carrinho.');
+    } finally {
+      setExporting(null);
+    }
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="relative space-y-4">
       {/* Month Navigator */}
       <div className="bg-card rounded-xl border border-border p-3 flex items-center justify-between shadow-sm">
         <button onClick={prevMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
@@ -150,6 +178,23 @@ export function CartAssignments() {
         <button onClick={nextMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
           <ChevronRight size={18} className="text-gray-600" />
         </button>
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>
+            Exportação do mês visível
+          </p>
+          <p className="text-muted-foreground" style={{ fontSize: '0.82rem' }}>
+            Exporta todas as semanas do mês atualmente selecionado.
+          </p>
+        </div>
+        <ExportActions
+          onExportImage={() => handleExport('image')}
+          onExportPdf={() => handleExport('pdf')}
+          exporting={exporting}
+          disabled={loading}
+        />
       </div>
 
       <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
@@ -412,6 +457,65 @@ export function CartAssignments() {
           members={members}
         />
       )}
+
+      <div className="pointer-events-none absolute -left-[10000px] top-0 w-[900px]" aria-hidden="true">
+        <div
+          ref={exportRef}
+          className="w-[900px] bg-white px-4 py-4 text-[#141414]"
+          style={{ fontFamily: 'Calibri, Arial, sans-serif' }}
+        >
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+            <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3">
+              <h4 className="text-center tracking-wide text-white" style={{ fontSize: '0.95rem' }}>
+                Arranjo de Trabalho com Carrinho — {MONTHS[currentMonth]} {currentYear}
+              </h4>
+            </div>
+
+            {grouped.length > 0 ? (
+              grouped.map((group, gIdx) => {
+                const colors = WEEK_COLORS[gIdx % WEEK_COLORS.length];
+                return (
+                  <table key={`export-week-${group.week}`} className="w-full" style={{ fontSize: '0.82rem' }}>
+                    <thead>
+                      <tr className={`${colors.header} text-white`}>
+                        <th className="px-3 py-2 text-center" style={{ width: '8%' }}>Dia</th>
+                        <th className="px-3 py-2 text-center" style={{ width: '14%' }}>Dia da Semana</th>
+                        <th className="px-3 py-2 text-center" style={{ width: '18%' }}>Hora</th>
+                        <th className="px-3 py-2 text-center" style={{ width: '22%' }}>Local</th>
+                        <th className="px-3 py-2 text-center" style={{ width: '19%' }}>Publicador 1</th>
+                        <th className="px-3 py-2 text-center" style={{ width: '19%' }}>Publicador 2</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.items.map((item, index) => (
+                        <tr
+                          key={`export-item-${item.id}`}
+                          className={`${index % 2 === 0 ? colors.row : 'bg-white'} border-b border-gray-50`}
+                        >
+                          <td className="px-3 py-2 text-center text-gray-800">{item.day}</td>
+                          <td className="px-3 py-2 text-center">
+                            <span className={`inline-block rounded-full px-2 py-0.5 ${WEEKDAY_COLORS[item.weekday] || 'bg-gray-100 text-gray-600'}`} style={{ fontSize: '0.72rem' }}>
+                              {item.weekday.toUpperCase()}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-center text-gray-600">{item.time}</td>
+                          <td className="px-3 py-2 text-center text-gray-600">{item.location}</td>
+                          <td className="px-3 py-2 text-center text-gray-800">{item.publisher1}</td>
+                          <td className="px-3 py-2 text-center text-gray-800">{item.publisher2}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                );
+              })
+            ) : (
+              <div className="px-4 py-8 text-center text-gray-500">
+                Nenhuma designação de carrinho para este mês.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

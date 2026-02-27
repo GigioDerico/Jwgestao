@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { Database } from './supabase-types';
+import { getMeetingDatesForMonth } from './audio-video-calendar';
+import { getSaturdaysForMonth } from './field-service-calendar';
 
 const PHONE_EMAIL_DOMAIN = 'jwgestao.app';
 const DEFAULT_PASSWORD = '001914';
@@ -101,6 +103,11 @@ export interface CreateFieldServiceAssignmentInput {
   responsible: string;
   location: string;
   category: string;
+}
+
+export interface FieldServiceGroupOption {
+  id: string;
+  name: string;
 }
 
 export interface CreateCartAssignmentInput {
@@ -440,6 +447,38 @@ export const api = {
     return mapAudioVideoAssignment(data);
   },
 
+  async ensureAudioVideoAssignmentsForMonth(monthIndex: number, year: number) {
+    const meetingDates = getMeetingDatesForMonth(monthIndex, year);
+    const existingAssignments = await this.getAudioVideoAssignments(monthIndex, year);
+    const existingDates = new Set(existingAssignments.map(assignment => assignment.date));
+    let createdCount = 0;
+
+    for (const meetingDate of meetingDates) {
+      if (existingDates.has(meetingDate.date)) {
+        continue;
+      }
+
+      await this.createAudioVideoAssignment({
+        date: meetingDate.date,
+        weekday: meetingDate.weekday,
+        sound: 'A definir',
+        image: 'A definir',
+        stage: 'A definir',
+        roving_mic_1: 'A definir',
+        roving_mic_2: 'A definir',
+        attendants: [],
+      });
+      existingDates.add(meetingDate.date);
+      createdCount += 1;
+    }
+
+    const assignments = await this.getAudioVideoAssignments(monthIndex, year);
+    return {
+      assignments,
+      createdCount,
+    };
+  },
+
   async updateAudioVideoAssignment(id: string, input: Partial<CreateAudioVideoAssignmentInput>) {
     const payload: Record<string, any> = {};
     if (input.date !== undefined) payload.date = input.date;
@@ -475,6 +514,16 @@ export const api = {
     return (data || []).map(mapFieldServiceAssignment);
   },
 
+  async getFieldServiceGroups(): Promise<FieldServiceGroupOption[]> {
+    const { data, error } = await supabase
+      .from('field_service_groups')
+      .select('id, name')
+      .order('name', { ascending: true });
+
+    if (error) throw new Error(`Erro ao buscar grupos de serviço: ${error.message}`);
+    return data || [];
+  },
+
   async createFieldServiceAssignment(input: CreateFieldServiceAssignmentInput) {
     const { data, error } = await supabase
       .from('field_service_assignments')
@@ -484,6 +533,92 @@ export const api = {
 
     if (error) throw new Error(formatDatabaseWriteError('Erro ao criar saída de campo', error));
     return mapFieldServiceAssignment(data);
+  },
+
+  async ensureFieldServiceAssignmentsForMonth(monthIndex: number, year: number) {
+    const existingAssignments = await this.getFieldServiceAssignments(monthIndex, year);
+    const groups = await this.getFieldServiceGroups();
+    const expectedRows: CreateFieldServiceAssignmentInput[] = [
+      {
+        month: monthIndex + 1,
+        year,
+        weekday: 'Terça-feira',
+        time: '16:30',
+        responsible: 'A definir',
+        location: 'Salão do Reino',
+        category: 'Terça-feira',
+      },
+      {
+        month: monthIndex + 1,
+        year,
+        weekday: 'Quarta-feira',
+        time: '08:45',
+        responsible: 'A definir',
+        location: 'Salão do Reino',
+        category: 'Quarta-feira',
+      },
+      {
+        month: monthIndex + 1,
+        year,
+        weekday: 'Sexta-feira',
+        time: '08:45',
+        responsible: 'A definir',
+        location: 'Salão do Reino',
+        category: 'Sexta-feira',
+      },
+      ...getSaturdaysForMonth(monthIndex, year).map(saturday => ({
+        month: monthIndex + 1,
+        year,
+        weekday: saturday.label,
+        time: '16:30',
+        responsible: 'A definir',
+        location: 'Salão do Reino',
+        category: 'Sábado',
+      })),
+      ...groups.map(group => ({
+        month: monthIndex + 1,
+        year,
+        weekday: 'Domingo',
+        time: '08:30 / 08:45',
+        responsible: group.name,
+        location: '',
+        category: 'Domingo',
+      })),
+    ];
+
+    const fixedCategories = new Set(['Terça-feira', 'Quarta-feira', 'Sexta-feira']);
+    let createdCount = 0;
+
+    for (const row of expectedRows) {
+      const exists = existingAssignments.some(assignment => {
+        if (fixedCategories.has(row.category)) {
+          return assignment.category === row.category;
+        }
+
+        if (row.category === 'Sábado') {
+          return assignment.category === 'Sábado' && assignment.weekday === row.weekday;
+        }
+
+        if (row.category === 'Domingo') {
+          return assignment.category === 'Domingo' && assignment.responsible === row.responsible;
+        }
+
+        return false;
+      });
+
+      if (exists) {
+        continue;
+      }
+
+      await this.createFieldServiceAssignment(row);
+      createdCount += 1;
+    }
+
+    const assignments = await this.getFieldServiceAssignments(monthIndex, year);
+    return {
+      assignments,
+      createdCount,
+    };
   },
 
   async updateFieldServiceAssignment(id: string, input: Partial<CreateFieldServiceAssignmentInput>) {

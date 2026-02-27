@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { api } from '../lib/api';
-import { ChevronLeft, ChevronRight, X, Search, MapPin, Clock, User, Plus } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Plus, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { api, type FieldServiceGroupOption } from '../lib/api';
+import { downloadElementAsImage, downloadElementAsPdf } from '../lib/dom-export';
+import { getSaturdaysForMonth } from '../lib/field-service-calendar';
+import { ExportActions } from './ExportActions';
 import type { FieldServiceAssignment } from '../types';
 
 const MONTHS = [
@@ -9,7 +12,26 @@ const MONTHS = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
 
-const CATEGORY_COLORS: Record<string, { bg: string; header: string; border: string }> = {
+type FieldServiceCategory =
+  | 'Terça-feira'
+  | 'Quarta-feira'
+  | 'Sexta-feira'
+  | 'Sábado'
+  | 'Domingo'
+  | 'Sábado - Rural';
+
+interface FieldServiceTemplateRow {
+  key: string;
+  category: FieldServiceCategory;
+  assignment: FieldServiceAssignment | null;
+  dayLabel: string;
+  displayTime: string;
+  displayResponsible: string;
+  displayLocation: string;
+  groupName?: string;
+}
+
+const CATEGORY_COLORS: Record<FieldServiceCategory, { bg: string; header: string; border: string }> = {
   'Terça-feira': { bg: 'bg-emerald-50/50', header: 'bg-emerald-600', border: 'border-emerald-200' },
   'Quarta-feira': { bg: 'bg-teal-50/50', header: 'bg-teal-600', border: 'border-teal-200' },
   'Sexta-feira': { bg: 'bg-cyan-50/50', header: 'bg-cyan-600', border: 'border-cyan-200' },
@@ -18,21 +40,39 @@ const CATEGORY_COLORS: Record<string, { bg: string; header: string; border: stri
   'Domingo': { bg: 'bg-emerald-50/50', header: 'bg-emerald-700', border: 'border-emerald-200' },
 };
 
+const FIXED_DEFAULTS: Record<'Terça-feira' | 'Quarta-feira' | 'Sexta-feira', { time: string; location: string }> = {
+  'Terça-feira': { time: '16:30', location: 'Salão do Reino' },
+  'Quarta-feira': { time: '08:45', location: 'Salão do Reino' },
+  'Sexta-feira': { time: '08:45', location: 'Salão do Reino' },
+};
+
+const FIXED_CATEGORIES: Array<'Terça-feira' | 'Quarta-feira' | 'Sexta-feira'> = [
+  'Terça-feira',
+  'Quarta-feira',
+  'Sexta-feira',
+];
+
 export function FieldServiceAssignments() {
-  const [currentMonth, setCurrentMonth] = useState(1);
-  const [currentYear, setCurrentYear] = useState(2026);
+  const today = new Date();
+  const [currentMonth, setCurrentMonth] = useState(today.getMonth());
+  const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [data, setData] = useState<FieldServiceAssignment[]>([]);
-  const [editModal, setEditModal] = useState<{ id: string; currentValue: string } | null>(null);
   const [members, setMembers] = useState<{ id: string; full_name: string }[]>([]);
+  const [groups, setGroups] = useState<FieldServiceGroupOption[]>([]);
+  const [memberEditModal, setMemberEditModal] = useState<{ id: string; currentValue: string } | null>(null);
+  const [textEditModal, setTextEditModal] = useState<{
+    id: string;
+    field: 'time' | 'location';
+    label: string;
+    currentValue: string;
+  } | null>(null);
+  const [addSundayGroupModal, setAddSundayGroupModal] = useState(false);
+  const [addRuralSaturdayModal, setAddRuralSaturdayModal] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [newAssignment, setNewAssignment] = useState({
-    weekday: '',
-    time: '',
-    responsible: '',
-    location: 'Salão do Reino',
-    category: 'Terça-feira',
-  });
+  const [generating, setGenerating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState<'image' | 'pdf' | null>(null);
+  const exportRef = useRef<HTMLDivElement>(null);
 
   const fetchAssignments = async () => {
     try {
@@ -47,86 +87,397 @@ export function FieldServiceAssignments() {
     }
   };
 
+  const fetchGroups = async () => {
+    try {
+      const rows = await api.getFieldServiceGroups();
+      setGroups(rows);
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao carregar grupos de serviço.');
+    }
+  };
+
   useEffect(() => {
-    api.getMembers().then(data => setMembers(data.map((m: any) => ({ id: m.id, full_name: m.full_name })))).catch(console.error);
+    api
+      .getMembers()
+      .then(rawMembers => setMembers(rawMembers.map((member: any) => ({ id: member.id, full_name: member.full_name }))))
+      .catch(error => {
+        console.error(error);
+        toast.error('Erro ao carregar membros.');
+      });
   }, []);
 
   useEffect(() => {
+    fetchGroups();
     fetchAssignments();
   }, [currentMonth, currentYear]);
 
   const prevMonth = () => {
-    if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear(y => y - 1); }
-    else setCurrentMonth(m => m - 1);
+    if (currentMonth === 0) {
+      setCurrentMonth(11);
+      setCurrentYear(value => value - 1);
+      return;
+    }
+
+    setCurrentMonth(value => value - 1);
   };
+
   const nextMonth = () => {
-    if (currentMonth === 11) { setCurrentMonth(0); setCurrentYear(y => y + 1); }
-    else setCurrentMonth(m => m + 1);
+    if (currentMonth === 11) {
+      setCurrentMonth(0);
+      setCurrentYear(value => value + 1);
+      return;
+    }
+
+    setCurrentMonth(value => value + 1);
   };
 
-  const handleEdit = (id: string, currentValue: string) => {
-    setEditModal({ id, currentValue });
+  const ensureAssignmentExists = (assignment: FieldServiceAssignment | null) => {
+    if (assignment) {
+      return true;
+    }
+
+    toast.error('Clique em "Gerar mês" para criar a estrutura deste mês.');
+    return false;
   };
 
-  const handleSave = async (newValue: string) => {
-    if (!editModal) return;
-
+  const handleGenerateMonth = async () => {
     try {
-      const updated = await api.updateFieldServiceAssignment(editModal.id, {
-        responsible: newValue,
-      });
-      setData(prev => prev.map(item => (item.id === editModal.id ? updated : item)));
-      setEditModal(null);
-      toast.success('Designação atualizada!');
+      setGenerating(true);
+      const result = await api.ensureFieldServiceAssignmentsForMonth(currentMonth, currentYear);
+      setData(result.assignments);
+
+      if (result.createdCount > 0) {
+        toast.success(`${result.createdCount} linha(s) criada(s) para ${MONTHS[currentMonth]} ${currentYear}.`);
+      } else {
+        toast.success('Este mês já estava completo.');
+      }
     } catch (err: any) {
-      toast.error(err.message || 'Erro ao atualizar saída de campo.');
+      toast.error(err.message || 'Erro ao gerar as saídas do mês.');
+    } finally {
+      setGenerating(false);
     }
   };
 
-  const handleCreate = async () => {
-    if (!newAssignment.weekday.trim() || !newAssignment.time.trim() || !newAssignment.responsible.trim()) {
-      toast.error('Preencha dia, horário e responsável.');
+  const handleEditResponsible = (assignment: FieldServiceAssignment | null) => {
+    if (!ensureAssignmentExists(assignment)) {
+      return;
+    }
+
+    setMemberEditModal({
+      id: assignment.id,
+      currentValue: assignment.responsible === 'A definir' ? '' : assignment.responsible,
+    });
+  };
+
+  const handleSaveResponsible = async (newValue: string) => {
+    if (!memberEditModal) {
       return;
     }
 
     try {
-      const created = await api.createFieldServiceAssignment({
-        month: currentMonth + 1,
-        year: currentYear,
-        weekday: newAssignment.weekday.trim(),
-        time: newAssignment.time.trim(),
-        responsible: newAssignment.responsible.trim(),
-        location: newAssignment.location.trim(),
-        category: newAssignment.category,
+      setSaving(true);
+      const updated = await api.updateFieldServiceAssignment(memberEditModal.id, {
+        responsible: newValue || 'A definir',
       });
-
-      setData(prev => [...prev, created]);
-      setNewAssignment({
-        weekday: '',
-        time: '',
-        responsible: '',
-        location: 'Salão do Reino',
-        category: 'Terça-feira',
-      });
-      setShowCreateForm(false);
-      toast.success('Nova designação de saída de campo salva no banco.');
+      setData(prev => prev.map(item => (item.id === memberEditModal.id ? updated : item)));
+      setMemberEditModal(null);
+      toast.success('Responsável atualizado!');
     } catch (err: any) {
-      toast.error(err.message || 'Erro ao criar saída de campo.');
+      toast.error(err.message || 'Erro ao atualizar responsável.');
+    } finally {
+      setSaving(false);
     }
   };
 
-  // Group by category
-  const categories = ['Terça-feira', 'Quarta-feira', 'Sexta-feira', 'Sábado', 'Sábado - Rural', 'Domingo'];
-  const grouped = categories
-    .map(cat => ({
-      category: cat,
-      items: data.filter(d => d.category === cat),
-    }))
-    .filter(g => g.items.length > 0);
+  const handleEditText = (
+    assignment: FieldServiceAssignment | null,
+    field: 'time' | 'location',
+    label: string
+  ) => {
+    if (!ensureAssignmentExists(assignment)) {
+      return;
+    }
+
+    setTextEditModal({
+      id: assignment.id,
+      field,
+      label,
+      currentValue: assignment[field],
+    });
+  };
+
+  const handleSaveText = async (newValue: string) => {
+    if (!textEditModal) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const updated = await api.updateFieldServiceAssignment(textEditModal.id, {
+        [textEditModal.field]: newValue,
+      } as any);
+      setData(prev => prev.map(item => (item.id === textEditModal.id ? updated : item)));
+      setTextEditModal(null);
+      toast.success(`${textEditModal.label} atualizado!`);
+    } catch (err: any) {
+      toast.error(err.message || `Erro ao atualizar ${textEditModal.label.toLowerCase()}.`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const currentSundayNames = new Set(
+    data
+      .filter(item => item.category === 'Domingo')
+      .map(item => item.responsible)
+      .filter(Boolean)
+  );
+  const availableSundayGroups = groups.filter(group => !currentSundayNames.has(group.name));
+  const saturdays = getSaturdaysForMonth(currentMonth, currentYear);
+  const currentRuralSaturdayLabels = new Set(
+    data
+      .filter(item => item.category === 'Sábado - Rural')
+      .map(item => item.weekday)
+      .filter(Boolean)
+  );
+  const availableRuralSaturdays = saturdays.filter(saturday => !currentRuralSaturdayLabels.has(saturday.label));
+
+  const handleAddSundayGroup = async (groupName: string) => {
+    try {
+      setSaving(true);
+      const created = await api.createFieldServiceAssignment({
+        month: currentMonth + 1,
+        year: currentYear,
+        weekday: 'Domingo',
+        time: '08:30 / 08:45',
+        responsible: groupName,
+        location: '',
+        category: 'Domingo',
+      });
+      setData(prev => [...prev, created]);
+      setAddSundayGroupModal(false);
+      toast.success('Grupo adicionado ao domingo.');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao adicionar grupo no domingo.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddRuralSaturday = async (weekday: string) => {
+    try {
+      setSaving(true);
+      const created = await api.createFieldServiceAssignment({
+        month: currentMonth + 1,
+        year: currentYear,
+        weekday,
+        time: '08:00',
+        responsible: 'A definir',
+        location: 'Salão do Reino',
+        category: 'Sábado - Rural',
+      });
+      setData(prev => [...prev, created]);
+      setAddRuralSaturdayModal(false);
+      toast.success('Linha de sábado rural adicionada.');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao adicionar sábado rural.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const buildRenderedGroups = () => {
+    const renderedGroups: Array<{
+      category: FieldServiceCategory;
+      rows: FieldServiceTemplateRow[];
+      emptyMessage?: string;
+    }> = [];
+
+    for (const category of FIXED_CATEGORIES) {
+      const items = data.filter(item => item.category === category);
+      const defaults = FIXED_DEFAULTS[category];
+
+      renderedGroups.push({
+        category,
+        rows: items.length > 0
+          ? items.map(item => ({
+            key: item.id,
+            category,
+            assignment: item,
+            dayLabel: item.weekday,
+            displayTime: item.time,
+            displayResponsible: item.responsible,
+            displayLocation: item.location,
+          }))
+          : [{
+            key: `placeholder-${category}`,
+            category,
+            assignment: null,
+            dayLabel: category,
+            displayTime: defaults.time,
+            displayResponsible: 'A definir',
+            displayLocation: defaults.location,
+          }],
+      });
+    }
+
+    const saturdayItems = data.filter(item => item.category === 'Sábado');
+    const matchedSaturdayIds = new Set<string>();
+    const saturdayRows: FieldServiceTemplateRow[] = saturdays.map(saturday => {
+      const assignment = saturdayItems.find(item => item.weekday === saturday.label) || null;
+
+      if (assignment) {
+        matchedSaturdayIds.add(assignment.id);
+      }
+
+      return {
+        key: assignment?.id || `placeholder-${saturday.label}`,
+        category: 'Sábado',
+        assignment,
+        dayLabel: assignment?.weekday || saturday.label,
+        displayTime: assignment?.time || '16:30',
+        displayResponsible: assignment?.responsible || 'A definir',
+        displayLocation: assignment?.location || 'Salão do Reino',
+      };
+    });
+
+    saturdayItems
+      .filter(item => !matchedSaturdayIds.has(item.id))
+      .forEach(item => {
+        saturdayRows.push({
+          key: item.id,
+          category: 'Sábado',
+          assignment: item,
+          dayLabel: item.weekday,
+          displayTime: item.time,
+          displayResponsible: item.responsible,
+          displayLocation: item.location,
+        });
+      });
+
+    renderedGroups.push({
+      category: 'Sábado',
+      rows: saturdayRows,
+    });
+
+    const ruralItems = data.filter(item => item.category === 'Sábado - Rural');
+    renderedGroups.push({
+      category: 'Sábado - Rural',
+      rows: ruralItems.map(item => ({
+        key: item.id,
+        category: 'Sábado - Rural',
+        assignment: item,
+        dayLabel: item.weekday,
+        displayTime: item.time,
+        displayResponsible: item.responsible,
+        displayLocation: item.location,
+      })),
+      emptyMessage: ruralItems.length === 0 ? 'Nenhuma linha de sábado rural adicionada neste mês.' : undefined,
+    });
+
+    const sundayItems = data.filter(item => item.category === 'Domingo');
+    const matchedSundayIds = new Set<string>();
+    const sundayRows: FieldServiceTemplateRow[] = groups.map(group => {
+      const assignment = sundayItems.find(item => item.responsible === group.name) || null;
+
+      if (assignment) {
+        matchedSundayIds.add(assignment.id);
+      }
+
+      return {
+        key: assignment?.id || `placeholder-sunday-${group.id}`,
+        category: 'Domingo',
+        assignment,
+        dayLabel: 'Domingo',
+        displayTime: assignment?.time || '08:30 / 08:45',
+        displayResponsible: assignment?.responsible || group.name,
+        displayLocation: assignment?.location || '',
+        groupName: assignment?.responsible || group.name,
+      };
+    });
+
+    sundayItems
+      .filter(item => !matchedSundayIds.has(item.id))
+      .sort((a, b) => a.responsible.localeCompare(b.responsible))
+      .forEach(item => {
+        sundayRows.push({
+          key: item.id,
+          category: 'Domingo',
+          assignment: item,
+          dayLabel: 'Domingo',
+          displayTime: item.time,
+          displayResponsible: item.responsible,
+          displayLocation: item.location,
+          groupName: item.responsible,
+        });
+      });
+
+    renderedGroups.push({
+      category: 'Domingo',
+      rows: sundayRows,
+      emptyMessage: groups.length === 0 ? 'Nenhum grupo de serviço cadastrado.' : undefined,
+    });
+
+    return renderedGroups;
+  };
+
+  const renderedGroups = buildRenderedGroups();
+
+  const renderTextButton = (
+    row: FieldServiceTemplateRow,
+    field: 'time' | 'location',
+    label: string,
+    value: string,
+    emptyFallback: string
+  ) => (
+    <button
+      type="button"
+      onClick={() => handleEditText(row.assignment, field, label)}
+      disabled={loading || generating || saving}
+      className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${row.assignment ? 'text-gray-700 hover:bg-green-100/70' : 'text-gray-400 hover:bg-gray-50'} disabled:cursor-not-allowed disabled:opacity-60`}
+    >
+      <span className={value ? '' : 'italic'}>{value || emptyFallback}</span>
+    </button>
+  );
+
+  const renderResponsibleButton = (row: FieldServiceTemplateRow) => (
+    <button
+      type="button"
+      onClick={() => handleEditResponsible(row.assignment)}
+      disabled={loading || generating || saving}
+      className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${row.assignment ? 'text-gray-700 hover:bg-green-100/70' : 'text-gray-400 hover:bg-gray-50'} disabled:cursor-not-allowed disabled:opacity-60`}
+    >
+      <span className={row.displayResponsible === 'A definir' ? 'italic' : ''}>{row.displayResponsible}</span>
+    </button>
+  );
+
+  const handleExport = async (type: 'image' | 'pdf') => {
+    if (!exportRef.current) {
+      toast.error('Não foi possível preparar a exportação.');
+      return;
+    }
+
+    const baseFilename = `saida-campo-${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+
+    setExporting(type);
+    try {
+      if (type === 'image') {
+        await downloadElementAsImage(exportRef.current, `${baseFilename}.png`);
+        toast.success('Imagem gerada com sucesso.');
+      } else {
+        await downloadElementAsPdf(exportRef.current, `${baseFilename}.pdf`);
+        toast.success('PDF gerado com sucesso.');
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Não foi possível exportar a saída de campo.');
+    } finally {
+      setExporting(null);
+    }
+  };
 
   return (
-    <div className="space-y-4">
-      {/* Month Navigator */}
+    <div className="relative space-y-4">
       <div className="bg-card rounded-xl border border-border p-3 flex items-center justify-between shadow-sm">
         <button onClick={prevMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
           <ChevronLeft size={18} className="text-gray-600" />
@@ -139,96 +490,214 @@ export function FieldServiceAssignments() {
         </button>
       </div>
 
-      <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <div>
-            <h4 className="text-foreground" style={{ fontSize: '0.95rem' }}>Criar nova saída de campo</h4>
-            <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>Cadastre um novo arranjo de saída mantendo o agrupamento por categoria.</p>
-          </div>
-          <button
-            onClick={() => setShowCreateForm(prev => !prev)}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
-            style={{ fontSize: '0.85rem' }}
-          >
-            <Plus size={14} />
-            {showCreateForm ? 'Fechar' : 'Nova saída'}
-          </button>
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>
+            Exportação do mês visível
+          </p>
+          <p className="text-muted-foreground" style={{ fontSize: '0.82rem' }}>
+            Exporta todas as seções da saída de campo do mês atualmente selecionado.
+          </p>
         </div>
-
-        {showCreateForm && (
-          <div className="grid gap-4 px-4 py-4 md:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Categoria</label>
-              <select
-                value={newAssignment.category}
-                onChange={e => setNewAssignment(prev => ({ ...prev, category: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="Terça-feira">Terça-feira</option>
-                <option value="Quarta-feira">Quarta-feira</option>
-                <option value="Sexta-feira">Sexta-feira</option>
-                <option value="Sábado">Sábado</option>
-                <option value="Sábado - Rural">Sábado - Rural</option>
-                <option value="Domingo">Domingo</option>
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Dia</label>
-              <input
-                type="text"
-                value={newAssignment.weekday}
-                onChange={e => setNewAssignment(prev => ({ ...prev, weekday: e.target.value }))}
-                placeholder="Ex.: Sábado 14/03"
-                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Horário</label>
-              <input
-                type="text"
-                value={newAssignment.time}
-                onChange={e => setNewAssignment(prev => ({ ...prev, time: e.target.value }))}
-                placeholder="08:45"
-                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Responsável</label>
-              <select
-                value={newAssignment.responsible}
-                onChange={e => setNewAssignment(prev => ({ ...prev, responsible: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="">Selecione...</option>
-                <option value="Saída dos Grupos">Saída dos Grupos</option>
-                {members.map(member => (
-                  <option key={member.id} value={member.full_name}>{member.full_name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="md:col-span-2">
-              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Local</label>
-              <input
-                type="text"
-                value={newAssignment.location}
-                onChange={e => setNewAssignment(prev => ({ ...prev, location: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-            <div className="md:col-span-2 flex justify-end">
-              <button
-                onClick={handleCreate}
-                className="rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
-                style={{ fontSize: '0.9rem' }}
-              >
-                Criar designação
-              </button>
-            </div>
-          </div>
-        )}
+        <ExportActions
+          onExportImage={() => handleExport('image')}
+          onExportPdf={() => handleExport('pdf')}
+          exporting={exporting}
+          disabled={loading}
+        />
       </div>
 
-      {/* Quote */}
+      <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+        <div className="border-b border-border px-4 py-3 md:flex md:items-center md:justify-between">
+          <div>
+            <h4 className="text-foreground" style={{ fontSize: '0.95rem' }}>Gerar saídas do mês</h4>
+            <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>
+              Terça, quarta e sexta são fixos. Sábado segue o calendário real e domingo cria uma linha por grupo.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleGenerateMonth}
+            disabled={loading || generating || saving}
+            className="mt-3 inline-flex items-center rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60 md:mt-0"
+            style={{ fontSize: '0.85rem' }}
+          >
+            {generating ? 'Gerando...' : 'Gerar mês'}
+          </button>
+        </div>
+        <div className="px-4 py-3">
+          <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>
+            {loading
+              ? 'Carregando saídas salvas deste mês...'
+              : 'Antes da geração, a tela já mostra a estrutura esperada. Clique em uma linha não gerada para ver a orientação.'}
+          </p>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="border-b border-border px-4 py-3 text-center">
+          <h2 className="font-semibold uppercase text-foreground" style={{ fontSize: '1.35rem', lineHeight: 1.1 }}>
+            Saída de Campo
+          </h2>
+        </div>
+        <div className="px-4 py-2 text-center">
+          <p className="font-semibold text-muted-foreground" style={{ fontSize: '0.95rem', lineHeight: 1.1 }}>
+            {MONTHS[currentMonth]}
+          </p>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="rounded-xl border border-border bg-card p-12 text-center text-muted-foreground">
+          Carregando saídas de campo...
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {renderedGroups.map(group => {
+            const colors = CATEGORY_COLORS[group.category];
+            const isSunday = group.category === 'Domingo';
+            const isRural = group.category === 'Sábado - Rural';
+
+            return (
+              <div key={group.category} className={`bg-white rounded-xl border ${colors.border} overflow-hidden`}>
+                <div className={`${colors.header} relative px-4 py-2.5`}>
+                  <h4 className="text-center text-white tracking-wide" style={{ fontSize: '0.85rem' }}>
+                    {group.category}
+                  </h4>
+                  {(isSunday || isRural) && (
+                    <div className="absolute inset-y-0 right-4 flex items-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isSunday) {
+                            if (availableSundayGroups.length === 0) {
+                              toast.error('Não há grupos disponíveis para adicionar neste mês.');
+                              return;
+                            }
+                            setAddSundayGroupModal(true);
+                            return;
+                          }
+
+                          if (availableRuralSaturdays.length === 0) {
+                            toast.error('Todos os sábados deste mês já foram usados no sábado rural.');
+                            return;
+                          }
+                          setAddRuralSaturdayModal(true);
+                        }}
+                        disabled={saving || generating}
+                        className="inline-flex items-center gap-1 rounded-lg bg-white/15 px-2.5 py-1 text-white transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
+                        style={{ fontSize: '0.75rem' }}
+                      >
+                        <Plus size={12} />
+                        {isSunday ? 'Adicionar grupo' : 'Adicionar linha'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {group.emptyMessage && group.rows.length === 0 ? (
+                  <div className="px-4 py-4 text-gray-500" style={{ fontSize: '0.82rem' }}>
+                    {group.emptyMessage}
+                  </div>
+                ) : (
+                  <>
+                    <div className="hidden sm:block">
+                      <table className="w-full" style={{ fontSize: '0.82rem' }}>
+                        <thead>
+                          <tr className="bg-gray-50 text-gray-500 border-b border-gray-100">
+                            <th className="px-4 py-2 text-left" style={{ width: isSunday ? '34%' : '28%' }}>
+                              {isSunday ? 'Grupo' : 'Dia'}
+                            </th>
+                            <th className="px-3 py-2 text-left" style={{ width: isSunday ? '28%' : '20%' }}>
+                              Horário
+                            </th>
+                            {!isSunday && (
+                              <th className="px-3 py-2 text-left" style={{ width: '28%' }}>
+                                Responsável
+                              </th>
+                            )}
+                            <th className="px-3 py-2 text-left" style={{ width: isSunday ? '38%' : '24%' }}>
+                              Local
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.rows.map((row, index) => (
+                            <tr
+                              key={row.key}
+                              className={`border-b border-gray-50 ${index % 2 === 0 ? colors.bg : 'bg-white'} transition-colors hover:bg-green-50/60`}
+                            >
+                              <td className="px-4 py-2.5 text-gray-700">
+                                {isSunday ? row.groupName : row.dayLabel}
+                                {!row.assignment && (
+                                  <span className="ml-2 text-gray-400" style={{ fontSize: '0.72rem' }}>
+                                    • não gerada
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2.5">
+                                {renderTextButton(row, 'time', 'Horário', row.displayTime, 'A definir')}
+                              </td>
+                              {!isSunday && (
+                                <td className="px-3 py-2.5">
+                                  {renderResponsibleButton(row)}
+                                </td>
+                              )}
+                              <td className="px-3 py-2.5">
+                                {renderTextButton(row, 'location', 'Local', row.displayLocation, 'Sem local')}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="sm:hidden divide-y divide-gray-50">
+                      {group.rows.map(row => (
+                        <div key={row.key} className="p-3">
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="text-gray-800" style={{ fontSize: '0.84rem' }}>
+                              {isSunday ? row.groupName : row.dayLabel}
+                            </span>
+                            {!row.assignment && (
+                              <span className="text-gray-400" style={{ fontSize: '0.72rem' }}>
+                                não gerada
+                              </span>
+                            )}
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className="w-20 shrink-0 text-gray-500" style={{ fontSize: '0.75rem' }}>Horário</span>
+                              <div className="flex-1">
+                                {renderTextButton(row, 'time', 'Horário', row.displayTime, 'A definir')}
+                              </div>
+                            </div>
+                            {!isSunday && (
+                              <div className="flex items-center gap-2">
+                                <span className="w-20 shrink-0 text-gray-500" style={{ fontSize: '0.75rem' }}>Responsável</span>
+                                <div className="flex-1">
+                                  {renderResponsibleButton(row)}
+                                </div>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <span className="w-20 shrink-0 text-gray-500" style={{ fontSize: '0.75rem' }}>Local</span>
+                              <div className="flex-1">
+                                {renderTextButton(row, 'location', 'Local', row.displayLocation, 'Sem local')}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <div className="bg-gradient-to-r from-emerald-600 to-green-600 rounded-xl p-4 text-center">
         <p className="text-white/90 italic" style={{ fontSize: '0.82rem' }}>
           "Portanto, vão e façam discípulos de pessoas de todas as nações... ensinando-as a obedecer a todas as coisas que lhes ordenei."
@@ -236,107 +705,138 @@ export function FieldServiceAssignments() {
         <p className="text-white/70 mt-1" style={{ fontSize: '0.75rem' }}>— Mateus 28:19,20</p>
       </div>
 
-      {/* Categories */}
-      {loading ? (
-        <div className="rounded-xl border border-border bg-card p-12 text-center text-muted-foreground">
-          Carregando saídas de campo...
-        </div>
-      ) : (
-        <div className="space-y-4">
-        {grouped.map(group => {
-          const colors = CATEGORY_COLORS[group.category] || CATEGORY_COLORS['Terça-feira'];
-          return (
-            <div key={group.category} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-              <div className={`${colors.header} px-4 py-2.5`}>
-                <h4 className="text-white text-center tracking-wide" style={{ fontSize: '0.85rem' }}>
-                  {group.category}
-                </h4>
-              </div>
-
-              {/* Desktop Table */}
-              <div className="hidden sm:block">
-                <table className="w-full" style={{ fontSize: '0.82rem' }}>
-                  <thead>
-                    <tr className="bg-gray-50 text-gray-500 border-b border-gray-100">
-                      <th className="px-4 py-2 text-left" style={{ width: '25%' }}>Dia</th>
-                      <th className="px-4 py-2 text-center" style={{ width: '20%' }}>Horário</th>
-                      <th className="px-4 py-2 text-center" style={{ width: '30%' }}>Responsável</th>
-                      <th className="px-4 py-2 text-center" style={{ width: '25%' }}>Local</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {group.items.map((item, idx) => (
-                      <tr
-                        key={item.id}
-                        className={`border-b border-gray-50 ${idx % 2 === 0 ? colors.bg : 'bg-white'} hover:bg-green-50/60 transition-colors`}
-                      >
-                        <td className="px-4 py-2.5 text-gray-700">{item.weekday}</td>
-                        <td className="px-4 py-2.5 text-center text-gray-600">{item.time}h</td>
-                        <td className="px-4 py-2.5 text-center">
-                          {item.responsible === 'Saída dos Grupos' ? (
-                            <span className="text-gray-700">{item.responsible}</span>
-                          ) : (
-                            <button
-                              onClick={() => handleEdit(item.id, item.responsible)}
-                              className="px-3 py-1 rounded-lg hover:bg-green-100 text-gray-800 transition-colors"
-                            >
-                              {item.responsible}
-                            </button>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 text-center text-gray-500">{item.location}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Mobile Cards */}
-              <div className="sm:hidden divide-y divide-gray-50">
-                {group.items.map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => item.responsible !== 'Saída dos Grupos' ? handleEdit(item.id, item.responsible) : undefined}
-                    className="w-full text-left p-3 hover:bg-green-50/40 transition-colors"
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-gray-800" style={{ fontSize: '0.85rem' }}>{item.weekday}</span>
-                      <span className="flex items-center gap-1 text-gray-500" style={{ fontSize: '0.78rem' }}>
-                        <Clock size={12} />
-                        {item.time}h
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 text-gray-700" style={{ fontSize: '0.82rem' }}>
-                        <User size={12} className="text-green-600" />
-                        {item.responsible}
-                      </span>
-                      {item.location && (
-                        <span className="flex items-center gap-1 text-gray-400" style={{ fontSize: '0.75rem' }}>
-                          <MapPin size={11} />
-                          {item.location}
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-        </div>
-      )}
-
-      {/* Edit Modal */}
-      {editModal && (
+      {memberEditModal && (
         <MemberSelectModal
           label="Responsável pela Saída de Campo"
-          currentValue={editModal.currentValue}
-          onClose={() => setEditModal(null)}
-          onSave={handleSave}
+          currentValue={memberEditModal.currentValue}
+          onClose={() => setMemberEditModal(null)}
+          onSave={handleSaveResponsible}
           members={members}
+          saving={saving}
         />
       )}
+
+      {textEditModal && (
+        <TextEditModal
+          label={textEditModal.label}
+          currentValue={textEditModal.currentValue}
+          onClose={() => setTextEditModal(null)}
+          onSave={handleSaveText}
+          saving={saving}
+        />
+      )}
+
+      {addSundayGroupModal && (
+        <GroupSelectModal
+          groups={availableSundayGroups}
+          onClose={() => setAddSundayGroupModal(false)}
+          onSave={handleAddSundayGroup}
+          saving={saving}
+        />
+      )}
+
+      {addRuralSaturdayModal && (
+        <SaturdaySelectModal
+          options={availableRuralSaturdays.map(saturday => saturday.label)}
+          onClose={() => setAddRuralSaturdayModal(false)}
+          onSave={handleAddRuralSaturday}
+          saving={saving}
+        />
+      )}
+
+      <div className="pointer-events-none absolute -left-[10000px] top-0 w-[900px]" aria-hidden="true">
+        <div
+          ref={exportRef}
+          className="w-[900px] bg-white px-4 py-4 text-[#141414]"
+          style={{ fontFamily: 'Calibri, Arial, sans-serif' }}
+        >
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+            <div className="border-b border-gray-200 px-4 py-3 text-center">
+              <h2 className="font-semibold uppercase text-[#1a1a2e]" style={{ fontSize: '1.25rem', lineHeight: 1.1 }}>
+                Saída de Campo
+              </h2>
+            </div>
+            <div className="px-4 py-2 text-center">
+              <p className="font-semibold text-gray-600" style={{ fontSize: '0.95rem', lineHeight: 1.1 }}>
+                {MONTHS[currentMonth]} {currentYear}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-4">
+            {renderedGroups.map(group => {
+              const colors = CATEGORY_COLORS[group.category];
+              const isSunday = group.category === 'Domingo';
+
+              return (
+                <div key={`export-${group.category}`} className={`overflow-hidden rounded-xl border ${colors.border} bg-white`}>
+                  <div className={`${colors.header} px-4 py-2.5`}>
+                    <h4 className="text-center text-white tracking-wide" style={{ fontSize: '0.85rem' }}>
+                      {group.category}
+                    </h4>
+                  </div>
+
+                  {group.emptyMessage && group.rows.length === 0 ? (
+                    <div className="px-4 py-4 text-gray-500" style={{ fontSize: '0.82rem' }}>
+                      {group.emptyMessage}
+                    </div>
+                  ) : (
+                    <table className="w-full" style={{ fontSize: '0.82rem' }}>
+                      <thead>
+                        <tr className="bg-gray-50 text-gray-500 border-b border-gray-100">
+                          <th className="px-4 py-2 text-left" style={{ width: isSunday ? '34%' : '28%' }}>
+                            {isSunday ? 'Grupo' : 'Dia'}
+                          </th>
+                          <th className="px-3 py-2 text-left" style={{ width: isSunday ? '28%' : '20%' }}>
+                            Horário
+                          </th>
+                          {!isSunday && (
+                            <th className="px-3 py-2 text-left" style={{ width: '28%' }}>
+                              Responsável
+                            </th>
+                          )}
+                          <th className="px-3 py-2 text-left" style={{ width: isSunday ? '38%' : '24%' }}>
+                            Local
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.rows.map((row, index) => (
+                          <tr
+                            key={`export-row-${row.key}`}
+                            className={`${index % 2 === 0 ? colors.bg : 'bg-white'} border-b border-gray-50`}
+                          >
+                            <td className="px-4 py-2.5 text-gray-700">
+                              {isSunday ? row.groupName : row.dayLabel}
+                              {!row.assignment && (
+                                <span className="ml-2 text-gray-400" style={{ fontSize: '0.72rem' }}>
+                                  • não gerada
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5 text-gray-700">{row.displayTime || 'A definir'}</td>
+                            {!isSunday && (
+                              <td className="px-3 py-2.5 text-gray-700">{row.displayResponsible || 'A definir'}</td>
+                            )}
+                            <td className="px-3 py-2.5 text-gray-700">{row.displayLocation || 'Sem local'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 p-4 text-center">
+            <p className="text-white/90 italic" style={{ fontSize: '0.82rem' }}>
+              "Portanto, vão e façam discípulos de pessoas de todas as nações... ensinando-as a obedecer a todas as coisas que lhes ordenei."
+            </p>
+            <p className="mt-1 text-white/70" style={{ fontSize: '0.75rem' }}>— Mateus 28:19,20</p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -347,18 +847,20 @@ function MemberSelectModal({
   onClose,
   onSave,
   members,
+  saving,
 }: {
   label: string;
   currentValue: string;
   onClose: () => void;
   onSave: (value: string) => void;
   members: { id: string; full_name: string }[];
+  saving: boolean;
 }) {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(currentValue);
 
-  const filtered = members.filter((m: { full_name: string }) =>
-    m.full_name.toLowerCase().includes(search.toLowerCase())
+  const filtered = members.filter(member =>
+    member.full_name.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -379,7 +881,7 @@ function MemberSelectModal({
             <input
               type="text"
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={event => setSearch(event.target.value)}
               placeholder="Buscar membro..."
               className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               style={{ fontSize: '0.9rem' }}
@@ -388,15 +890,23 @@ function MemberSelectModal({
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-2">
-          {filtered.map(m => (
+          <button
+            type="button"
+            onClick={() => setSelected('')}
+            className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${selected === '' ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'}`}
+            style={{ fontSize: '0.9rem' }}
+          >
+            A definir
+          </button>
+          {filtered.map(member => (
             <button
-              key={m.id}
-              onClick={() => setSelected(m.full_name)}
-              className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${selected === m.full_name ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'
-                }`}
+              key={member.id}
+              type="button"
+              onClick={() => setSelected(member.full_name)}
+              className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${selected === member.full_name ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'}`}
               style={{ fontSize: '0.9rem' }}
             >
-              {m.full_name}
+              {member.full_name}
             </button>
           ))}
         </div>
@@ -406,10 +916,238 @@ function MemberSelectModal({
           </button>
           <button
             onClick={() => onSave(selected)}
-            className="px-4 py-2 bg-[#1a1a2e] text-white rounded-lg hover:bg-[#16213e] transition"
+            disabled={saving}
+            className="px-4 py-2 bg-[#1a1a2e] text-white rounded-lg hover:bg-[#16213e] transition disabled:cursor-not-allowed disabled:opacity-60"
             style={{ fontSize: '0.9rem' }}
           >
-            Confirmar
+            {saving ? 'Salvando...' : 'Confirmar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TextEditModal({
+  label,
+  currentValue,
+  onClose,
+  onSave,
+  saving,
+}: {
+  label: string;
+  currentValue: string;
+  onClose: () => void;
+  onSave: (value: string) => void;
+  saving: boolean;
+}) {
+  const [value, setValue] = useState(currentValue);
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md flex flex-col">
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h3 className="text-gray-900">Editar</h3>
+            <p className="text-gray-500 mt-0.5" style={{ fontSize: '0.8rem' }}>{label}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="p-4">
+          <input
+            type="text"
+            value={value}
+            onChange={event => setValue(event.target.value)}
+            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            style={{ fontSize: '0.9rem' }}
+            autoFocus
+          />
+        </div>
+        <div className="p-3 border-t border-gray-100 flex gap-3 justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition" style={{ fontSize: '0.9rem' }}>
+            Cancelar
+          </button>
+          <button
+            onClick={() => onSave(value)}
+            disabled={saving}
+            className="px-4 py-2 bg-[#1a1a2e] text-white rounded-lg hover:bg-[#16213e] transition disabled:cursor-not-allowed disabled:opacity-60"
+            style={{ fontSize: '0.9rem' }}
+          >
+            {saving ? 'Salvando...' : 'Confirmar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GroupSelectModal({
+  groups,
+  onClose,
+  onSave,
+  saving,
+}: {
+  groups: FieldServiceGroupOption[];
+  onClose: () => void;
+  onSave: (groupName: string) => void;
+  saving: boolean;
+}) {
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState(groups[0]?.name || '');
+
+  const filtered = groups.filter(group => group.name.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col">
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+          <div>
+            <h3 className="text-gray-900">Adicionar Grupo</h3>
+            <p className="text-gray-500 mt-0.5" style={{ fontSize: '0.8rem' }}>
+              Selecione um grupo que ainda não tem linha de domingo neste mês.
+            </p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="p-3 border-b border-gray-100 shrink-0">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={event => setSearch(event.target.value)}
+              placeholder="Buscar grupo..."
+              className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              style={{ fontSize: '0.9rem' }}
+              autoFocus
+            />
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2">
+          {filtered.map(group => (
+            <button
+              key={group.id}
+              type="button"
+              onClick={() => setSelected(group.name)}
+              className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${selected === group.name ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'}`}
+              style={{ fontSize: '0.9rem' }}
+            >
+              {group.name}
+            </button>
+          ))}
+          {filtered.length === 0 && (
+            <p className="px-3 py-4 text-gray-500" style={{ fontSize: '0.85rem' }}>
+              Nenhum grupo disponível.
+            </p>
+          )}
+        </div>
+        <div className="p-3 border-t border-gray-100 flex gap-3 justify-end shrink-0">
+          <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition" style={{ fontSize: '0.9rem' }}>
+            Cancelar
+          </button>
+          <button
+            onClick={() => {
+              if (!selected) {
+                toast.error('Selecione um grupo.');
+                return;
+              }
+              onSave(selected);
+            }}
+            disabled={saving}
+            className="px-4 py-2 bg-[#1a1a2e] text-white rounded-lg hover:bg-[#16213e] transition disabled:cursor-not-allowed disabled:opacity-60"
+            style={{ fontSize: '0.9rem' }}
+          >
+            {saving ? 'Salvando...' : 'Confirmar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SaturdaySelectModal({
+  options,
+  onClose,
+  onSave,
+  saving,
+}: {
+  options: string[];
+  onClose: () => void;
+  onSave: (weekday: string) => void;
+  saving: boolean;
+}) {
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState(options[0] || '');
+
+  const filtered = options.filter(option => option.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col">
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+          <div>
+            <h3 className="text-gray-900">Adicionar Sábado Rural</h3>
+            <p className="text-gray-500 mt-0.5" style={{ fontSize: '0.8rem' }}>
+              Selecione um sábado ainda não usado neste mês.
+            </p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="p-3 border-b border-gray-100 shrink-0">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={event => setSearch(event.target.value)}
+              placeholder="Buscar sábado..."
+              className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              style={{ fontSize: '0.9rem' }}
+              autoFocus
+            />
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2">
+          {filtered.map(option => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setSelected(option)}
+              className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${selected === option ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'}`}
+              style={{ fontSize: '0.9rem' }}
+            >
+              {option}
+            </button>
+          ))}
+          {filtered.length === 0 && (
+            <p className="px-3 py-4 text-gray-500" style={{ fontSize: '0.85rem' }}>
+              Nenhum sábado disponível.
+            </p>
+          )}
+        </div>
+        <div className="p-3 border-t border-gray-100 flex gap-3 justify-end shrink-0">
+          <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition" style={{ fontSize: '0.9rem' }}>
+            Cancelar
+          </button>
+          <button
+            onClick={() => {
+              if (!selected) {
+                toast.error('Selecione um sábado.');
+                return;
+              }
+              onSave(selected);
+            }}
+            disabled={saving}
+            className="px-4 py-2 bg-[#1a1a2e] text-white rounded-lg hover:bg-[#16213e] transition disabled:cursor-not-allowed disabled:opacity-60"
+            style={{ fontSize: '0.9rem' }}
+          >
+            {saving ? 'Salvando...' : 'Confirmar'}
           </button>
         </div>
       </div>

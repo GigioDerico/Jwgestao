@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { Loader2, CalendarDays, Plus } from 'lucide-react';
+import { toast } from 'sonner';
 import { api } from '../lib/api';
 import { downloadElementAsImage, downloadElementAsPdf } from '../lib/dom-export';
 import {
@@ -7,11 +9,10 @@ import {
   MIDWEEK_PRIMARY_ROOM,
   buildMidweekScheduleTimes,
 } from '../lib/midweek-schedule';
+import { ExportActions } from './ExportActions';
 import { MidweekMeetingView } from './MidweekMeetingView';
 import { WeekendMeetingView } from './WeekendMeetingView';
 import type { MidweekMeeting, WeekendMeeting } from '../types';
-import { Loader2, CalendarDays, Plus, Download, FileText } from 'lucide-react';
-import { toast } from 'sonner';
 
 function getName(value: any): string {
   if (!value) return '';
@@ -135,6 +136,43 @@ function normalizeWeekendMeeting(meeting: any): WeekendMeeting {
   };
 }
 
+function MidweekSheetPrint({
+  meetings,
+  congregationName,
+}: {
+  meetings: MidweekMeeting[];
+  congregationName: string;
+}) {
+  return (
+    <div
+      className="mx-auto w-full max-w-[860px] border border-stone-300 bg-white px-5 py-4 text-[#141414]"
+      style={{ fontFamily: 'Calibri, Arial, sans-serif' }}
+    >
+      <div className="relative flex min-h-[30px] items-center justify-end">
+        <p className="absolute left-0 whitespace-nowrap text-[0.8rem] font-semibold tracking-tight md:text-[1rem]">
+          {congregationName}
+        </p>
+        <h3 className="whitespace-nowrap text-right text-[1.05rem] font-semibold leading-none md:text-[1.5rem]">
+          Programação da reunião do meio de semana
+        </h3>
+      </div>
+
+      <div className="mt-2 space-y-0.5">
+        <div className="h-0.5 bg-[#686868]" />
+        <div className="h-px bg-[#9a9a9a]" />
+      </div>
+
+      <div className="mt-3 space-y-6 md:space-y-8">
+        {meetings.map((meeting, index) => (
+          <div key={meeting.id} className={index < meetings.length - 1 ? 'border-b border-stone-200 pb-6 md:pb-8' : ''}>
+            <MidweekMeetingView meeting={meeting} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function MidweekMeetingSheet({
   meetings,
   congregationName,
@@ -144,91 +182,40 @@ function MidweekMeetingSheet({
   congregationName: string;
   sheetIndex: number;
 }) {
-  const exportRef = useRef<HTMLDivElement>(null);
-  const [exporting, setExporting] = useState<'image' | 'pdf' | null>(null);
-  const firstDate = meetings[0]?.date || `pagina-${sheetIndex + 1}`;
-  const lastDate = meetings[meetings.length - 1]?.date || firstDate;
-  const baseFilename = firstDate === lastDate
-    ? `reuniao-meio-semana-${firstDate}`
-    : `reuniao-meio-semana-${firstDate}-ate-${lastDate}`;
-
-  const handleExport = async (type: 'image' | 'pdf') => {
-    if (!exportRef.current) return;
-
-    setExporting(type);
-    try {
-      if (type === 'image') {
-        await downloadElementAsImage(exportRef.current, `${baseFilename}.png`);
-        toast.success('Imagem gerada com sucesso.');
-      } else {
-        await downloadElementAsPdf(exportRef.current, `${baseFilename}.pdf`);
-        toast.success('PDF gerado com sucesso.');
-      }
-    } catch (error: any) {
-      toast.error(error?.message || 'Nao foi possivel exportar a programacao.');
-    } finally {
-      setExporting(null);
-    }
-  };
-
   return (
     <div className="space-y-3 rounded-2xl border border-border bg-card p-3 shadow-sm">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>
-            Página {sheetIndex + 1}
-          </p>
-          <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>
-            Esta folha agrupa {meetings.length} reunião{meetings.length > 1 ? 'ões' : ''} para visualização e impressão.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => handleExport('image')}
-            disabled={exporting !== null}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-70"
-            style={{ fontSize: '0.82rem' }}
-          >
-            <Download size={14} />
-            {exporting === 'image' ? 'Gerando imagem...' : 'Baixar imagem'}
-          </button>
-          <button
-            onClick={() => handleExport('pdf')}
-            disabled={exporting !== null}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
-            style={{ fontSize: '0.82rem' }}
-          >
-            <FileText size={14} />
-            {exporting === 'pdf' ? 'Gerando PDF...' : 'Baixar PDF'}
-          </button>
-        </div>
+      <div>
+        <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>
+          Página {sheetIndex + 1}
+        </p>
+        <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>
+          Esta folha agrupa {meetings.length} reunião{meetings.length > 1 ? 'ões' : ''} para visualização e impressão.
+        </p>
       </div>
+      <MidweekSheetPrint meetings={meetings} congregationName={congregationName} />
+    </div>
+  );
+}
 
-      <div
-        ref={exportRef}
-        className="mx-auto w-full max-w-[860px] border border-stone-300 bg-white px-5 py-4 text-[#141414]"
-      >
-        <div className="relative flex min-h-[30px] items-center justify-center">
-          <p className="absolute left-0 whitespace-nowrap text-[0.8rem] font-semibold tracking-tight md:text-[1rem]">
-            {congregationName}
-          </p>
-          <h3 className="whitespace-nowrap text-center font-serif text-[1.05rem] font-semibold leading-none md:text-[1.5rem]">
-            Programação da reunião do meio de semana
-          </h3>
-        </div>
-
-        <div className="mt-2 space-y-0.5">
-          <div className="h-0.5 bg-[#686868]" />
-          <div className="h-px bg-[#9a9a9a]" />
-        </div>
-
-        <div className="mt-3 space-y-6 md:space-y-8">
-          {meetings.map((meeting, index) => (
-            <div key={meeting.id} className={index < meetings.length - 1 ? 'border-b border-stone-200 pb-6 md:pb-8' : ''}>
-              <MidweekMeetingView meeting={meeting} />
-            </div>
-          ))}
-        </div>
+function WeekendExportDocument({ meetings }: { meetings: WeekendMeeting[] }) {
+  return (
+    <div
+      className="w-full bg-white px-5 py-4 text-[#141414]"
+      style={{ fontFamily: 'Calibri, Arial, sans-serif' }}
+    >
+      <div className="border-b border-stone-300 pb-3">
+        <h3 className="text-center text-[1.2rem] font-semibold text-[#1a1a2e]">
+          Programação da reunião de fim de semana
+        </h3>
+      </div>
+      <div className="mt-4 space-y-4">
+        {meetings.length > 0 ? (
+          meetings.map(meeting => <WeekendMeetingView key={meeting.id} meeting={meeting} />)
+        ) : (
+          <div className="rounded-xl border border-stone-200 bg-white px-4 py-8 text-center text-stone-500">
+            Nenhuma reunião de fim de semana cadastrada.
+          </div>
+        )}
       </div>
     </div>
   );
@@ -241,6 +228,9 @@ export function MeetingsPage() {
   const [weekendMeetings, setWeekendMeetings] = useState<WeekendMeeting[]>([]);
   const [congregationName, setCongregationName] = useState(DEFAULT_CONGREGATION_NAME);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState<'image' | 'pdf' | null>(null);
+  const midweekExportRef = useRef<HTMLDivElement>(null);
+  const weekendExportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     (async () => {
@@ -270,8 +260,33 @@ export function MeetingsPage() {
     midweekSheets.push(midweekMeetings.slice(index, index + 2));
   }
 
+  const handleExport = async (type: 'image' | 'pdf') => {
+    const element = tab === 'midweek' ? midweekExportRef.current : weekendExportRef.current;
+    const baseFilename = tab === 'midweek' ? 'reunioes-meio-semana' : 'reunioes-fim-semana';
+
+    if (!element) {
+      toast.error('Não foi possível preparar a exportação.');
+      return;
+    }
+
+    setExporting(type);
+    try {
+      if (type === 'image') {
+        await downloadElementAsImage(element, `${baseFilename}.png`);
+        toast.success('Imagem gerada com sucesso.');
+      } else {
+        await downloadElementAsPdf(element, `${baseFilename}.pdf`);
+        toast.success('PDF gerado com sucesso.');
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Não foi possível exportar a programação.');
+    } finally {
+      setExporting(null);
+    }
+  };
+
   return (
-    <div className="max-w-5xl mx-auto space-y-4">
+    <div className="relative max-w-5xl mx-auto space-y-4">
       <div>
         <h1 className="text-foreground">Reuniões</h1>
         <p className="text-muted-foreground" style={{ fontSize: '0.85rem' }}>Programação das reuniões da congregação</p>
@@ -294,13 +309,12 @@ export function MeetingsPage() {
         </button>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1 bg-muted rounded-xl p-1 shadow-inner border border-border/50">
         <button
           onClick={() => setTab('midweek')}
           className={`flex-1 py-2.5 rounded-lg transition-all font-medium ${tab === 'midweek'
-              ? 'bg-card text-primary shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
+            ? 'bg-card text-primary shadow-sm'
+            : 'text-muted-foreground hover:text-foreground'
             }`}
           style={{ fontSize: '0.9rem' }}
         >
@@ -309,8 +323,8 @@ export function MeetingsPage() {
         <button
           onClick={() => setTab('weekend')}
           className={`flex-1 py-2.5 rounded-lg transition-all font-medium ${tab === 'weekend'
-              ? 'bg-card text-primary shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
+            ? 'bg-card text-primary shadow-sm'
+            : 'text-muted-foreground hover:text-foreground'
             }`}
           style={{ fontSize: '0.9rem' }}
         >
@@ -318,7 +332,25 @@ export function MeetingsPage() {
         </button>
       </div>
 
-      {/* Content */}
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>
+            Exportação da aba atual
+          </p>
+          <p className="text-muted-foreground" style={{ fontSize: '0.82rem' }}>
+            {tab === 'midweek'
+              ? 'Exporta todas as páginas de reunião de meio de semana atualmente visíveis.'
+              : 'Exporta toda a listagem de reuniões de fim de semana atualmente visível.'}
+          </p>
+        </div>
+        <ExportActions
+          onExportImage={() => handleExport('image')}
+          onExportPdf={() => handleExport('pdf')}
+          exporting={exporting}
+          disabled={loading}
+        />
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 className="animate-spin text-primary" size={28} />
@@ -355,6 +387,30 @@ export function MeetingsPage() {
           </div>
         )
       )}
+
+      <div className="pointer-events-none absolute -left-[10000px] top-0 w-[900px]" aria-hidden="true">
+        <div ref={midweekExportRef} className="w-[900px] bg-white px-4 py-4">
+          {midweekSheets.length > 0 ? (
+            <div className="space-y-4">
+              {midweekSheets.map((sheetMeetings, sheetIndex) => (
+                <div key={sheetMeetings.map(meeting => meeting.id).join('-')} className={sheetIndex > 0 ? 'pt-2' : ''}>
+                  <MidweekSheetPrint meetings={sheetMeetings} congregationName={congregationName} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-stone-200 bg-white px-4 py-8 text-center text-stone-500">
+              Nenhuma reunião de meio de semana cadastrada.
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="pointer-events-none absolute -left-[10000px] top-0 w-[900px]" aria-hidden="true">
+        <div ref={weekendExportRef} className="w-[900px] bg-white">
+          <WeekendExportDocument meetings={weekendMeetings} />
+        </div>
+      </div>
     </div>
   );
 }
