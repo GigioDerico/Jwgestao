@@ -22,8 +22,10 @@ import {
   Monitor,
   ShoppingCart,
   UserCheck,
+  Edit2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 
 type ViewMode = 'list' | 'service_group' | 'family';
 
@@ -39,8 +41,15 @@ export function MembersList() {
   const [fieldServiceGroups, setFieldServiceGroups] = useState<FieldServiceGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingMember, setSavingMember] = useState(false);
+  const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [editForm, setEditForm] = useState<Partial<CreateMemberInput>>({});
 
   const { user: authUser, isAdmin } = useAuth();
+  const { can } = usePermissions();
+
+  const canCreate = can('create_members');
+  const canEdit = can('edit_members');
+  const canView = can('view_members');
 
   const formatPhoneMask = (digits: string): string => {
     if (digits.length <= 2) return digits;
@@ -134,6 +143,52 @@ export function MembersList() {
       setSavingMember(false);
     }
   };
+
+  const handleOpenEdit = (member: Member) => {
+    setEditingMember(member);
+    setEditForm({
+      full_name: member.full_name,
+      phone: member.phone,
+      email: member.email,
+      emergency_contact_name: member.emergency_contact_name,
+      emergency_contact_phone: member.emergency_contact_phone,
+      spiritual_status: member.spiritual_status,
+      gender: member.gender,
+      group_id: (member as any).group_id || '',
+      is_family_head: member.isFamilyHead || false,
+      family_head_id: member.familyHeadId || '',
+      approved_audio_video: member.approvedAudioVideo || false,
+      approved_indicadores: member.approvedIndicadores || false,
+      approved_carrinho: member.approvedCarrinho || false,
+      approved_pioneiro_auxiliar: (member as any).approved_pioneiro_auxiliar || false,
+      approved_pioneiro_regular: (member as any).approved_pioneiro_regular || false,
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingMember) return;
+    if (!editForm.full_name?.trim()) {
+      toast.error('O nome completo é obrigatório.');
+      return;
+    }
+    setSavingMember(true);
+    try {
+      await api.updateMember(editingMember.id, {
+        ...editForm,
+        group_id: editForm.group_id || undefined,
+        family_head_id: editForm.family_head_id || undefined,
+      });
+      toast.success(`Membro "${editForm.full_name}" atualizado com sucesso!`);
+      setEditingMember(null);
+      await fetchMembers();
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao atualizar membro.');
+    } finally {
+      setSavingMember(false);
+    }
+  };
+
+
 
   const filtered = allMembers.filter(m => {
     const matchesSearch =
@@ -396,6 +451,20 @@ export function MembersList() {
               </div>
             )}
 
+            {/* Edit Button */}
+            {canEdit && (
+              <div className="sm:col-span-2 mt-3 flex justify-end">
+                <button
+                  onClick={() => handleOpenEdit(member)}
+                  className="flex items-center gap-2 px-4 py-2 bg-[#082c45] text-white rounded-xl hover:bg-[#0a4a7a] transition-colors font-medium"
+                  style={{ fontSize: '0.85rem' }}
+                >
+                  <Edit2 size={14} />
+                  Editar Membro
+                </button>
+              </div>
+            )}
+
           </div>
         </div>
       )}
@@ -458,15 +527,17 @@ export function MembersList() {
             {filtered.length} membros encontrados
           </p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-bold rounded-xl hover:opacity-90 transition-colors shadow-sm"
-        >
-          <Plus size={16} />
-          <span className="hidden sm:inline" style={{ fontSize: '0.9rem' }}>
-            Novo Membro
-          </span>
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-bold rounded-xl hover:opacity-90 transition-colors shadow-sm"
+          >
+            <Plus size={16} />
+            <span className="hidden sm:inline" style={{ fontSize: '0.9rem' }}>
+              Novo Membro
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Search & Filters */}
@@ -934,6 +1005,90 @@ export function MembersList() {
                 ) : (
                   'Salvar'
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Member Modal */}
+      {editingMember && (
+        <div className="fixed inset-0 bg-[#082c45]/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="p-5 border-b border-border flex items-center justify-between sticky top-0 bg-white z-10">
+              <h3 className="text-[#082c45] font-bold flex items-center gap-2">
+                <Edit2 size={16} />
+                Editar Membro
+              </h3>
+              <button onClick={() => setEditingMember(null)} disabled={savingMember} className="text-muted-foreground hover:text-foreground p-1 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Nome Completo *</label>
+                <input type="text" value={editForm.full_name || ''} onChange={e => setEditForm(f => ({ ...f, full_name: e.target.value }))} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground" style={{ fontSize: '0.9rem' }} />
+              </div>
+              <div>
+                <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Telefone</label>
+                <input type="tel" inputMode="numeric" value={formatPhoneMask((editForm.phone || '').replace(/\D/g, ''))} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0, 11) }))} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground" style={{ fontSize: '0.9rem' }} />
+              </div>
+              <div>
+                <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>E-mail</label>
+                <input type="email" value={editForm.email || ''} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground" style={{ fontSize: '0.9rem' }} />
+              </div>
+              <div>
+                <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Contato Emergência</label>
+                <input type="text" value={editForm.emergency_contact_name || ''} onChange={e => setEditForm(f => ({ ...f, emergency_contact_name: e.target.value }))} placeholder="Nome do contato" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground" style={{ fontSize: '0.9rem' }} />
+              </div>
+              <div>
+                <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Tel. Emergência</label>
+                <input type="tel" inputMode="numeric" value={formatPhoneMask((editForm.emergency_contact_phone || '').replace(/\D/g, ''))} onChange={e => setEditForm(f => ({ ...f, emergency_contact_phone: e.target.value.replace(/\D/g, '').slice(0, 11) }))} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground" style={{ fontSize: '0.9rem' }} />
+              </div>
+              <div>
+                <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Situação Espiritual</label>
+                <select value={editForm.spiritual_status || 'publicador'} onChange={e => setEditForm(f => ({ ...f, spiritual_status: e.target.value as any }))} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground" style={{ fontSize: '0.9rem' }}>
+                  <option value="estudante">Estudante</option>
+                  <option value="publicador">Publicador Não Batizado</option>
+                  <option value="publicador_batizado">Publicador Batizado</option>
+                  <option value="pioneiro_auxiliar">Pioneiro Auxiliar</option>
+                  <option value="pioneiro_regular">Pioneiro Regular</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Grupo de Saída</label>
+                <select value={editForm.group_id || ''} onChange={e => setEditForm(f => ({ ...f, group_id: e.target.value }))} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground" style={{ fontSize: '0.9rem' }}>
+                  <option value="">Sem grupo</option>
+                  {fieldServiceGroups.map(g => (<option key={g.id} value={g.id}>{g.name}</option>))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Gênero *</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="editGender" value="M" checked={editForm.gender === 'M'} onChange={() => setEditForm(f => ({ ...f, gender: 'M' }))} className="accent-[#35bdf8] w-4 h-4" /><span className="text-gray-700" style={{ fontSize: '0.9rem' }}>Masculino</span></label>
+                  <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="editGender" value="F" checked={editForm.gender === 'F'} onChange={() => setEditForm(f => ({ ...f, gender: 'F' }))} className="accent-[#35bdf8] w-4 h-4" /><span className="text-gray-700" style={{ fontSize: '0.9rem' }}>Feminino</span></label>
+                </div>
+              </div>
+              <div className="bg-sky-50 border border-sky-100 rounded-xl p-3 space-y-2">
+                <div className="flex items-center gap-2 mb-1"><UserCheck size={14} className="text-sky-600 shrink-0" /><span className="text-sky-800 font-medium" style={{ fontSize: '0.85rem' }}>Privilégios</span></div>
+                {[
+                  { key: 'approved_pioneiro_auxiliar', label: 'Pioneiro Auxiliar' },
+                  { key: 'approved_pioneiro_regular', label: 'Pioneiro Regular' },
+                  { key: 'approved_carrinho', label: 'Carrinho' },
+                  { key: 'approved_audio_video', label: 'Áudio e Vídeo' },
+                  { key: 'approved_indicadores', label: 'Indicadores' },
+                ].map(({ key, label }) => (
+                  <label key={key} className="flex items-center gap-2.5 cursor-pointer">
+                    <input type="checkbox" checked={(editForm as any)[key] || false} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
+                    <span className="text-gray-700" style={{ fontSize: '0.85rem' }}>{label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="p-5 border-t border-border flex gap-3 justify-end sticky bottom-0 bg-white">
+              <button onClick={() => setEditingMember(null)} disabled={savingMember} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium disabled:opacity-50" style={{ fontSize: '0.9rem' }}>Cancelar</button>
+              <button onClick={handleSaveEdit} disabled={savingMember} className="px-6 py-2 bg-[#35bdf8] text-[#082c45] font-bold rounded-lg hover:opacity-90 transition-colors shadow-md shadow-[#35bdf8]/10 disabled:opacity-50 flex items-center gap-2" style={{ fontSize: '0.9rem' }}>
+                {savingMember ? (<><Loader2 size={16} className="animate-spin" />Salvando...</>) : 'Salvar Alterações'}
               </button>
             </div>
           </div>

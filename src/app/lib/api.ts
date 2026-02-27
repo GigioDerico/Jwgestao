@@ -65,6 +65,31 @@ export const api = {
     }));
   },
 
+  async updateMember(memberId: string, input: Partial<CreateMemberInput>) {
+    const { error } = await supabase
+      .from('members')
+      .update({
+        full_name: input.full_name,
+        phone: input.phone ? input.phone.replace(/\D/g, '') : undefined,
+        email: input.email ?? null,
+        emergency_contact_name: input.emergency_contact_name ?? null,
+        emergency_contact_phone: input.emergency_contact_phone ?? null,
+        spiritual_status: input.spiritual_status as any,
+        gender: input.gender,
+        group_id: input.group_id || null,
+        is_family_head: input.is_family_head,
+        family_head_id: input.family_head_id || null,
+        approved_audio_video: input.approved_audio_video,
+        approved_indicadores: input.approved_indicadores,
+        approved_carrinho: input.approved_carrinho,
+        approved_pioneiro_auxiliar: input.approved_pioneiro_auxiliar,
+        approved_pioneiro_regular: input.approved_pioneiro_regular,
+      } as any)
+      .eq('id', memberId);
+
+    if (error) throw new Error(`Erro ao atualizar membro: ${error.message}`);
+  },
+
   async createMember(input: CreateMemberInput): Promise<{ member_id: string; auth_user_id: string }> {
     const phoneDigits = (input.phone || '').replace(/\D/g, '');
     if (!phoneDigits || phoneDigits.length < 10) {
