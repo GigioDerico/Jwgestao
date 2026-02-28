@@ -4,7 +4,7 @@ import { Shield, Check, Plus, Users, Trash2, Edit2, Loader2, X } from 'lucide-re
 import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { api } from '../lib/api';
-import { DEFAULT_CONGREGATION_NAME } from '../lib/midweek-schedule';
+import { DEFAULT_CONGREGATION_NAME, isValidTimeValue } from '../lib/midweek-schedule';
 import { supabase } from '../lib/supabase';
 
 const roles = [
@@ -19,8 +19,10 @@ const permissionDefs = [
   { key: 'create_members', label: 'Criar Membros' },
   { key: 'edit_members', label: 'Editar Membros' },
   { key: 'view_meetings', label: 'Visualizar Reuniões' },
+  { key: 'create_assignments', label: 'Criar Designações' },
   { key: 'edit_assignments', label: 'Editar Designações' },
   { key: 'view_assignments', label: 'Visualizar Designações' },
+  { key: 'download_assignments', label: 'Baixar Designações (JPG e PDF)' },
   { key: 'manage_permissions', label: 'Gerenciar Permissões' },
   { key: 'view_reports', label: 'Visualizar Relatórios' },
 ];
@@ -40,6 +42,8 @@ export function SettingsPage() {
   const [deleteConfirmGroup, setDeleteConfirmGroup] = useState<{ id: string; name: string } | null>(null);
   const [congregationName, setCongregationName] = useState('');
   const [savingCongregationName, setSavingCongregationName] = useState(false);
+  const [midweekMeetingTime, setMidweekMeetingTime] = useState('');
+  const [weekendMeetingTime, setWeekendMeetingTime] = useState('');
 
   const isCoordinator = user?.role === 'coordenador';
   const canManageGroups = user?.role === 'coordenador' || user?.role === 'secretario';
@@ -81,8 +85,15 @@ export function SettingsPage() {
 
   const fetchCongregationName = async () => {
     try {
-      const value = await api.getAppSetting('congregation_name');
-      setCongregationName(!value || value === 'Congregação local' ? DEFAULT_CONGREGATION_NAME : value);
+      const [nameValue, midweekTimeValue, weekendTimeValue] = await Promise.all([
+        api.getAppSetting('congregation_name'),
+        api.getAppSetting('midweek_meeting_time'),
+        api.getAppSetting('weekend_meeting_time'),
+      ]);
+
+      setCongregationName(!nameValue || nameValue === 'Congregação local' ? DEFAULT_CONGREGATION_NAME : nameValue);
+      setMidweekMeetingTime(midweekTimeValue || '');
+      setWeekendMeetingTime(weekendTimeValue || '');
     } catch (err) {
       console.error('Erro ao buscar nome da congregacao', err);
     }
@@ -206,12 +217,29 @@ export function SettingsPage() {
   };
 
   const handleSaveCongregationName = async () => {
+    const normalizedMidweekTime = midweekMeetingTime.trim();
+    const normalizedWeekendTime = weekendMeetingTime.trim();
+
+    if (normalizedMidweekTime && !isValidTimeValue(normalizedMidweekTime)) {
+      toast.error('O horário da reunião de meio de semana deve estar no formato HH:MM.');
+      return;
+    }
+
+    if (normalizedWeekendTime && !isValidTimeValue(normalizedWeekendTime)) {
+      toast.error('O horário da reunião de fim de semana deve estar no formato HH:MM.');
+      return;
+    }
+
     setSavingCongregationName(true);
     try {
-      await api.setAppSetting('congregation_name', congregationName.trim());
-      toast.success('Nome da congregacao salvo com sucesso!');
+      await Promise.all([
+        api.setAppSetting('congregation_name', congregationName.trim()),
+        api.setAppSetting('midweek_meeting_time', normalizedMidweekTime),
+        api.setAppSetting('weekend_meeting_time', normalizedWeekendTime),
+      ]);
+      toast.success('Dados da congregação salvos com sucesso!');
     } catch (err: any) {
-      toast.error(err.message || 'Erro ao salvar nome da congregacao.');
+      toast.error(err.message || 'Erro ao salvar dados da congregação.');
     } finally {
       setSavingCongregationName(false);
     }
@@ -263,13 +291,31 @@ export function SettingsPage() {
               className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
+          <div className="sm:w-48">
+            <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Horário meio de semana</label>
+            <input
+              type="time"
+              value={midweekMeetingTime}
+              onChange={e => setMidweekMeetingTime(e.target.value)}
+              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <div className="sm:w-48">
+            <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Horário fim de semana</label>
+            <input
+              type="time"
+              value={weekendMeetingTime}
+              onChange={e => setWeekendMeetingTime(e.target.value)}
+              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
           <button
             onClick={handleSaveCongregationName}
             disabled={savingCongregationName}
             className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
             style={{ fontSize: '0.9rem' }}
           >
-            {savingCongregationName ? 'Salvando...' : 'Salvar nome'}
+            {savingCongregationName ? 'Salvando...' : 'Salvar dados'}
           </button>
         </div>
       </div>

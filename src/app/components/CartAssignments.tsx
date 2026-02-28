@@ -27,7 +27,18 @@ const WEEKDAY_COLORS: Record<string, string> = {
   'Sábado': 'bg-blue-100 text-blue-700',
 };
 
-export function CartAssignments() {
+export function CartAssignments({
+  canCreate = true,
+  canEdit = true,
+  canExportImage = true,
+  canExportPdf = true,
+}: {
+  canCreate?: boolean;
+  canEdit?: boolean;
+  canExportImage?: boolean;
+  canExportPdf?: boolean;
+}) {
+  const readOnly = !canEdit;
   const [currentMonth, setCurrentMonth] = useState(0); // Jan
   const [currentYear, setCurrentYear] = useState(2026);
   const [data, setData] = useState<CartAssignment[]>([]);
@@ -78,6 +89,10 @@ export function CartAssignments() {
   };
 
   const handleEdit = (id: string, field: 'publisher1' | 'publisher2', currentValue: string) => {
+    if (!canEdit) {
+      return;
+    }
+
     setEditModal({ id, field, currentValue });
   };
 
@@ -106,6 +121,10 @@ export function CartAssignments() {
   };
 
   const handleCreate = async () => {
+    if (!canCreate) {
+      return;
+    }
+
     if (!newAssignment.day || !newAssignment.time.trim() || !newAssignment.location.trim() || !newAssignment.publisher1 || !newAssignment.publisher2) {
       toast.error('Preencha dia, horário, local e os dois publicadores.');
       return;
@@ -191,24 +210,29 @@ export function CartAssignments() {
         </button>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>
-            Exportação do mês visível
-          </p>
-          <p className="text-muted-foreground" style={{ fontSize: '0.82rem' }}>
-            Exporta todas as semanas do mês atualmente selecionado.
-          </p>
+      {(canExportImage || canExportPdf) && (
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>
+              Exportação do mês visível
+            </p>
+            <p className="text-muted-foreground" style={{ fontSize: '0.82rem' }}>
+              Exporta todas as semanas do mês atualmente selecionado.
+            </p>
+          </div>
+          <ExportActions
+            onExportImage={() => handleExport('image')}
+            onExportPdf={() => handleExport('pdf')}
+            exporting={exporting}
+            disabled={loading}
+            imageDisabled={!canExportImage}
+            pdfDisabled={!canExportPdf}
+          />
         </div>
-        <ExportActions
-          onExportImage={() => handleExport('image')}
-          onExportPdf={() => handleExport('pdf')}
-          exporting={exporting}
-          disabled={loading}
-        />
-      </div>
+      )}
 
-      <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+      {canCreate && (
+        <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div>
             <h4 className="text-foreground" style={{ fontSize: '0.95rem' }}>Criar nova escala de carrinho</h4>
@@ -321,7 +345,8 @@ export function CartAssignments() {
             </div>
           </div>
         )}
-      </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="bg-card rounded-xl border border-border p-12 text-center">
@@ -371,20 +396,28 @@ export function CartAssignments() {
                           <td className="px-3 py-2 text-center text-gray-600">{item.time}</td>
                           <td className="px-3 py-2 text-center text-gray-600">{item.location}</td>
                           <td className="px-2 py-2 text-center">
-                            <button
-                              onClick={() => handleEdit(item.id, 'publisher1', item.publisher1)}
-                              className="px-2 py-0.5 rounded hover:bg-amber-50 text-gray-800 transition-colors"
-                            >
-                              {item.publisher1}
-                            </button>
+                            {readOnly ? (
+                              <span className="px-2 py-0.5 text-gray-800">{item.publisher1}</span>
+                            ) : (
+                              <button
+                                onClick={() => handleEdit(item.id, 'publisher1', item.publisher1)}
+                                className="px-2 py-0.5 rounded hover:bg-amber-50 text-gray-800 transition-colors"
+                              >
+                                {item.publisher1}
+                              </button>
+                            )}
                           </td>
                           <td className="px-2 py-2 text-center">
-                            <button
-                              onClick={() => handleEdit(item.id, 'publisher2', item.publisher2)}
-                              className="px-2 py-0.5 rounded hover:bg-amber-50 text-gray-800 transition-colors"
-                            >
-                              {item.publisher2}
-                            </button>
+                            {readOnly ? (
+                              <span className="px-2 py-0.5 text-gray-800">{item.publisher2}</span>
+                            ) : (
+                              <button
+                                onClick={() => handleEdit(item.id, 'publisher2', item.publisher2)}
+                                className="px-2 py-0.5 rounded hover:bg-amber-50 text-gray-800 transition-colors"
+                              >
+                                {item.publisher2}
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -444,20 +477,35 @@ export function CartAssignments() {
                           {item.location}
                         </div>
                         <div className="flex gap-2">
-                          <button
-                            onClick={() => handleEdit(item.id, 'publisher1', item.publisher1)}
-                            className="flex-1 flex items-center gap-1.5 px-3 py-2 bg-gray-50 rounded-lg hover:bg-amber-50 transition-colors"
-                          >
-                            <Users size={12} className="text-amber-600 shrink-0" />
-                            <span className="text-gray-700 truncate" style={{ fontSize: '0.8rem' }}>{item.publisher1}</span>
-                          </button>
-                          <button
-                            onClick={() => handleEdit(item.id, 'publisher2', item.publisher2)}
-                            className="flex-1 flex items-center gap-1.5 px-3 py-2 bg-gray-50 rounded-lg hover:bg-amber-50 transition-colors"
-                          >
-                            <Users size={12} className="text-amber-600 shrink-0" />
-                            <span className="text-gray-700 truncate" style={{ fontSize: '0.8rem' }}>{item.publisher2}</span>
-                          </button>
+                          {readOnly ? (
+                            <>
+                              <div className="flex-1 flex items-center gap-1.5 px-3 py-2 bg-gray-50 rounded-lg">
+                                <Users size={12} className="text-amber-600 shrink-0" />
+                                <span className="text-gray-700 truncate" style={{ fontSize: '0.8rem' }}>{item.publisher1}</span>
+                              </div>
+                              <div className="flex-1 flex items-center gap-1.5 px-3 py-2 bg-gray-50 rounded-lg">
+                                <Users size={12} className="text-amber-600 shrink-0" />
+                                <span className="text-gray-700 truncate" style={{ fontSize: '0.8rem' }}>{item.publisher2}</span>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleEdit(item.id, 'publisher1', item.publisher1)}
+                                className="flex-1 flex items-center gap-1.5 px-3 py-2 bg-gray-50 rounded-lg hover:bg-amber-50 transition-colors"
+                              >
+                                <Users size={12} className="text-amber-600 shrink-0" />
+                                <span className="text-gray-700 truncate" style={{ fontSize: '0.8rem' }}>{item.publisher1}</span>
+                              </button>
+                              <button
+                                onClick={() => handleEdit(item.id, 'publisher2', item.publisher2)}
+                                className="flex-1 flex items-center gap-1.5 px-3 py-2 bg-gray-50 rounded-lg hover:bg-amber-50 transition-colors"
+                              >
+                                <Users size={12} className="text-amber-600 shrink-0" />
+                                <span className="text-gray-700 truncate" style={{ fontSize: '0.8rem' }}>{item.publisher2}</span>
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -470,7 +518,7 @@ export function CartAssignments() {
       )}
 
       {/* Edit Modal */}
-      {editModal && (
+      {!readOnly && editModal && (
         <MemberSelectModal
           label={editModal.field === 'publisher1' ? 'Publicador 1' : 'Publicador 2'}
           currentValue={editModal.currentValue}

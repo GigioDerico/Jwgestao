@@ -6,20 +6,25 @@ export function ExportActions({
   onExportPdf,
   exporting,
   disabled = false,
+  imageDisabled = false,
+  pdfDisabled = false,
 }: {
   onExportImage: () => Promise<void> | void;
   onExportPdf: () => Promise<void> | void;
   exporting: 'image' | 'pdf' | null;
   disabled?: boolean;
+  imageDisabled?: boolean;
+  pdfDisabled?: boolean;
 }) {
-  const isDisabled = disabled || exporting !== null;
+  const imageIsDisabled = disabled || imageDisabled || exporting !== null;
+  const pdfIsDisabled = disabled || pdfDisabled || exporting !== null;
 
   return (
     <div className="flex flex-wrap gap-2">
       <button
         type="button"
         onClick={() => onExportImage()}
-        disabled={isDisabled}
+        disabled={imageIsDisabled}
         className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-70"
         style={{ fontSize: '0.82rem' }}
       >
@@ -29,7 +34,7 @@ export function ExportActions({
       <button
         type="button"
         onClick={() => onExportPdf()}
-        disabled={isDisabled}
+        disabled={pdfIsDisabled}
         className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
         style={{ fontSize: '0.82rem' }}
       >

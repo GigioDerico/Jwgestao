@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Outlet, useNavigate, useLocation, Navigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationsContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { ProfileDrawer } from './ProfileDrawer';
 import { toast } from 'sonner';
 import {
@@ -22,6 +23,7 @@ import {
 
 export function Layout() {
   const { user, logout } = useAuth();
+  const { can } = usePermissions();
   const {
     notifications,
     unreadCount,
@@ -37,36 +39,38 @@ export function Layout() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [assignmentsMenuOpen, setAssignmentsMenuOpen] = useState(location.pathname.startsWith('/assignments'));
+  const canViewAssignments = can('view_assignments');
 
-  if (!user) {
-    return <Navigate to="/" replace />;
-  }
+  const canManageAssignments = user?.role === 'coordenador' || user?.role === 'designador';
+  const assignmentChildren = canManageAssignments
+    ? [
+      { path: '/assignments/meetings', label: 'Reuniões' },
+      { path: '/assignments/audio-video', label: 'Áudio e Vídeo' },
+      { path: '/assignments/field-service', label: 'Saída de Campo' },
+      { path: '/assignments/cart', label: 'Carrinho' },
+    ]
+    : [
+      ...(user?.approved_audio_video || user?.approved_indicadores
+        ? [{ path: '/assignments/audio-video', label: 'Áudio e Vídeo' }]
+        : []),
+      ...(user?.approved_carrinho ? [{ path: '/assignments/cart', label: 'Carrinho' }] : []),
+    ];
 
   const navItems = [
     { path: '/dashboard', label: 'Painel', icon: LayoutDashboard, roles: ['coordenador', 'secretario', 'designador', 'publicador'] },
     { path: '/meetings', label: 'Reuniões', icon: CalendarDays, roles: ['coordenador', 'secretario', 'designador', 'publicador'] },
     { path: '/members', label: 'Membros', icon: Users, roles: ['coordenador', 'secretario'] },
-    {
-      path: '/assignments',
-      label: 'Designações',
-      icon: BookOpen,
-      roles: ['coordenador', 'designador'],
-      children: [
-        { path: '/assignments/meetings', label: 'Reuniões', roles: ['coordenador', 'designador'] },
-        { path: '/assignments/audio-video', label: 'Áudio e Vídeo', roles: ['coordenador', 'designador'] },
-        { path: '/assignments/field-service', label: 'Saída de Campo', roles: ['coordenador', 'designador'] },
-        { path: '/assignments/cart', label: 'Carrinho', roles: ['coordenador', 'designador'] },
-      ],
-    },
+    ...(canViewAssignments && assignmentChildren.length > 0
+      ? [{
+        path: '/assignments',
+        label: 'Designações',
+        icon: BookOpen,
+        roles: ['coordenador', 'designador', 'publicador'],
+        children: assignmentChildren,
+      }]
+      : []),
     { path: '/settings', label: 'Configurações', icon: Settings, roles: ['coordenador'] },
   ];
-
-  const filteredNav = navItems
-    .filter(item => item.roles.includes(user.role))
-    .map(item => ({
-      ...item,
-      children: item.children?.filter(child => child.roles.includes(user.role)),
-    }));
 
   useEffect(() => {
     if (location.pathname.startsWith('/assignments')) {
@@ -74,9 +78,21 @@ export function Layout() {
     }
   }, [location.pathname]);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
+  const filteredNav = user
+    ? navItems
+      .filter(item => item.roles.includes(user.role))
+      .map(item => ({
+        ...item,
+        children: item.children,
+      }))
+    : [];
+
+  const handleLogout = async () => {
+    setNotificationsOpen(false);
+    setProfileOpen(false);
+    setSidebarOpen(false);
+    await logout();
+    navigate('/', { replace: true });
   };
 
   const roleLabels: Record<string, string> = {
@@ -85,6 +101,10 @@ export function Layout() {
     designador: 'Designador',
     publicador: 'Publicador',
   };
+
+  if (!user) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <div className="flex h-screen bg-background text-foreground">

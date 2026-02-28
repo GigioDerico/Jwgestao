@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Session, User } from '@supabase/supabase-js';
 
@@ -18,6 +18,9 @@ interface AuthUser {
   spiritual_status?: string;
   member_id?: string;
   avatar?: string;
+  approved_audio_video?: boolean;
+  approved_indicadores?: boolean;
+  approved_carrinho?: boolean;
 }
 
 interface AuthContextType {
@@ -44,7 +47,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const loginResolverRef = useRef<((user: AuthUser | null) => void) | null>(null);
 
   const buildAuthUser = useCallback(async (supaUser: User): Promise<AuthUser> => {
     const phoneDigits = supaUser.email?.replace(`@${PHONE_EMAIL_DOMAIN}`, '') || '';
@@ -58,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (profile?.member_id) {
         const { data: member } = await supabase
           .from('members')
-          .select('full_name, gender, spiritual_status, avatar_url')
+          .select('full_name, gender, spiritual_status, avatar_url, approved_audio_video, approved_indicadores, approved_carrinho')
           .eq('id', profile.member_id)
           .single();
 
@@ -71,6 +73,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           spiritual_status: member?.spiritual_status || undefined,
           member_id: profile.member_id,
           avatar: (member as any)?.avatar_url || undefined,
+          approved_audio_video: Boolean((member as any)?.approved_audio_video),
+          approved_indicadores: Boolean((member as any)?.approved_indicadores),
+          approved_carrinho: Boolean((member as any)?.approved_carrinho),
         };
       }
 
@@ -123,17 +128,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (s?.user) {
           const authUser = await buildAuthUser(s.user);
           setUser(authUser);
-          // Resolve pending login promise if exists
-          if (loginResolverRef.current) {
-            loginResolverRef.current(authUser);
-            loginResolverRef.current = null;
-          }
         } else {
           setUser(null);
-          if (loginResolverRef.current) {
-            loginResolverRef.current(null);
-            loginResolverRef.current = null;
-          }
         }
         setLoading(false);
       }
@@ -147,22 +143,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (phone: string, password: string): Promise<string | null> => {
     const email = phoneToEmail(phone);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return error.message;
 
-    // Wait for onAuthStateChange to finish building the user (max 8s)
-    try {
-      await Promise.race([
-        new Promise<AuthUser | null>((resolve) => {
-          loginResolverRef.current = resolve;
-        }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Login timeout')), 8000)
-        ),
-      ]);
-    } catch {
-      console.warn('[Auth] Timeout aguardando construção do perfil pós-login');
+    setSession(data.session ?? null);
+
+    if (data.user) {
+      const authUser = await buildAuthUser(data.user);
+      setUser(authUser);
     }
+
+    setLoading(false);
 
     return null;
   };

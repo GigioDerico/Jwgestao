@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { Loader2, CalendarDays, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../lib/api';
@@ -12,6 +12,8 @@ import {
 import { ExportActions } from './ExportActions';
 import { MidweekMeetingView } from './MidweekMeetingView';
 import { WeekendMeetingView } from './WeekendMeetingView';
+import { useAuth } from '../context/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import type { MidweekMeeting, WeekendMeeting } from '../types';
 
 function getName(value: any): string {
@@ -242,8 +244,15 @@ function WeekendExportDocument({ meetings }: { meetings: WeekendMeeting[] }) {
 }
 
 export function MeetingsPage() {
+  const { user } = useAuth();
+  const { can } = usePermissions();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<'midweek' | 'weekend'>('midweek');
+  const location = useLocation();
+  const locationState = location.state as { initialTab?: 'midweek' | 'weekend' } | null;
+  const canOpenPlanning = (user?.role === 'coordenador' || user?.role === 'designador') && can('view_assignments');
+  const canManagePlanning = canOpenPlanning && can('create_assignments') && can('edit_assignments');
+  const canDownloadAssignments = can('download_assignments');
+  const [tab, setTab] = useState<'midweek' | 'weekend'>(locationState?.initialTab === 'weekend' ? 'weekend' : 'midweek');
   const [midweekMeetings, setMidweekMeetings] = useState<MidweekMeeting[]>([]);
   const [weekendMeetings, setWeekendMeetings] = useState<WeekendMeeting[]>([]);
   const [congregationName, setCongregationName] = useState(DEFAULT_CONGREGATION_NAME);
@@ -251,6 +260,17 @@ export function MeetingsPage() {
   const [exporting, setExporting] = useState<'image' | 'pdf' | null>(null);
   const midweekExportRef = useRef<HTMLDivElement>(null);
   const weekendExportRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (locationState?.initialTab === 'weekend') {
+      setTab('weekend');
+      return;
+    }
+
+    if (locationState?.initialTab === 'midweek') {
+      setTab('midweek');
+    }
+  }, [locationState?.initialTab]);
 
   useEffect(() => {
     (async () => {
@@ -312,22 +332,24 @@ export function MeetingsPage() {
         <p className="text-muted-foreground" style={{ fontSize: '0.85rem' }}>Programação das reuniões da congregação</p>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>Criação e planejamento</p>
-          <p className="text-muted-foreground" style={{ fontSize: '0.82rem' }}>
-            A criação de novas reuniões e o encaixe inicial das designações agora ficam na área de planejamento.
-          </p>
+      {canManagePlanning && (
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>Criação e planejamento</p>
+            <p className="text-muted-foreground" style={{ fontSize: '0.82rem' }}>
+              A criação de novas reuniões e o encaixe inicial das designações agora ficam na área de planejamento.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/assignments')}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
+            style={{ fontSize: '0.85rem' }}
+          >
+            <Plus size={14} />
+            Abrir Planejamento
+          </button>
         </div>
-        <button
-          onClick={() => navigate('/assignments')}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
-          style={{ fontSize: '0.85rem' }}
-        >
-          <Plus size={14} />
-          Abrir Planejamento
-        </button>
-      </div>
+      )}
 
       <div className="flex gap-1 bg-muted rounded-xl p-1 shadow-inner border border-border/50">
         <button
@@ -352,24 +374,26 @@ export function MeetingsPage() {
         </button>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>
-            Exportação da aba atual
-          </p>
-          <p className="text-muted-foreground" style={{ fontSize: '0.82rem' }}>
-            {tab === 'midweek'
-              ? 'Exporta todas as páginas de reunião de meio de semana atualmente visíveis.'
-              : 'Exporta toda a listagem de reuniões de fim de semana atualmente visível.'}
-          </p>
+      {canDownloadAssignments && (
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>
+              Exportação da aba atual
+            </p>
+            <p className="text-muted-foreground" style={{ fontSize: '0.82rem' }}>
+              {tab === 'midweek'
+                ? 'Exporta todas as páginas de reunião de meio de semana atualmente visíveis.'
+                : 'Exporta toda a listagem de reuniões de fim de semana atualmente visível.'}
+            </p>
+          </div>
+          <ExportActions
+            onExportImage={() => handleExport('image')}
+            onExportPdf={() => handleExport('pdf')}
+            exporting={exporting}
+            disabled={loading}
+          />
         </div>
-        <ExportActions
-          onExportImage={() => handleExport('image')}
-          onExportPdf={() => handleExport('pdf')}
-          exporting={exporting}
-          disabled={loading}
-        />
-      </div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-16">

@@ -77,6 +77,7 @@ Prioridades de evolucao mais naturais para o projeto:
 3. continuar refinando a experiencia mobile em todas as telas
 4. ampliar a documentacao funcional e guias de treinamento
 5. expandir regras e automacoes por tipo de designacao
+6. incluir um historico de partes feitas por membros com graficos de participacao
 
 ### Executando localmente
 
@@ -193,6 +194,7 @@ The most natural next priorities are:
 3. keep improving the mobile experience across all screens
 4. expand functional documentation and training material
 5. extend rules and automation for each assignment type
+6. add a participation history for member assignments with engagement charts
 
 ### Running locally
 

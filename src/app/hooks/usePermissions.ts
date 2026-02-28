@@ -6,22 +6,26 @@ import { useAuth } from '../context/AuthContext';
 const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     coordenador: {
         view_members: true, create_members: true, edit_members: true,
-        view_meetings: true, edit_assignments: true, view_assignments: true,
+        view_meetings: true, create_assignments: true, edit_assignments: true, view_assignments: true,
+        download_assignments: true,
         manage_permissions: true, view_reports: true,
     },
     secretario: {
         view_members: true, create_members: true, edit_members: true,
-        view_meetings: true, edit_assignments: false, view_assignments: true,
+        view_meetings: true, create_assignments: false, edit_assignments: false, view_assignments: true,
+        download_assignments: false,
         manage_permissions: false, view_reports: true,
     },
     designador: {
         view_members: true, create_members: false, edit_members: false,
-        view_meetings: true, edit_assignments: true, view_assignments: true,
+        view_meetings: true, create_assignments: true, edit_assignments: true, view_assignments: true,
+        download_assignments: true,
         manage_permissions: false, view_reports: false,
     },
     publicador: {
         view_members: false, create_members: false, edit_members: false,
-        view_meetings: true, edit_assignments: false, view_assignments: true,
+        view_meetings: true, create_assignments: false, edit_assignments: false, view_assignments: true,
+        download_assignments: false,
         manage_permissions: false, view_reports: false,
     },
 };
@@ -33,8 +37,11 @@ function dbRowToMatrix(row: any): Record<string, boolean> {
         create_members: row.can_create_members,
         edit_members: row.can_edit_members,
         view_meetings: row.can_view_meetings,
+        create_assignments: row.can_create_assignments ?? false,
         edit_assignments: row.can_edit_assignments,
         view_assignments: row.can_view_assignments,
+        download_assignments:
+            Boolean(row.can_download_assignment_image) || Boolean(row.can_download_assignment_pdf),
         manage_permissions: row.can_manage_permissions,
         view_reports: row.can_view_reports,
     };
@@ -83,6 +90,30 @@ export function usePermissions(): UsePermissionsResult {
     };
 
     const updatePermission = async (role: string, perm: string, value: boolean) => {
+        if (perm === 'download_assignments') {
+            const [imageResult, pdfResult] = await Promise.all([
+                supabase.rpc('update_role_permission', {
+                    p_role: role,
+                    p_perm: 'download_assignment_image',
+                    p_value: value,
+                }),
+                supabase.rpc('update_role_permission', {
+                    p_role: role,
+                    p_perm: 'download_assignment_pdf',
+                    p_value: value,
+                }),
+            ]);
+
+            if (imageResult.error) throw new Error(imageResult.error.message);
+            if (pdfResult.error) throw new Error(pdfResult.error.message);
+
+            setMatrix(prev => ({
+                ...prev,
+                [role]: { ...prev[role], [perm]: value },
+            }));
+            return;
+        }
+
         const { error } = await supabase.rpc('update_role_permission', {
             p_role: role,
             p_perm: perm,

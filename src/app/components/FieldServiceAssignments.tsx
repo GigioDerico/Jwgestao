@@ -52,7 +52,17 @@ const FIXED_CATEGORIES: Array<'Terça-feira' | 'Quarta-feira' | 'Sexta-feira'> =
   'Sexta-feira',
 ];
 
-export function FieldServiceAssignments() {
+export function FieldServiceAssignments({
+  canCreate = true,
+  canEdit = true,
+  canExportImage = true,
+  canExportPdf = true,
+}: {
+  canCreate?: boolean;
+  canEdit?: boolean;
+  canExportImage?: boolean;
+  canExportPdf?: boolean;
+}) {
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
@@ -153,6 +163,10 @@ export function FieldServiceAssignments() {
   };
 
   const handleGenerateMonth = async () => {
+    if (!canCreate) {
+      return;
+    }
+
     try {
       setGenerating(true);
       const result = await api.ensureFieldServiceAssignmentsForMonth(currentMonth, currentYear);
@@ -171,6 +185,10 @@ export function FieldServiceAssignments() {
   };
 
   const handleEditResponsible = (assignment: FieldServiceAssignment | null) => {
+    if (!canEdit) {
+      return;
+    }
+
     if (!ensureAssignmentExists(assignment)) {
       return;
     }
@@ -207,6 +225,10 @@ export function FieldServiceAssignments() {
     field: 'time' | 'location',
     label: string
   ) => {
+    if (!canEdit) {
+      return;
+    }
+
     if (!ensureAssignmentExists(assignment)) {
       return;
     }
@@ -266,6 +288,10 @@ export function FieldServiceAssignments() {
   const isMonthGenerated = hasFixedCategoriesGenerated && hasSaturdayRowsGenerated && hasSundayRowsGenerated;
 
   const handleAddSundayGroup = async (groupName: string) => {
+    if (!canCreate) {
+      return;
+    }
+
     try {
       setSaving(true);
       const created = await api.createFieldServiceAssignment({
@@ -289,6 +315,10 @@ export function FieldServiceAssignments() {
   };
 
   const handleAddRuralSaturday = async (weekday: string) => {
+    if (!canCreate) {
+      return;
+    }
+
     try {
       setSaving(true);
       const created = await api.createFieldServiceAssignment({
@@ -454,27 +484,47 @@ export function FieldServiceAssignments() {
     label: string,
     value: string,
     emptyFallback: string
-  ) => (
-    <button
-      type="button"
-      onClick={() => handleEditText(row.assignment, field, label)}
-      disabled={loading || generating || saving}
-      className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${row.assignment ? 'text-gray-700 hover:bg-green-100/70' : 'text-gray-400 hover:bg-gray-50'} disabled:cursor-not-allowed disabled:opacity-60`}
-    >
-      <span className={value ? '' : 'italic'}>{value || emptyFallback}</span>
-    </button>
-  );
+  ) => {
+    if (!canEdit) {
+      return (
+        <div className={`w-full rounded-lg px-3 py-2 text-left ${row.assignment ? 'text-gray-700' : 'text-gray-400'}`}>
+          <span className={value ? '' : 'italic'}>{value || emptyFallback}</span>
+        </div>
+      );
+    }
 
-  const renderResponsibleButton = (row: FieldServiceTemplateRow) => (
-    <button
-      type="button"
-      onClick={() => handleEditResponsible(row.assignment)}
-      disabled={loading || generating || saving}
-      className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${row.assignment ? 'text-gray-700 hover:bg-green-100/70' : 'text-gray-400 hover:bg-gray-50'} disabled:cursor-not-allowed disabled:opacity-60`}
-    >
-      <span className={row.displayResponsible === 'A definir' ? 'italic' : ''}>{row.displayResponsible}</span>
-    </button>
-  );
+    return (
+      <button
+        type="button"
+        onClick={() => handleEditText(row.assignment, field, label)}
+        disabled={loading || generating || saving}
+        className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${row.assignment ? 'text-gray-700 hover:bg-green-100/70' : 'text-gray-400 hover:bg-gray-50'} disabled:cursor-not-allowed disabled:opacity-60`}
+      >
+        <span className={value ? '' : 'italic'}>{value || emptyFallback}</span>
+      </button>
+    );
+  };
+
+  const renderResponsibleButton = (row: FieldServiceTemplateRow) => {
+    if (!canEdit) {
+      return (
+        <div className={`w-full rounded-lg px-3 py-2 text-left ${row.assignment ? 'text-gray-700' : 'text-gray-400'}`}>
+          <span className={row.displayResponsible === 'A definir' ? 'italic' : ''}>{row.displayResponsible}</span>
+        </div>
+      );
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={() => handleEditResponsible(row.assignment)}
+        disabled={loading || generating || saving}
+        className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${row.assignment ? 'text-gray-700 hover:bg-green-100/70' : 'text-gray-400 hover:bg-gray-50'} disabled:cursor-not-allowed disabled:opacity-60`}
+      >
+        <span className={row.displayResponsible === 'A definir' ? 'italic' : ''}>{row.displayResponsible}</span>
+      </button>
+    );
+  };
 
   const handleExport = async (type: 'image' | 'pdf') => {
     if (!exportRef.current) {
@@ -514,24 +564,28 @@ export function FieldServiceAssignments() {
         </button>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>
-            Exportação do mês visível
-          </p>
-          <p className="text-muted-foreground" style={{ fontSize: '0.82rem' }}>
-            Exporta todas as seções da saída de campo do mês atualmente selecionado.
-          </p>
+      {(canExportImage || canExportPdf) && (
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>
+              Exportação do mês visível
+            </p>
+            <p className="text-muted-foreground" style={{ fontSize: '0.82rem' }}>
+              Exporta todas as seções da saída de campo do mês atualmente selecionado.
+            </p>
+          </div>
+          <ExportActions
+            onExportImage={() => handleExport('image')}
+            onExportPdf={() => handleExport('pdf')}
+            exporting={exporting}
+            disabled={loading}
+            imageDisabled={!canExportImage}
+            pdfDisabled={!canExportPdf}
+          />
         </div>
-        <ExportActions
-          onExportImage={() => handleExport('image')}
-          onExportPdf={() => handleExport('pdf')}
-          exporting={exporting}
-          disabled={loading}
-        />
-      </div>
+      )}
 
-      {!isMonthGenerated && (
+      {canCreate && !isMonthGenerated && (
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
           <div className="border-b border-border px-4 py-3 md:flex md:items-center md:justify-between">
             <div>
@@ -586,7 +640,7 @@ export function FieldServiceAssignments() {
                   <h4 className="text-center text-white tracking-wide" style={{ fontSize: '0.85rem' }}>
                     {group.category}
                   </h4>
-                  {(isSunday || isRural) && (
+                  {canCreate && (isSunday || isRural) && (
                     <div className="absolute inset-y-0 right-4 flex items-center">
                       <button
                         type="button"
@@ -727,7 +781,7 @@ export function FieldServiceAssignments() {
         <p className="text-white/70 mt-1" style={{ fontSize: '0.75rem' }}>— Mateus 28:19,20</p>
       </div>
 
-      {memberEditModal && (
+      {canEdit && memberEditModal && (
         <MemberSelectModal
           label="Responsável pela Saída de Campo"
           currentValue={memberEditModal.currentValue}
@@ -738,7 +792,7 @@ export function FieldServiceAssignments() {
         />
       )}
 
-      {textEditModal && (
+      {canEdit && textEditModal && (
         <TextEditModal
           label={textEditModal.label}
           currentValue={textEditModal.currentValue}
@@ -748,7 +802,7 @@ export function FieldServiceAssignments() {
         />
       )}
 
-      {addSundayGroupModal && (
+      {canCreate && addSundayGroupModal && (
         <GroupSelectModal
           groups={availableSundayGroups}
           onClose={() => setAddSundayGroupModal(false)}
@@ -757,7 +811,7 @@ export function FieldServiceAssignments() {
         />
       )}
 
-      {addRuralSaturdayModal && (
+      {canCreate && addRuralSaturdayModal && (
         <SaturdaySelectModal
           options={availableRuralSaturdays.map(saturday => saturday.label)}
           onClose={() => setAddRuralSaturdayModal(false)}

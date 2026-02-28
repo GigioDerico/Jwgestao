@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Navigate } from 'react-router';
 import { api } from '../lib/api';
 import {
   MIDWEEK_PRIMARY_ROOM,
@@ -9,6 +10,8 @@ import {
   timeToMinutes,
 } from '../lib/midweek-schedule';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { Plus, X, ChevronDown, BookOpen } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -111,6 +114,8 @@ function getSequentialTimeError(times: { label: string; value: string }[]) {
 }
 
 export function AssignmentsPage() {
+  const { user } = useAuth();
+  const { can } = usePermissions();
   const [meetingType, setMeetingType] = useState<'midweek' | 'weekend'>('midweek');
   const [selectedMeetingIdx, setSelectedMeetingIdx] = useState(0);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -147,6 +152,15 @@ export function AssignmentsPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  const canManageAssignments = user?.role === 'coordenador' || user?.role === 'designador';
+  const canViewAssignments = can('view_assignments');
+  const canCreateAssignments = canManageAssignments && can('create_assignments');
+  const canEditAssignments = canManageAssignments && can('edit_assignments');
+
+  if (user && (!canManageAssignments || !canViewAssignments)) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const openEdit = (field: MeetingEditField) => {
     setEditField(field);
@@ -520,20 +534,24 @@ export function AssignmentsPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            onClick={openCreateMeetingModal}
-            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            <Plus size={16} />
-            <span style={{ fontSize: '0.9rem' }}>Nova Reunião</span>
-          </button>
-          <button
-            onClick={openEditMeetingModal}
-            className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-foreground transition-colors hover:bg-muted"
-          >
-            <BookOpen size={16} />
-            <span style={{ fontSize: '0.9rem' }}>Editar Reunião</span>
-          </button>
+          {canCreateAssignments && (
+            <button
+              onClick={openCreateMeetingModal}
+              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              <Plus size={16} />
+              <span style={{ fontSize: '0.9rem' }}>Nova Reunião</span>
+            </button>
+          )}
+          {canEditAssignments && (
+            <button
+              onClick={openEditMeetingModal}
+              className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-foreground transition-colors hover:bg-muted"
+            >
+              <BookOpen size={16} />
+              <span style={{ fontSize: '0.9rem' }}>Editar Reunião</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -548,11 +566,12 @@ export function AssignmentsPage() {
         showEditModal={showEditModal}
         editField={editField}
         allMembers={allMembers}
+        canEditAssignments={canEditAssignments}
         onCloseModal={() => setShowEditModal(false)}
         onSaveModal={saveAssignment}
       />
 
-      {showCreateMeetingModal && (
+      {canCreateAssignments && showCreateMeetingModal && (
         <CreateMeetingModal
           mode={meetingFormMode}
           meetingType={createMeetingType}
@@ -581,6 +600,7 @@ function MeetingsAssignmentsContent({
   showEditModal,
   editField,
   allMembers,
+  canEditAssignments,
   onCloseModal,
   onSaveModal,
 }: {
@@ -594,6 +614,7 @@ function MeetingsAssignmentsContent({
   showEditModal: boolean;
   editField: MeetingEditField | null;
   allMembers: any[];
+  canEditAssignments: boolean;
   onCloseModal: () => void;
   onSaveModal: (payload: { value: string; memberId?: string | null }) => void;
 }) {
@@ -659,15 +680,15 @@ function MeetingsAssignmentsContent({
         {/* Assignment cards */}
         <div className="space-y-4">
           <AssignmentSection title="Geral" color="bg-gray-700">
-            <AssignmentField label="Presidente" value={mappedPresident} onClick={() => openEdit({ label: 'Presidente', mode: 'member', currentValue: mappedPresident, table: 'midweek_meetings', rowId: meeting.id, column: 'president_id' })} />
-            <AssignmentField label="Oração Inicial" value={mappedOpeningPrayer} onClick={() => openEdit({ label: 'Oração Inicial', mode: 'member', currentValue: mappedOpeningPrayer, table: 'midweek_meetings', rowId: meeting.id, column: 'opening_prayer_id' })} />
-            <AssignmentField label="Oração Final" value={mappedClosingPrayer} onClick={() => openEdit({ label: 'Oração Final', mode: 'member', currentValue: mappedClosingPrayer, table: 'midweek_meetings', rowId: meeting.id, column: 'closing_prayer_id' })} />
+            <AssignmentField label="Presidente" value={mappedPresident} onClick={() => openEdit({ label: 'Presidente', mode: 'member', currentValue: mappedPresident, table: 'midweek_meetings', rowId: meeting.id, column: 'president_id' })} canEdit={canEditAssignments} />
+            <AssignmentField label="Oração Inicial" value={mappedOpeningPrayer} onClick={() => openEdit({ label: 'Oração Inicial', mode: 'member', currentValue: mappedOpeningPrayer, table: 'midweek_meetings', rowId: meeting.id, column: 'opening_prayer_id' })} canEdit={canEditAssignments} />
+            <AssignmentField label="Oração Final" value={mappedClosingPrayer} onClick={() => openEdit({ label: 'Oração Final', mode: 'member', currentValue: mappedClosingPrayer, table: 'midweek_meetings', rowId: meeting.id, column: 'closing_prayer_id' })} canEdit={canEditAssignments} />
           </AssignmentSection>
 
           <AssignmentSection title="Tesouros da Palavra de Deus" color="bg-[#5b2c2c]">
-            <AssignmentField label={`1. ${mappedTreasureTitle}`} value={mappedTalkSpeaker} onClick={() => openEdit({ label: 'Discurso', mode: 'member', currentValue: mappedTalkSpeaker, table: 'midweek_meetings', rowId: meeting.id, column: 'treasure_talk_speaker_id' })} />
-            <AssignmentField label="2. Joias Espirituais" value={mappedGemsSpeaker} onClick={() => openEdit({ label: 'Joias Espirituais', mode: 'member', currentValue: mappedGemsSpeaker, table: 'midweek_meetings', rowId: meeting.id, column: 'treasure_gems_speaker_id' })} />
-            <AssignmentField label="3. Leitura da Bíblia" value={mappedReadingStudent} onClick={() => openEdit({ label: 'Leitura da Bíblia', mode: 'member', currentValue: mappedReadingStudent, table: 'midweek_meetings', rowId: meeting.id, column: 'treasure_reading_student_id' })} />
+            <AssignmentField label={`1. ${mappedTreasureTitle}`} value={mappedTalkSpeaker} onClick={() => openEdit({ label: 'Discurso', mode: 'member', currentValue: mappedTalkSpeaker, table: 'midweek_meetings', rowId: meeting.id, column: 'treasure_talk_speaker_id' })} canEdit={canEditAssignments} />
+            <AssignmentField label="2. Joias Espirituais" value={mappedGemsSpeaker} onClick={() => openEdit({ label: 'Joias Espirituais', mode: 'member', currentValue: mappedGemsSpeaker, table: 'midweek_meetings', rowId: meeting.id, column: 'treasure_gems_speaker_id' })} canEdit={canEditAssignments} />
+            <AssignmentField label="3. Leitura da Bíblia" value={mappedReadingStudent} onClick={() => openEdit({ label: 'Leitura da Bíblia', mode: 'member', currentValue: mappedReadingStudent, table: 'midweek_meetings', rowId: meeting.id, column: 'treasure_reading_student_id' })} canEdit={canEditAssignments} />
           </AssignmentSection>
 
           <AssignmentSection title="Faça Seu Melhor no Ministério" color="bg-[#c4972a]">
@@ -678,6 +699,7 @@ function MeetingsAssignmentsContent({
                   label={`${part.part_number}. ${part.title} (${part.duration} min) — Estudante`}
                   value={part.student?.full_name || 'Desconhecido'}
                   onClick={() => openEdit({ label: `Parte ${part.part_number} Estudante`, mode: 'member', currentValue: part.student?.full_name || '', table: 'midweek_ministry_parts', rowId: part.id, column: 'student_id' })}
+                  canEdit={canEditAssignments}
                 />
                 {part.assistant_id && (
                   <AssignmentField
@@ -685,6 +707,7 @@ function MeetingsAssignmentsContent({
                     value={part.assistant?.full_name || 'Desconhecido'}
                     onClick={() => openEdit({ label: `Parte ${part.part_number} Ajudante`, mode: 'member', currentValue: part.assistant?.full_name || '', table: 'midweek_ministry_parts', rowId: part.id, column: 'assistant_id' })}
                     indent
+                    canEdit={canEditAssignments}
                   />
                 )}
               </div>
@@ -699,22 +722,25 @@ function MeetingsAssignmentsContent({
                 label={`${part.part_number}. ${part.title} (${part.duration} min)`}
                 value={part.speaker?.full_name || 'Desconhecido'}
                 onClick={() => openEdit({ label: part.title, mode: 'member', currentValue: part.speaker?.full_name || '', table: 'midweek_christian_life_parts', rowId: part.id, column: 'speaker_id' })}
+                canEdit={canEditAssignments}
               />
             ))}
             <AssignmentField
               label="Estudo Bíblico — Dirigente"
               value={mappedCbsConductor}
               onClick={() => openEdit({ label: 'Dirigente EBC', mode: 'member', currentValue: mappedCbsConductor, table: 'midweek_meetings', rowId: meeting.id, column: 'cbs_conductor_id' })}
+              canEdit={canEditAssignments}
             />
             <AssignmentField
               label="Estudo Bíblico — Leitor"
               value={mappedCbsReader}
               onClick={() => openEdit({ label: 'Leitor EBC', mode: 'member', currentValue: mappedCbsReader, table: 'midweek_meetings', rowId: meeting.id, column: 'cbs_reader_id' })}
+              canEdit={canEditAssignments}
             />
           </AssignmentSection>
         </div>
 
-        {showEditModal && editField && (
+        {canEditAssignments && showEditModal && editField && (
           <EditModal
             field={editField}
             members={allMembers}
@@ -768,22 +794,22 @@ function MeetingsAssignmentsContent({
 
       <div className="space-y-4">
         <AssignmentSection title="Conferência Pública" color="bg-[#1a5fb4]">
-          <AssignmentField label="Presidente" value={meeting.president?.full_name || 'Desconhecido'} onClick={() => openEdit({ label: 'Presidente', mode: 'member', currentValue: meeting.president?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'president_id' })} />
-          <AssignmentField label="Tema" value={meeting.talk_theme || 'Não definido'} onClick={() => openEdit({ label: 'Tema', mode: 'text', currentValue: meeting.talk_theme || '', table: 'weekend_meetings', rowId: meeting.id, column: 'talk_theme' })} />
-          <AssignmentField label="Orador" value={`${meeting.talk_speaker_name || 'Desconhecido'} (${meeting.talk_congregation || ''})`} onClick={() => openEdit({ label: 'Orador', mode: 'text', currentValue: meeting.talk_speaker_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'talk_speaker_name' })} />
+          <AssignmentField label="Presidente" value={meeting.president?.full_name || 'Desconhecido'} onClick={() => openEdit({ label: 'Presidente', mode: 'member', currentValue: meeting.president?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'president_id' })} canEdit={canEditAssignments} />
+          <AssignmentField label="Tema" value={meeting.talk_theme || 'Não definido'} onClick={() => openEdit({ label: 'Tema', mode: 'text', currentValue: meeting.talk_theme || '', table: 'weekend_meetings', rowId: meeting.id, column: 'talk_theme' })} canEdit={canEditAssignments} />
+          <AssignmentField label="Orador" value={`${meeting.talk_speaker_name || 'Desconhecido'} (${meeting.talk_congregation || ''})`} onClick={() => openEdit({ label: 'Orador', mode: 'text', currentValue: meeting.talk_speaker_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'talk_speaker_name' })} canEdit={canEditAssignments} />
         </AssignmentSection>
 
         <AssignmentSection title="Estudo de A Sentinela" color="bg-[#1a5fb4]">
-          <AssignmentField label="Dirigente" value={meeting.watchtower_conductor?.full_name || 'Desconhecido'} onClick={() => openEdit({ label: 'Dirigente', mode: 'member', currentValue: meeting.watchtower_conductor?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'watchtower_conductor_id' })} />
-          <AssignmentField label="Leitor" value={meeting.watchtower_reader?.full_name || 'Desconhecido'} onClick={() => openEdit({ label: 'Leitor', mode: 'member', currentValue: meeting.watchtower_reader?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'watchtower_reader_id' })} />
+          <AssignmentField label="Dirigente" value={meeting.watchtower_conductor?.full_name || 'Desconhecido'} onClick={() => openEdit({ label: 'Dirigente', mode: 'member', currentValue: meeting.watchtower_conductor?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'watchtower_conductor_id' })} canEdit={canEditAssignments} />
+          <AssignmentField label="Leitor" value={meeting.watchtower_reader?.full_name || 'Desconhecido'} onClick={() => openEdit({ label: 'Leitor', mode: 'member', currentValue: meeting.watchtower_reader?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'watchtower_reader_id' })} canEdit={canEditAssignments} />
         </AssignmentSection>
 
         <AssignmentSection title="Encerramento" color="bg-gray-700">
-          <AssignmentField label="Oração Final" value={meeting.closing_prayer?.full_name || 'Desconhecido'} onClick={() => openEdit({ label: 'Oração Final', mode: 'member', currentValue: meeting.closing_prayer?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'closing_prayer_id' })} />
+          <AssignmentField label="Oração Final" value={meeting.closing_prayer?.full_name || 'Desconhecido'} onClick={() => openEdit({ label: 'Oração Final', mode: 'member', currentValue: meeting.closing_prayer?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'closing_prayer_id' })} canEdit={canEditAssignments} />
         </AssignmentSection>
       </div>
 
-      {showEditModal && editField && (
+      {canEditAssignments && showEditModal && editField && (
         <EditModal
           field={editField}
           members={allMembers}
@@ -812,13 +838,28 @@ function AssignmentField({
   label,
   value,
   onClick,
+  canEdit = true,
   indent = false,
 }: {
   label: string;
   value: string;
   onClick: () => void;
+  canEdit?: boolean;
   indent?: boolean;
 }) {
+  if (!canEdit) {
+    return (
+      <div
+        className={`w-full flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 px-3 py-2.5 rounded-lg text-left ${indent ? 'pl-8' : ''}`}
+      >
+        <span className="text-gray-500 flex-1" style={{ fontSize: '0.85rem' }}>{label}</span>
+        <span className="text-gray-900 flex items-center gap-1" style={{ fontSize: '0.85rem' }}>
+          {value}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <button
       onClick={onClick}

@@ -45,7 +45,17 @@ const SINGLE_ROLE_LABELS = SINGLE_ROLE_CONFIG.reduce<Record<AudioVideoRoleKey, s
   return acc;
 }, {} as Record<AudioVideoRoleKey, string>);
 
-export function AudioVideoAssignments() {
+export function AudioVideoAssignments({
+  canCreate = true,
+  canEdit = true,
+  canExportImage = true,
+  canExportPdf = true,
+}: {
+  canCreate?: boolean;
+  canEdit?: boolean;
+  canExportImage?: boolean;
+  canExportPdf?: boolean;
+}) {
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
@@ -210,6 +220,10 @@ export function AudioVideoAssignments() {
   };
 
   const handleGenerateMonth = async () => {
+    if (!canCreate) {
+      return;
+    }
+
     try {
       setGenerating(true);
       const result = await api.ensureAudioVideoAssignmentsForMonth(currentMonth, currentYear);
@@ -228,6 +242,10 @@ export function AudioVideoAssignments() {
   };
 
   const handleEditRole = (assignment: AudioVideoAssignment | null, field: AudioVideoRoleKey) => {
+    if (!canEdit) {
+      return;
+    }
+
     if (!ensureRowExists(assignment)) {
       return;
     }
@@ -240,6 +258,10 @@ export function AudioVideoAssignments() {
   };
 
   const handleEditAttendants = (assignment: AudioVideoAssignment | null) => {
+    if (!canEdit) {
+      return;
+    }
+
     if (!ensureRowExists(assignment)) {
       return;
     }
@@ -336,6 +358,16 @@ export function AudioVideoAssignments() {
     const value = row.assignment ? getRoleValue(row.assignment, roleKey) : 'A definir';
     const isGenerated = Boolean(row.assignment);
 
+    if (!canEdit) {
+      return (
+        <div
+          className={`w-full rounded-lg px-3 py-2 text-left ${isGenerated ? 'text-gray-700' : 'text-gray-400'}`}
+        >
+          <span className={isGenerated ? '' : 'italic'}>{value}</span>
+        </div>
+      );
+    }
+
     return (
       <button
         type="button"
@@ -353,6 +385,16 @@ export function AudioVideoAssignments() {
       row.assignment && row.assignment.attendants.length > 0
         ? row.assignment.attendants.join(' / ')
         : 'A definir';
+
+    if (!canEdit) {
+      return (
+        <div
+          className={`w-full rounded-lg px-3 py-2 text-left ${row.assignment ? 'text-gray-700' : 'text-gray-400'}`}
+        >
+          <span className={row.assignment && row.assignment.attendants.length > 0 ? '' : 'italic'}>{value}</span>
+        </div>
+      );
+    }
 
     return (
       <button
@@ -406,24 +448,28 @@ export function AudioVideoAssignments() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>
-            Exportação do mês visível
-          </p>
-          <p className="text-muted-foreground" style={{ fontSize: '0.82rem' }}>
-            Exporta a grade de quinta e domingo do mês atualmente selecionado.
-          </p>
+      {(canExportImage || canExportPdf) && (
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>
+              Exportação do mês visível
+            </p>
+            <p className="text-muted-foreground" style={{ fontSize: '0.82rem' }}>
+              Exporta a grade de quinta e domingo do mês atualmente selecionado.
+            </p>
+          </div>
+          <ExportActions
+            onExportImage={() => handleExport('image')}
+            onExportPdf={() => handleExport('pdf')}
+            exporting={exporting}
+            disabled={loading}
+            imageDisabled={!canExportImage}
+            pdfDisabled={!canExportPdf}
+          />
         </div>
-        <ExportActions
-          onExportImage={() => handleExport('image')}
-          onExportPdf={() => handleExport('pdf')}
-          exporting={exporting}
-          disabled={loading}
-        />
-      </div>
+      )}
 
-      {!isMonthGenerated && (
+      {canCreate && !isMonthGenerated && (
         <div className="bg-card rounded-xl border border-border shadow-sm">
           <div className="border-b border-border px-4 py-3 md:flex md:items-center md:justify-between">
             <div>
@@ -541,7 +587,7 @@ export function AudioVideoAssignments() {
         ))}
       </div>
 
-      {editModal && (
+      {canEdit && editModal && (
         <MemberSelectModal
           label={SINGLE_ROLE_LABELS[editModal.field]}
           currentValue={editModal.value}
@@ -553,7 +599,7 @@ export function AudioVideoAssignments() {
         />
       )}
 
-      {attendantsModal && (
+      {canEdit && attendantsModal && (
         <AttendantsSelectModal
           currentValues={attendantsModal.values}
           onClose={() => setAttendantsModal(null)}
