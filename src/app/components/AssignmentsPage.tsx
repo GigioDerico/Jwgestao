@@ -9,14 +9,9 @@ import {
   timeToMinutes,
 } from '../lib/midweek-schedule';
 import { supabase } from '../lib/supabase';
-import { Plus, X, ChevronDown, BookOpen, Monitor, MapPin, ShoppingCart } from 'lucide-react';
+import { Plus, X, ChevronDown, BookOpen } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAuth } from '../context/AuthContext';
-import { AudioVideoAssignments } from './AudioVideoAssignments';
-import { FieldServiceAssignments } from './FieldServiceAssignments';
-import { CartAssignments } from './CartAssignments';
 
-type AssignmentTab = 'meetings' | 'audioVideo' | 'fieldService' | 'cart';
 type MeetingEditField = {
   label: string;
   mode: 'member' | 'text';
@@ -26,13 +21,6 @@ type MeetingEditField = {
   column: string;
 };
 type MeetingFormMode = 'create' | 'edit';
-
-const TABS: { key: AssignmentTab; label: string; shortLabel: string; icon: React.ElementType; color: string }[] = [
-  { key: 'meetings', label: 'Reuniões', shortLabel: 'Reuniões', icon: BookOpen, color: 'bg-[#1a1a2e]' },
-  { key: 'audioVideo', label: 'Áudio e Vídeo', shortLabel: 'A/V', icon: Monitor, color: 'bg-[#4a9bc7]' },
-  { key: 'fieldService', label: 'Saída de Campo', shortLabel: 'Campo', icon: MapPin, color: 'bg-emerald-600' },
-  { key: 'cart', label: 'Carrinho', shortLabel: 'Carrinho', icon: ShoppingCart, color: 'bg-amber-500' },
-];
 
 const MINISTRY_PART_TYPES = [
   'Iniciando conversas',
@@ -123,20 +111,6 @@ function getSequentialTimeError(times: { label: string; value: string }[]) {
 }
 
 export function AssignmentsPage() {
-  const { user } = useAuth();
-  const isAdminRole = user?.role === 'coordenador' || user?.role === 'secretario' || user?.role === 'designador';
-
-  // For MVP, show all tabs for admin users
-  const canSeeAudioVideo = isAdminRole;
-  const canSeeCart = isAdminRole;
-
-  const visibleTabs = TABS.filter(tab => {
-    if (tab.key === 'audioVideo') return canSeeAudioVideo;
-    if (tab.key === 'cart') return canSeeCart;
-    return true; // meetings & fieldService always visible
-  });
-
-  const [activeTab, setActiveTab] = useState<AssignmentTab>('meetings');
   const [meetingType, setMeetingType] = useState<'midweek' | 'weekend'>('midweek');
   const [selectedMeetingIdx, setSelectedMeetingIdx] = useState(0);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -540,77 +514,43 @@ export function AssignmentsPage() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-foreground">Designações</h1>
-          <p className="text-muted-foreground" style={{ fontSize: '0.85rem' }}>Gerencie reuniões, escalas e arranjos com a mesma linguagem visual do aplicativo.</p>
+          <h1 className="text-foreground">Designações de Reuniões</h1>
+          <p className="text-muted-foreground" style={{ fontSize: '0.85rem' }}>
+            Separe e organize as partes das reuniões do meio e do fim de semana em uma página própria.
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {activeTab === 'meetings' && (
-            <button
-              onClick={openCreateMeetingModal}
-              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
-            >
-              <Plus size={16} />
-              <span style={{ fontSize: '0.9rem' }}>Nova Reunião</span>
-            </button>
-          )}
-          {activeTab === 'meetings' && (
-            <button
-              onClick={openEditMeetingModal}
-              className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-foreground transition-colors hover:bg-muted"
-            >
-              <BookOpen size={16} />
-              <span style={{ fontSize: '0.9rem' }}>Editar Reunião</span>
-            </button>
-          )}
+          <button
+            onClick={openCreateMeetingModal}
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            <Plus size={16} />
+            <span style={{ fontSize: '0.9rem' }}>Nova Reunião</span>
+          </button>
+          <button
+            onClick={openEditMeetingModal}
+            className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-foreground transition-colors hover:bg-muted"
+          >
+            <BookOpen size={16} />
+            <span style={{ fontSize: '0.9rem' }}>Editar Reunião</span>
+          </button>
         </div>
       </div>
 
-      {/* Tab Navigation */}
-      <div className="bg-card rounded-xl border border-border p-1.5 shadow-sm">
-        <div className="flex gap-1">
-          {visibleTabs.map(tab => {
-            const isActive = activeTab === tab.key;
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg transition-all ${isActive
-                  ? `${tab.color} text-white shadow-sm`
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                  }`}
-                style={{ fontSize: '0.82rem' }}
-              >
-                <Icon size={16} />
-                <span className="hidden sm:inline">{tab.label}</span>
-                <span className="sm:hidden">{tab.shortLabel}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Tab Content */}
-      {activeTab === 'audioVideo' && <AudioVideoAssignments />}
-      {activeTab === 'fieldService' && <FieldServiceAssignments />}
-      {activeTab === 'cart' && <CartAssignments />}
-
-      {activeTab === 'meetings' && (
-        <MeetingsAssignmentsContent
-          midweekMeetings={midweekMeetings}
-          weekendMeetings={weekendMeetings}
-          meetingType={meetingType}
-          setMeetingType={setMeetingType}
-          selectedMeetingIdx={selectedMeetingIdx}
-          setSelectedMeetingIdx={setSelectedMeetingIdx}
-          openEdit={openEdit}
-          showEditModal={showEditModal}
-          editField={editField}
-          allMembers={allMembers}
-          onCloseModal={() => setShowEditModal(false)}
-          onSaveModal={saveAssignment}
-        />
-      )}
+      <MeetingsAssignmentsContent
+        midweekMeetings={midweekMeetings}
+        weekendMeetings={weekendMeetings}
+        meetingType={meetingType}
+        setMeetingType={setMeetingType}
+        selectedMeetingIdx={selectedMeetingIdx}
+        setSelectedMeetingIdx={setSelectedMeetingIdx}
+        openEdit={openEdit}
+        showEditModal={showEditModal}
+        editField={editField}
+        allMembers={allMembers}
+        onCloseModal={() => setShowEditModal(false)}
+        onSaveModal={saveAssignment}
+      />
 
       {showCreateMeetingModal && (
         <CreateMeetingModal
@@ -861,7 +801,7 @@ function AssignmentSection({ title, color, children }: { title: string; color: s
       <div className={`${color} px-4 py-2`}>
         <h4 className="text-white tracking-wide" style={{ fontSize: '0.85rem' }}>{title}</h4>
       </div>
-      <div className="divide-y divide-gray-50 p-1">
+      <div className="divide-y divide-gray-200 p-1">
         {children}
       </div>
     </div>

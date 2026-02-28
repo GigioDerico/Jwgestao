@@ -74,6 +74,7 @@ export function AudioVideoAssignments() {
     ...meetingDate,
     assignment: assignmentByDate.get(meetingDate.date) || null,
   }));
+  const isMonthGenerated = calendarRows.length > 0 && calendarRows.every(row => Boolean(row.assignment));
 
   const audioVideoMembers = members.filter(member => Boolean(member.approved_audio_video));
   const indicatorMembers = members.filter(member => Boolean(member.approved_indicadores));
@@ -422,32 +423,34 @@ export function AudioVideoAssignments() {
         />
       </div>
 
-      <div className="bg-card rounded-xl border border-border shadow-sm">
-        <div className="border-b border-border px-4 py-3 md:flex md:items-center md:justify-between">
-          <div>
-            <h4 className="text-foreground" style={{ fontSize: '0.95rem' }}>Gerar escala do mês</h4>
+      {!isMonthGenerated && (
+        <div className="bg-card rounded-xl border border-border shadow-sm">
+          <div className="border-b border-border px-4 py-3 md:flex md:items-center md:justify-between">
+            <div>
+              <h4 className="text-foreground" style={{ fontSize: '0.95rem' }}>Gerar escala do mês</h4>
+              <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>
+                Serão considerados apenas os dias de quinta e domingo do mês selecionado.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleGenerateMonth}
+              disabled={loading || generating || saving}
+              className="mt-3 inline-flex items-center rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60 md:mt-0"
+              style={{ fontSize: '0.85rem' }}
+            >
+              {generating ? 'Gerando...' : 'Gerar mês'}
+            </button>
+          </div>
+          <div className="px-4 py-3">
             <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>
-              Serão considerados apenas os dias de quinta e domingo do mês selecionado.
+              {loading
+                ? 'Carregando dados salvos do mês...'
+                : 'Clique em cada cargo para escolher os membros habilitados. Dias ainda não gerados aparecem vazios.'}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleGenerateMonth}
-            disabled={loading || generating || saving}
-            className="mt-3 inline-flex items-center rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60 md:mt-0"
-            style={{ fontSize: '0.85rem' }}
-          >
-            {generating ? 'Gerando...' : 'Gerar mês'}
-          </button>
         </div>
-        <div className="px-4 py-3">
-          <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>
-            {loading
-              ? 'Carregando dados salvos do mês...'
-              : 'Clique em cada cargo para escolher os membros habilitados. Dias ainda não gerados aparecem vazios.'}
-          </p>
-        </div>
-      </div>
+      )}
 
       <div className="hidden md:block bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
         <div className="bg-[#4a9bc7] px-4 py-3">
@@ -472,7 +475,7 @@ export function AudioVideoAssignments() {
               {calendarRows.map((row, index) => (
                 <tr
                   key={row.date}
-                  className={`${index % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'} border-b border-gray-100 transition-colors hover:bg-blue-50/70`}
+                  className={`${index % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'} border-b border-gray-200 transition-colors hover:bg-blue-50/70`}
                 >
                   <td className="px-3 py-2.5 text-gray-700">
                     <div className="font-medium">{formatDate(row.date)}</div>
@@ -590,7 +593,7 @@ export function AudioVideoAssignments() {
                   calendarRows.map((row, index) => (
                     <tr
                       key={`export-${row.date}`}
-                      className={`${index % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'} border-b border-gray-100`}
+                      className={`${index % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'} border-b border-gray-200`}
                     >
                       <td className="px-3 py-2.5 text-gray-700">
                         <div className="font-medium">{formatDate(row.date)}</div>

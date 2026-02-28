@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Outlet, useNavigate, useLocation, Navigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationsContext';
@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 export function Layout() {
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout } = useAuth();
   const {
     notifications,
     unreadCount,
@@ -36,6 +36,7 @@ export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [assignmentsMenuOpen, setAssignmentsMenuOpen] = useState(location.pathname.startsWith('/assignments'));
 
   if (!user) {
     return <Navigate to="/" replace />;
@@ -45,11 +46,33 @@ export function Layout() {
     { path: '/dashboard', label: 'Painel', icon: LayoutDashboard, roles: ['coordenador', 'secretario', 'designador', 'publicador'] },
     { path: '/meetings', label: 'Reuniões', icon: CalendarDays, roles: ['coordenador', 'secretario', 'designador', 'publicador'] },
     { path: '/members', label: 'Membros', icon: Users, roles: ['coordenador', 'secretario'] },
-    { path: '/assignments', label: 'Designações', icon: BookOpen, roles: ['coordenador', 'designador'] },
+    {
+      path: '/assignments',
+      label: 'Designações',
+      icon: BookOpen,
+      roles: ['coordenador', 'designador'],
+      children: [
+        { path: '/assignments/meetings', label: 'Reuniões', roles: ['coordenador', 'designador'] },
+        { path: '/assignments/audio-video', label: 'Áudio e Vídeo', roles: ['coordenador', 'designador'] },
+        { path: '/assignments/field-service', label: 'Saída de Campo', roles: ['coordenador', 'designador'] },
+        { path: '/assignments/cart', label: 'Carrinho', roles: ['coordenador', 'designador'] },
+      ],
+    },
     { path: '/settings', label: 'Configurações', icon: Settings, roles: ['coordenador'] },
   ];
 
-  const filteredNav = navItems.filter(item => item.roles.includes(user.role));
+  const filteredNav = navItems
+    .filter(item => item.roles.includes(user.role))
+    .map(item => ({
+      ...item,
+      children: item.children?.filter(child => child.roles.includes(user.role)),
+    }));
+
+  useEffect(() => {
+    if (location.pathname.startsWith('/assignments')) {
+      setAssignmentsMenuOpen(true);
+    }
+  }, [location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -93,6 +116,57 @@ export function Layout() {
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {filteredNav.map((item) => {
             const isActive = location.pathname.startsWith(item.path);
+            const hasChildren = Boolean(item.children?.length);
+
+            if (hasChildren) {
+              const isExpanded = assignmentsMenuOpen || isActive;
+
+              return (
+                <div key={item.path} className="space-y-1">
+                  <button
+                    onClick={() => setAssignmentsMenuOpen(value => !value)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${isActive
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-white/60 hover:bg-white/8 hover:text-white/90'
+                      }`}
+                  >
+                    <item.icon size={18} />
+                    <span style={{ fontSize: '0.9rem' }}>{item.label}</span>
+                    {isExpanded ? (
+                      <ChevronDown size={14} className="ml-auto" />
+                    ) : (
+                      <ChevronRight size={14} className="ml-auto" />
+                    )}
+                  </button>
+
+                  {isExpanded && (
+                    <div className="ml-9 space-y-1">
+                      {item.children?.map((child) => {
+                        const isChildActive = location.pathname === child.path;
+
+                        return (
+                          <button
+                            key={child.path}
+                            onClick={() => {
+                              navigate(child.path);
+                              setSidebarOpen(false);
+                            }}
+                            className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${isChildActive
+                              ? 'bg-white/12 text-white'
+                              : 'text-white/50 hover:bg-white/8 hover:text-white/85'
+                              }`}
+                            style={{ fontSize: '0.82rem' }}
+                          >
+                            {child.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <button
                 key={item.path}

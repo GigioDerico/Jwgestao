@@ -197,16 +197,36 @@ function MidweekMeetingSheet({
   );
 }
 
+function getWeekendExportMonthLabel(meetings: WeekendMeeting[]) {
+  const timestamps = meetings
+    .map(meeting => new Date(`${meeting.date}T12:00:00`).getTime())
+    .filter(timestamp => !Number.isNaN(timestamp));
+
+  const referenceDate = timestamps.length > 0 ? new Date(Math.min(...timestamps)) : new Date();
+
+  return referenceDate.toLocaleDateString('pt-BR', { month: 'long' }).toUpperCase();
+}
+
 function WeekendExportDocument({ meetings }: { meetings: WeekendMeeting[] }) {
+  const monthLabel = getWeekendExportMonthLabel(meetings);
+
   return (
     <div
       className="w-full bg-white px-5 py-4 text-[#141414]"
       style={{ fontFamily: 'Calibri, Arial, sans-serif' }}
     >
-      <div className="border-b border-stone-300 pb-3">
-        <h3 className="text-center text-[1.2rem] font-semibold text-[#1a1a2e]">
-          Programação da reunião de fim de semana
-        </h3>
+      <div className="overflow-hidden rounded-xl border border-[#0f2f53]">
+        <div className="bg-[#1a5fb4] px-4 py-3 text-center text-white">
+          <h3 className="text-[1.55rem] font-bold leading-tight">
+            Conferência Pública
+          </h3>
+          <p className="text-[1.2rem] font-bold leading-tight">
+            e
+          </p>
+          <p className="text-[1.45rem] font-bold leading-tight">
+            Estudo de &quot;A Sentinela&quot; - {monthLabel}
+          </p>
+        </div>
       </div>
       <div className="mt-4 space-y-4">
         {meetings.length > 0 ? (

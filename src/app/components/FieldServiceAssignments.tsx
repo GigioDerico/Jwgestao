@@ -69,6 +69,7 @@ export function FieldServiceAssignments() {
   const [addSundayGroupModal, setAddSundayGroupModal] = useState(false);
   const [addRuralSaturdayModal, setAddRuralSaturdayModal] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [groupsLoaded, setGroupsLoaded] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState<'image' | 'pdf' | null>(null);
@@ -94,6 +95,8 @@ export function FieldServiceAssignments() {
     } catch (err) {
       console.error(err);
       toast.error('Erro ao carregar grupos de serviço.');
+    } finally {
+      setGroupsLoaded(true);
     }
   };
 
@@ -251,6 +254,16 @@ export function FieldServiceAssignments() {
       .filter(Boolean)
   );
   const availableRuralSaturdays = saturdays.filter(saturday => !currentRuralSaturdayLabels.has(saturday.label));
+  const hasFixedCategoriesGenerated = FIXED_CATEGORIES.every(category =>
+    data.some(item => item.category === category)
+  );
+  const hasSaturdayRowsGenerated = saturdays.every(saturday =>
+    data.some(item => item.category === 'Sábado' && item.weekday === saturday.label)
+  );
+  const hasSundayRowsGenerated = groupsLoaded && groups.every(group =>
+    data.some(item => item.category === 'Domingo' && item.responsible === group.name)
+  );
+  const isMonthGenerated = hasFixedCategoriesGenerated && hasSaturdayRowsGenerated && hasSundayRowsGenerated;
 
   const handleAddSundayGroup = async (groupName: string) => {
     try {
@@ -518,44 +531,42 @@ export function FieldServiceAssignments() {
         />
       </div>
 
-      <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-        <div className="border-b border-border px-4 py-3 md:flex md:items-center md:justify-between">
-          <div>
-            <h4 className="text-foreground" style={{ fontSize: '0.95rem' }}>Gerar saídas do mês</h4>
+      {!isMonthGenerated && (
+        <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+          <div className="border-b border-border px-4 py-3 md:flex md:items-center md:justify-between">
+            <div>
+              <h4 className="text-foreground" style={{ fontSize: '0.95rem' }}>Gerar saídas do mês</h4>
+              <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>
+                Terça, quarta e sexta são fixos. Sábado segue o calendário real e domingo cria uma linha por grupo.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleGenerateMonth}
+              disabled={loading || generating || saving}
+              className="mt-3 inline-flex items-center rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60 md:mt-0"
+              style={{ fontSize: '0.85rem' }}
+            >
+              {generating ? 'Gerando...' : 'Gerar mês'}
+            </button>
+          </div>
+          <div className="px-4 py-3">
             <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>
-              Terça, quarta e sexta são fixos. Sábado segue o calendário real e domingo cria uma linha por grupo.
+              {loading
+                ? 'Carregando saídas salvas deste mês...'
+                : 'Antes da geração, a tela já mostra a estrutura esperada. Clique em uma linha não gerada para ver a orientação.'}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleGenerateMonth}
-            disabled={loading || generating || saving}
-            className="mt-3 inline-flex items-center rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60 md:mt-0"
-            style={{ fontSize: '0.85rem' }}
-          >
-            {generating ? 'Gerando...' : 'Gerar mês'}
-          </button>
         </div>
-        <div className="px-4 py-3">
-          <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>
-            {loading
-              ? 'Carregando saídas salvas deste mês...'
-              : 'Antes da geração, a tela já mostra a estrutura esperada. Clique em uma linha não gerada para ver a orientação.'}
-          </p>
-        </div>
-      </div>
+      )}
 
-      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-        <div className="border-b border-border px-4 py-3 text-center">
-          <h2 className="font-semibold uppercase text-foreground" style={{ fontSize: '1.35rem', lineHeight: 1.1 }}>
-            Saída de Campo
-          </h2>
-        </div>
-        <div className="px-4 py-2 text-center">
-          <p className="font-semibold text-muted-foreground" style={{ fontSize: '0.95rem', lineHeight: 1.1 }}>
-            {MONTHS[currentMonth]}
-          </p>
-        </div>
+      <div className="rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 px-4 py-4 text-center shadow-sm">
+        <h2 className="font-semibold uppercase text-white" style={{ fontSize: '1.35rem', lineHeight: 1.1 }}>
+          Saída de Campo
+        </h2>
+        <p className="mt-1 font-semibold text-white/90" style={{ fontSize: '0.95rem', lineHeight: 1.1 }}>
+          {MONTHS[currentMonth]}
+        </p>
       </div>
 
       {loading ? (
@@ -615,7 +626,7 @@ export function FieldServiceAssignments() {
                     <div className="hidden sm:block">
                       <table className="w-full" style={{ fontSize: '0.82rem' }}>
                         <thead>
-                          <tr className="bg-gray-50 text-gray-500 border-b border-gray-100">
+                          <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
                             <th className="px-4 py-2 text-left" style={{ width: isSunday ? '34%' : '28%' }}>
                               {isSunday ? 'Grupo' : 'Dia'}
                             </th>
@@ -636,7 +647,7 @@ export function FieldServiceAssignments() {
                           {group.rows.map((row, index) => (
                             <tr
                               key={row.key}
-                              className={`border-b border-gray-50 ${index % 2 === 0 ? colors.bg : 'bg-white'} transition-colors hover:bg-green-50/60`}
+                              className={`border-b border-gray-200 ${index % 2 === 0 ? colors.bg : 'bg-white'} transition-colors hover:bg-green-50/60`}
                             >
                               <td className="px-4 py-2.5 text-gray-700">
                                 {isSunday ? row.groupName : row.dayLabel}
@@ -758,55 +769,54 @@ export function FieldServiceAssignments() {
       <div className="pointer-events-none absolute -left-[10000px] top-0 w-[900px]" aria-hidden="true">
         <div
           ref={exportRef}
+          data-export-pdf-mode="single-page"
           className="w-[900px] bg-white px-4 py-4 text-[#141414]"
           style={{ fontFamily: 'Calibri, Arial, sans-serif' }}
         >
-          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-            <div className="border-b border-gray-200 px-4 py-3 text-center">
-              <h2 className="font-semibold uppercase text-[#1a1a2e]" style={{ fontSize: '1.25rem', lineHeight: 1.1 }}>
+          <div className="overflow-hidden rounded-xl border border-green-700 bg-white">
+            <div className="px-4 py-3 text-center" style={{ backgroundColor: '#047857' }}>
+              <h2 className="font-semibold uppercase text-white" style={{ fontSize: '1.25rem', lineHeight: 1.1 }}>
                 Saída de Campo
               </h2>
-            </div>
-            <div className="px-4 py-2 text-center">
-              <p className="font-semibold text-gray-600" style={{ fontSize: '0.95rem', lineHeight: 1.1 }}>
+              <p className="mt-1 font-semibold text-white/90" style={{ fontSize: '0.9rem', lineHeight: 1.05 }}>
                 {MONTHS[currentMonth]} {currentYear}
               </p>
             </div>
           </div>
 
-          <div className="mt-4 space-y-4">
+          <div className="mt-3 space-y-3">
             {renderedGroups.map(group => {
               const colors = CATEGORY_COLORS[group.category];
               const isSunday = group.category === 'Domingo';
 
               return (
                 <div key={`export-${group.category}`} className={`overflow-hidden rounded-xl border ${colors.border} bg-white`}>
-                  <div className={`${colors.header} px-4 py-2.5`}>
-                    <h4 className="text-center text-white tracking-wide" style={{ fontSize: '0.85rem' }}>
+                  <div className={`${colors.header} px-4 py-2`}>
+                    <h4 className="text-center text-white tracking-wide" style={{ fontSize: '0.8rem', lineHeight: 1.05 }}>
                       {group.category}
                     </h4>
                   </div>
 
                   {group.emptyMessage && group.rows.length === 0 ? (
-                    <div className="px-4 py-4 text-gray-500" style={{ fontSize: '0.82rem' }}>
+                    <div className="px-4 py-3 text-gray-500" style={{ fontSize: '0.78rem', lineHeight: 1.1 }}>
                       {group.emptyMessage}
                     </div>
                   ) : (
-                    <table className="w-full" style={{ fontSize: '0.82rem' }}>
+                    <table className="w-full" style={{ fontSize: '0.76rem' }}>
                       <thead>
-                        <tr className="bg-gray-50 text-gray-500 border-b border-gray-100">
-                          <th className="px-4 py-2 text-left" style={{ width: isSunday ? '34%' : '28%' }}>
+                        <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
+                          <th className="px-3 py-1.5 text-left" style={{ width: isSunday ? '34%' : '28%' }}>
                             {isSunday ? 'Grupo' : 'Dia'}
                           </th>
-                          <th className="px-3 py-2 text-left" style={{ width: isSunday ? '28%' : '20%' }}>
+                          <th className="px-2.5 py-1.5 text-left" style={{ width: isSunday ? '28%' : '20%' }}>
                             Horário
                           </th>
                           {!isSunday && (
-                            <th className="px-3 py-2 text-left" style={{ width: '28%' }}>
+                            <th className="px-2.5 py-1.5 text-left" style={{ width: '28%' }}>
                               Responsável
                             </th>
                           )}
-                          <th className="px-3 py-2 text-left" style={{ width: isSunday ? '38%' : '24%' }}>
+                          <th className="px-2.5 py-1.5 text-left" style={{ width: isSunday ? '38%' : '24%' }}>
                             Local
                           </th>
                         </tr>
@@ -815,21 +825,21 @@ export function FieldServiceAssignments() {
                         {group.rows.map((row, index) => (
                           <tr
                             key={`export-row-${row.key}`}
-                            className={`${index % 2 === 0 ? colors.bg : 'bg-white'} border-b border-gray-50`}
+                            className={`${index % 2 === 0 ? colors.bg : 'bg-white'} border-b border-gray-200`}
                           >
-                            <td className="px-4 py-2.5 text-gray-700">
+                            <td className="px-3 py-1.5 text-gray-700" style={{ lineHeight: 1.05 }}>
                               {isSunday ? row.groupName : row.dayLabel}
                               {!row.assignment && (
-                                <span className="ml-2 text-gray-400" style={{ fontSize: '0.72rem' }}>
+                                <span className="ml-1.5 text-gray-400" style={{ fontSize: '0.68rem' }}>
                                   • não gerada
                                 </span>
                               )}
                             </td>
-                            <td className="px-3 py-2.5 text-gray-700">{row.displayTime || 'A definir'}</td>
+                            <td className="px-2.5 py-1.5 text-gray-700" style={{ lineHeight: 1.05 }}>{row.displayTime || 'A definir'}</td>
                             {!isSunday && (
-                              <td className="px-3 py-2.5 text-gray-700">{row.displayResponsible || 'A definir'}</td>
+                              <td className="px-2.5 py-1.5 text-gray-700" style={{ lineHeight: 1.05 }}>{row.displayResponsible || 'A definir'}</td>
                             )}
-                            <td className="px-3 py-2.5 text-gray-700">{row.displayLocation || 'Sem local'}</td>
+                            <td className="px-2.5 py-1.5 text-gray-700" style={{ lineHeight: 1.05 }}>{row.displayLocation || 'Sem local'}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -840,11 +850,11 @@ export function FieldServiceAssignments() {
             })}
           </div>
 
-          <div className="mt-4 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 p-4 text-center">
-            <p className="text-white/90 italic" style={{ fontSize: '0.82rem' }}>
+          <div className="mt-3 rounded-xl px-4 py-3 text-center" style={{ backgroundColor: '#047857' }}>
+            <p className="text-white/90 italic" style={{ fontSize: '0.76rem', lineHeight: 1.15 }}>
               "Portanto, vão e façam discípulos de pessoas de todas as nações... ensinando-as a obedecer a todas as coisas que lhes ordenei."
             </p>
-            <p className="mt-1 text-white/70" style={{ fontSize: '0.75rem' }}>— Mateus 28:19,20</p>
+            <p className="mt-0.5 text-white/70" style={{ fontSize: '0.7rem', lineHeight: 1.05 }}>— Mateus 28:19,20</p>
           </div>
         </div>
       </div>

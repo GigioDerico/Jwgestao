@@ -5,6 +5,11 @@ import { Dashboard } from './components/Dashboard';
 import { MembersList } from './components/MembersList';
 import { MeetingsPage } from './components/MeetingsPage';
 import { AssignmentsPage } from './components/AssignmentsPage';
+import {
+  AudioVideoAssignmentsPage,
+  CartAssignmentsPage,
+  FieldServiceAssignmentsPage,
+} from './components/AssignmentTypePages';
 import { SettingsPage } from './components/SettingsPage';
 
 export const router = createBrowserRouter([
@@ -23,7 +28,11 @@ export const router = createBrowserRouter([
       { path: 'dashboard', Component: Dashboard },
       { path: 'members', Component: MembersList },
       { path: 'meetings', Component: MeetingsPage },
-      { path: 'assignments', Component: AssignmentsPage },
+      { path: 'assignments', loader: () => redirect('/assignments/meetings') },
+      { path: 'assignments/meetings', Component: AssignmentsPage },
+      { path: 'assignments/audio-video', Component: AudioVideoAssignmentsPage },
+      { path: 'assignments/field-service', Component: FieldServiceAssignmentsPage },
+      { path: 'assignments/cart', Component: CartAssignmentsPage },
       { path: 'settings', Component: SettingsPage },
     ],
   },
