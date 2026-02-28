@@ -153,6 +153,14 @@ export function AudioVideoAssignments() {
     return value;
   };
 
+  const findMemberIdByName = (fullName: string) => {
+    if (!fullName || fullName === 'A definir') {
+      return null;
+    }
+
+    return members.find(member => member.full_name === fullName)?.id || null;
+  };
+
   const getUsedNamesForAssignment = (
     assignment: AudioVideoAssignment,
     excludeField?: RestrictedFieldKey
@@ -276,6 +284,8 @@ export function AudioVideoAssignments() {
       setSaving(true);
       const updated = await api.updateAudioVideoAssignment(editModal.id, {
         [fieldMap[editModal.field]]: newValue || 'A definir',
+        [`${fieldMap[editModal.field]}_member_id`]:
+          newValue && newValue !== 'A definir' ? findMemberIdByName(newValue) : null,
       } as any);
       setData(prev => prev.map(item => (item.id === editModal.id ? updated : item)));
       setEditModal(null);
@@ -306,6 +316,9 @@ export function AudioVideoAssignments() {
       setSaving(true);
       const updated = await api.updateAudioVideoAssignment(attendantsModal.id, {
         attendants: values,
+        attendants_member_ids: values
+          .map(value => findMemberIdByName(value))
+          .filter((value): value is string => Boolean(value)),
       });
       setData(prev => prev.map(item => (item.id === attendantsModal.id ? updated : item)));
       setAttendantsModal(null);

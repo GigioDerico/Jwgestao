@@ -141,6 +141,14 @@ export function FieldServiceAssignments() {
     return false;
   };
 
+  const findMemberIdByName = (fullName: string) => {
+    if (!fullName || fullName === 'A definir') {
+      return null;
+    }
+
+    return members.find(member => member.full_name === fullName)?.id || null;
+  };
+
   const handleGenerateMonth = async () => {
     try {
       setGenerating(true);
@@ -179,6 +187,7 @@ export function FieldServiceAssignments() {
       setSaving(true);
       const updated = await api.updateFieldServiceAssignment(memberEditModal.id, {
         responsible: newValue || 'A definir',
+        responsible_member_id: newValue ? findMemberIdByName(newValue) : null,
       });
       setData(prev => prev.map(item => (item.id === memberEditModal.id ? updated : item)));
       setMemberEditModal(null);
@@ -252,6 +261,7 @@ export function FieldServiceAssignments() {
         weekday: 'Domingo',
         time: '08:30 / 08:45',
         responsible: groupName,
+        responsible_member_id: null,
         location: '',
         category: 'Domingo',
       });
@@ -274,6 +284,7 @@ export function FieldServiceAssignments() {
         weekday,
         time: '08:00',
         responsible: 'A definir',
+        responsible_member_id: null,
         location: 'Salão do Reino',
         category: 'Sábado - Rural',
       });

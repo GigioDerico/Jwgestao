@@ -81,12 +81,21 @@ export function CartAssignments() {
     setEditModal({ id, field, currentValue });
   };
 
+  const findMemberIdByName = (fullName: string) => {
+    if (!fullName) {
+      return null;
+    }
+
+    return members.find(member => member.full_name === fullName)?.id || null;
+  };
+
   const handleSave = async (newValue: string) => {
     if (!editModal) return;
 
     try {
       const updated = await api.updateCartAssignment(editModal.id, {
         [editModal.field]: newValue,
+        [`${editModal.field}_member_id`]: findMemberIdByName(newValue),
       } as any);
       setData(prev => prev.map(item => (item.id === editModal.id ? updated : item)));
       setEditModal(null);
@@ -111,7 +120,9 @@ export function CartAssignments() {
         time: newAssignment.time.trim(),
         location: newAssignment.location.trim(),
         publisher1: newAssignment.publisher1,
+        publisher1_member_id: findMemberIdByName(newAssignment.publisher1),
         publisher2: newAssignment.publisher2,
+        publisher2_member_id: findMemberIdByName(newAssignment.publisher2),
         week: Number(newAssignment.week),
       });
 

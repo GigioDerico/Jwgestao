@@ -300,17 +300,34 @@ export function AssignmentsPage() {
   const saveAssignment = async ({ value, memberId }: { value: string; memberId?: string | null }) => {
     if (!editField) return;
 
+    const table = editField.table;
+    const rowId = editField.rowId;
     const payload = editField.mode === 'member'
       ? { [editField.column]: memberId || null }
       : { [editField.column]: value };
 
     const { error } = await supabase
-      .from(editField.table)
+      .from(table)
       .update(payload as any)
-      .eq('id', editField.rowId);
+      .eq('id', rowId);
 
     if (error) {
       toast.error(error.message || 'Erro ao salvar designação.');
+      return;
+    }
+
+    try {
+      if (table === 'midweek_meetings') {
+        await api.syncMidweekMeetingNotifications(rowId);
+      } else if (table === 'weekend_meetings') {
+        await api.syncWeekendMeetingNotifications(rowId);
+      } else if (table === 'midweek_ministry_parts') {
+        await api.syncMidweekMinistryPartNotifications(rowId);
+      } else if (table === 'midweek_christian_life_parts') {
+        await api.syncMidweekChristianLifePartNotifications(rowId);
+      }
+    } catch (syncError: any) {
+      toast.error(syncError?.message || 'A designação foi salva, mas a notificação não pôde ser sincronizada.');
       return;
     }
 

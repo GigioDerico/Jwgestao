@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationsContext';
 import { api } from '../lib/api';
+import { toast } from 'sonner';
 import {
   Users,
   CalendarDays,
@@ -15,6 +17,7 @@ import {
 
 export function Dashboard() {
   const { user, isAdmin } = useAuth();
+  const { notifications, confirm } = useNotifications();
   const navigate = useNavigate();
   const [membersCount, setMembersCount] = useState(0);
   const [eldersCount, setEldersCount] = useState(0);
@@ -46,8 +49,6 @@ export function Dashboard() {
       }
     })();
   }, []);
-
-  const myAssignments: Assignment[] = [];
 
   const stats = [
     { label: 'Membros', value: loading ? '...' : membersCount, icon: Users, color: 'bg-blue-500', path: '/members' },
@@ -97,30 +98,40 @@ export function Dashboard() {
           </h3>
         </div>
 
-        {myAssignments.length > 0 ? (
+        {notifications.length > 0 ? (
           <div className="divide-y divide-border">
-            {myAssignments.map((assignment, idx) => (
-              <div key={idx} className="px-4 md:px-5 py-3.5 flex items-start gap-3 hover:bg-muted/30 transition-colors">
-                <div className={`mt-0.5 shrink-0 ${assignment.confirmed ? 'text-green-500' : 'text-amber-500'}`}>
-                  {assignment.confirmed ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+            {notifications.map((notification) => (
+              <div key={notification.id} className="px-4 md:px-5 py-3.5 flex items-start gap-3 hover:bg-muted/30 transition-colors">
+                <div className={`mt-0.5 shrink-0 ${notification.status === 'confirmed' ? 'text-green-500' : 'text-amber-500'}`}>
+                  {notification.status === 'confirmed' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>{assignment.part}</p>
-                  <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>{assignment.meeting} — {assignment.date}</p>
+                  <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>{notification.title}</p>
+                  <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>{notification.message}</p>
                 </div>
-                <button
-                  onClick={() => {
-                    assignment.confirmed = !assignment.confirmed;
-                    navigate('/dashboard');
-                  }}
-                  className={`shrink-0 px-3 py-1 rounded-full transition-colors font-medium ${assignment.confirmed
-                      ? 'bg-green-50 text-green-700 hover:bg-green-100'
-                      : 'bg-primary/10 text-primary hover:bg-primary/20'
-                    }`}
-                  style={{ fontSize: '0.75rem' }}
-                >
-                  {assignment.confirmed ? 'Confirmado ✓' : 'Confirmar'}
-                </button>
+                {notification.status === 'pending_confirmation' ? (
+                  <button
+                    onClick={async () => {
+                      try {
+                        await confirm(notification.id);
+                      } catch (error: any) {
+                        console.error(error);
+                        toast.error(error?.message || 'Erro ao confirmar designação.');
+                      }
+                    }}
+                    className="shrink-0 rounded-full bg-primary/10 px-3 py-1 font-medium text-primary transition-colors hover:bg-primary/20"
+                    style={{ fontSize: '0.75rem' }}
+                  >
+                    Confirmar
+                  </button>
+                ) : (
+                  <span
+                    className="shrink-0 rounded-full bg-green-50 px-3 py-1 font-medium text-green-700"
+                    style={{ fontSize: '0.75rem' }}
+                  >
+                    Confirmado ✓
+                  </span>
+                )}
               </div>
             ))}
           </div>
@@ -190,11 +201,4 @@ export function Dashboard() {
       )}
     </div>
   );
-}
-
-interface Assignment {
-  part: string;
-  meeting: string;
-  date: string;
-  confirmed: boolean;
 }

@@ -32,6 +32,161 @@ export type Database = {
         }
         Relationships: []
       }
+      audio_video_assignments: {
+        Row: {
+          attendants: string[] | null
+          attendants_member_ids: string[] | null
+          created_at: string | null
+          date: string
+          id: string
+          image: string
+          image_member_id: string | null
+          roving_mic_1: string
+          roving_mic_1_member_id: string | null
+          roving_mic_2: string
+          roving_mic_2_member_id: string | null
+          sound: string
+          sound_member_id: string | null
+          stage: string
+          stage_member_id: string | null
+          weekday: string
+        }
+        Insert: {
+          attendants?: string[] | null
+          attendants_member_ids?: string[] | null
+          created_at?: string | null
+          date: string
+          id?: string
+          image: string
+          image_member_id?: string | null
+          roving_mic_1: string
+          roving_mic_1_member_id?: string | null
+          roving_mic_2: string
+          roving_mic_2_member_id?: string | null
+          sound: string
+          sound_member_id?: string | null
+          stage: string
+          stage_member_id?: string | null
+          weekday: string
+        }
+        Update: {
+          attendants?: string[] | null
+          attendants_member_ids?: string[] | null
+          created_at?: string | null
+          date?: string
+          id?: string
+          image?: string
+          image_member_id?: string | null
+          roving_mic_1?: string
+          roving_mic_1_member_id?: string | null
+          roving_mic_2?: string
+          roving_mic_2_member_id?: string | null
+          sound?: string
+          sound_member_id?: string | null
+          stage?: string
+          stage_member_id?: string | null
+          weekday?: string
+        }
+        Relationships: [
+          { foreignKeyName: "audio_video_assignments_image_member_id_fkey"; columns: ["image_member_id"]; referencedRelation: "members"; referencedColumns: ["id"] },
+          { foreignKeyName: "audio_video_assignments_roving_mic_1_member_id_fkey"; columns: ["roving_mic_1_member_id"]; referencedRelation: "members"; referencedColumns: ["id"] },
+          { foreignKeyName: "audio_video_assignments_roving_mic_2_member_id_fkey"; columns: ["roving_mic_2_member_id"]; referencedRelation: "members"; referencedColumns: ["id"] },
+          { foreignKeyName: "audio_video_assignments_sound_member_id_fkey"; columns: ["sound_member_id"]; referencedRelation: "members"; referencedColumns: ["id"] },
+          { foreignKeyName: "audio_video_assignments_stage_member_id_fkey"; columns: ["stage_member_id"]; referencedRelation: "members"; referencedColumns: ["id"] },
+        ]
+      }
+      cart_assignments: {
+        Row: {
+          created_at: string | null
+          day: number
+          id: string
+          location: string
+          month: number
+          publisher1: string
+          publisher1_member_id: string | null
+          publisher2: string
+          publisher2_member_id: string | null
+          time: string
+          week: number
+          weekday: string
+          year: number
+        }
+        Insert: {
+          created_at?: string | null
+          day: number
+          id?: string
+          location: string
+          month: number
+          publisher1: string
+          publisher1_member_id?: string | null
+          publisher2: string
+          publisher2_member_id?: string | null
+          time: string
+          week: number
+          weekday: string
+          year: number
+        }
+        Update: {
+          created_at?: string | null
+          day?: number
+          id?: string
+          location?: string
+          month?: number
+          publisher1?: string
+          publisher1_member_id?: string | null
+          publisher2?: string
+          publisher2_member_id?: string | null
+          time?: string
+          week?: number
+          weekday?: string
+          year?: number
+        }
+        Relationships: [
+          { foreignKeyName: "cart_assignments_publisher1_member_id_fkey"; columns: ["publisher1_member_id"]; referencedRelation: "members"; referencedColumns: ["id"] },
+          { foreignKeyName: "cart_assignments_publisher2_member_id_fkey"; columns: ["publisher2_member_id"]; referencedRelation: "members"; referencedColumns: ["id"] },
+        ]
+      }
+      field_service_assignments: {
+        Row: {
+          category: string
+          created_at: string | null
+          id: string
+          location: string
+          month: number
+          responsible: string
+          responsible_member_id: string | null
+          time: string
+          weekday: string
+          year: number
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          id?: string
+          location: string
+          month: number
+          responsible: string
+          responsible_member_id?: string | null
+          time: string
+          weekday: string
+          year: number
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          id?: string
+          location?: string
+          month?: number
+          responsible?: string
+          responsible_member_id?: string | null
+          time?: string
+          weekday?: string
+          year?: number
+        }
+        Relationships: [
+          { foreignKeyName: "field_service_assignments_responsible_member_id_fkey"; columns: ["responsible_member_id"]; referencedRelation: "members"; referencedColumns: ["id"] },
+        ]
+      }
       field_service_group_assistants: {
         Row: {
           group_id: string
@@ -100,6 +255,65 @@ export type Database = {
             referencedRelation: "members"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      member_assignment_notifications: {
+        Row: {
+          assignment_date: string | null
+          category: string
+          confirmed_at: string | null
+          created_at: string
+          id: string
+          is_read: boolean
+          member_id: string
+          message: string
+          read_at: string | null
+          revoked_at: string | null
+          slot_key: string
+          source_id: string
+          source_type: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assignment_date?: string | null
+          category: string
+          confirmed_at?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          member_id: string
+          message: string
+          read_at?: string | null
+          revoked_at?: string | null
+          slot_key: string
+          source_id: string
+          source_type: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assignment_date?: string | null
+          category?: string
+          confirmed_at?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          member_id?: string
+          message?: string
+          read_at?: string | null
+          revoked_at?: string | null
+          slot_key?: string
+          source_id?: string
+          source_type?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          { foreignKeyName: "member_assignment_notifications_member_id_fkey"; columns: ["member_id"]; referencedRelation: "members"; referencedColumns: ["id"] },
         ]
       }
       members: {

@@ -148,13 +148,13 @@ function MidweekSheetPrint({
       className="mx-auto w-full max-w-[860px] border border-stone-300 bg-white px-5 py-4 text-[#141414]"
       style={{ fontFamily: 'Calibri, Arial, sans-serif' }}
     >
-      <div className="relative flex min-h-[30px] items-center justify-end">
-        <p className="absolute left-0 whitespace-nowrap text-[0.8rem] font-semibold tracking-tight md:text-[1rem]">
-          {congregationName}
-        </p>
-        <h3 className="whitespace-nowrap text-right text-[1.05rem] font-semibold leading-none md:text-[1.5rem]">
+      <div className="flex flex-col gap-1.5 sm:relative sm:min-h-[30px] sm:justify-end">
+        <h3 className="text-[0.95rem] font-semibold leading-tight sm:whitespace-nowrap sm:text-right sm:text-[1.05rem] md:text-[1.5rem]">
           Programação da reunião do meio de semana
         </h3>
+        <p className="text-[0.8rem] font-semibold tracking-tight sm:absolute sm:left-0 sm:whitespace-nowrap md:text-[1rem]">
+          {congregationName}
+        </p>
       </div>
 
       <div className="mt-2 space-y-0.5">

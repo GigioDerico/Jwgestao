@@ -14,10 +14,10 @@ export function WeekendMeetingView({ meeting }: Props) {
   });
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+    <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
       {/* Header */}
-      <div className="bg-[#1a5fb4] px-4 md:px-5 py-3">
-        <h3 className="text-white text-center">{dateFormatted}</h3>
+      <div className="bg-[#1a5fb4] px-3 py-2.5 sm:px-4 md:px-5 sm:py-3">
+        <h3 className="text-center text-sm text-white sm:text-base">{dateFormatted}</h3>
       </div>
 
       {/* Content */}
@@ -26,8 +26,8 @@ export function WeekendMeetingView({ meeting }: Props) {
         <InfoRow label="Presidente:" value={meeting.president} icon={<User size={14} />} />
 
         {/* Public Talk */}
-        <div className="px-4 md:px-5 py-3 bg-blue-50/30">
-          <p className="text-blue-600 mb-2" style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}>CONFERÊNCIA PÚBLICA</p>
+        <div className="bg-blue-50/30 px-3 py-3 sm:px-4 md:px-5">
+          <p className="mb-2 text-blue-600" style={{ fontSize: '0.72rem', letterSpacing: '0.05em' }}>CONFERÊNCIA PÚBLICA</p>
           <div className="space-y-2">
             <InfoRow
               label="Tema:"
@@ -44,8 +44,8 @@ export function WeekendMeetingView({ meeting }: Props) {
         </div>
 
         {/* Watchtower Study */}
-        <div className="px-4 md:px-5 py-3 bg-blue-50/30">
-          <p className="text-blue-600 mb-2" style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}>ESTUDO DE A SENTINELA</p>
+        <div className="bg-blue-50/30 px-3 py-3 sm:px-4 md:px-5">
+          <p className="mb-2 text-blue-600" style={{ fontSize: '0.72rem', letterSpacing: '0.05em' }}>ESTUDO DE A SENTINELA</p>
           <div className="space-y-2">
             <InfoRow label="Dirigente:" value={meeting.watchtower_study.conductor} compact />
             <InfoRow label="Leitor:" value={meeting.watchtower_study.reader} valueClass="text-red-600" compact />
@@ -74,19 +74,19 @@ function InfoRow({
 }) {
   if (compact) {
     return (
-      <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2">
-        <span className="text-gray-500 shrink-0" style={{ fontSize: '0.85rem' }}>{label}</span>
-        <span className={valueClass} style={{ fontSize: '0.85rem' }}>{value}</span>
+      <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
+        <span className="shrink-0 text-gray-500" style={{ fontSize: '0.8rem' }}>{label}</span>
+        <span className={`${valueClass} break-words`} style={{ fontSize: '0.8rem' }}>{value}</span>
       </div>
     );
   }
 
   return (
-    <div className="px-4 md:px-5 py-3 flex items-center gap-3">
+    <div className="flex items-start gap-3 px-3 py-3 sm:items-center sm:px-4 md:px-5">
       {icon && <span className="text-gray-400 shrink-0">{icon}</span>}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2 flex-1">
-        <span className="text-gray-500 shrink-0" style={{ fontSize: '0.85rem' }}>{label}</span>
-        <span className={`${valueClass}`} style={{ fontSize: '0.85rem' }}>{value}</span>
+      <div className="flex flex-1 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
+        <span className="shrink-0 text-gray-500" style={{ fontSize: '0.8rem' }}>{label}</span>
+        <span className={`${valueClass} break-words`} style={{ fontSize: '0.8rem' }}>{value}</span>
       </div>
     </div>
   );

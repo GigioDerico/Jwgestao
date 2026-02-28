@@ -98,11 +98,17 @@ export interface AudioVideoAssignment {
   date: string;
   weekday: string;
   sound: string;
+  soundMemberId?: string | null;
   image: string;
+  imageMemberId?: string | null;
   stage: string;
+  stageMemberId?: string | null;
   rovingMic1: string;
+  rovingMic1MemberId?: string | null;
   rovingMic2: string;
+  rovingMic2MemberId?: string | null;
   attendants: string[];
+  attendantsMemberIds?: string[];
 }
 
 export interface FieldServiceAssignment {
@@ -110,6 +116,7 @@ export interface FieldServiceAssignment {
   weekday: string;
   time: string;
   responsible: string;
+  responsibleMemberId?: string | null;
   location: string;
   category: string;
 }
@@ -121,6 +128,24 @@ export interface CartAssignment {
   time: string;
   location: string;
   publisher1: string;
+  publisher1MemberId?: string | null;
   publisher2: string;
+  publisher2MemberId?: string | null;
   week: number;
+}
+
+export interface AssignmentNotification {
+  id: string;
+  memberId: string;
+  category: 'midweek' | 'weekend' | 'audio_video' | 'field_service' | 'cart';
+  sourceType: string;
+  sourceId: string;
+  slotKey: string;
+  title: string;
+  message: string;
+  assignmentDate?: string | null;
+  status: 'pending_confirmation' | 'confirmed' | 'revoked';
+  isRead: boolean;
+  createdAt: string;
+  confirmedAt?: string | null;
 }

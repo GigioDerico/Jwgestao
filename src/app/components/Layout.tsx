@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Outlet, useNavigate, useLocation, Navigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationsContext';
 import { ProfileDrawer } from './ProfileDrawer';
+import { toast } from 'sonner';
 import {
   LayoutDashboard,
   Users,
@@ -13,14 +15,27 @@ import {
   BookOpen,
   ChevronRight,
   ChevronDown,
+  Bell,
+  Check,
+  CheckCheck,
 } from 'lucide-react';
 
 export function Layout() {
   const { user, logout, isAdmin } = useAuth();
+  const {
+    notifications,
+    unreadCount,
+    pendingCount,
+    loading: notificationsLoading,
+    markRead,
+    markAllRead,
+    confirm,
+  } = useNotifications();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   if (!user) {
     return <Navigate to="/" replace />;
@@ -129,7 +144,7 @@ export function Layout() {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
-        <header className="bg-card border-b border-border px-4 py-3 flex items-center gap-3 shrink-0">
+        <header className="relative bg-card border-b border-border px-4 py-3 flex items-center gap-3 shrink-0">
           <button
             onClick={() => setSidebarOpen(true)}
             className="lg:hidden text-foreground hover:text-primary"
@@ -153,8 +168,122 @@ export function Layout() {
             </div>
             <span className="text-foreground group-hover:text-primary transition-colors" style={{ fontSize: '0.82rem' }}>{user.name}</span>
           </button>
-          <div className="flex items-center gap-2">
+          <div className="relative flex items-center gap-2">
+            <button
+              onClick={() => setNotificationsOpen(value => !value)}
+              className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted/50 hover:text-primary"
+              aria-label="Abrir notificações"
+            >
+              <Bell size={18} />
+              {unreadCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 inline-flex min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[0.65rem] font-semibold text-primary-foreground">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
 
+            {notificationsOpen && (
+              <div className="absolute right-0 top-11 z-30 w-[min(92vw,380px)] overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+                <div className="border-b border-border px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>
+                        Notificações
+                      </p>
+                      <p className="text-muted-foreground" style={{ fontSize: '0.78rem' }}>
+                        {pendingCount} pendente(s) de confirmação
+                      </p>
+                    </div>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            await markAllRead();
+                          } catch (error: any) {
+                            toast.error(error?.message || 'Erro ao marcar notificações como lidas.');
+                          }
+                        }}
+                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-primary transition-colors hover:bg-muted"
+                        style={{ fontSize: '0.75rem' }}
+                      >
+                        <CheckCheck size={14} />
+                        Marcar todas
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="max-h-[70vh] overflow-y-auto">
+                  {notificationsLoading ? (
+                    <div className="px-4 py-6 text-center text-muted-foreground" style={{ fontSize: '0.82rem' }}>
+                      Carregando notificações...
+                    </div>
+                  ) : notifications.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-muted-foreground" style={{ fontSize: '0.82rem' }}>
+                      Nenhuma notificação ativa.
+                    </div>
+                  ) : (
+                    notifications.map(notification => (
+                      <div
+                        key={notification.id}
+                        className={`border-b border-border/70 px-4 py-3 ${notification.isRead ? 'bg-card' : 'bg-primary/5'}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <span
+                            className={`mt-1 inline-flex h-2.5 w-2.5 shrink-0 rounded-full ${notification.status === 'confirmed' ? 'bg-green-500' : 'bg-amber-500'}`}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-foreground font-medium" style={{ fontSize: '0.82rem' }}>
+                              {notification.title}
+                            </p>
+                            <p className="mt-0.5 text-muted-foreground" style={{ fontSize: '0.76rem' }}>
+                              {notification.message}
+                            </p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {!notification.isRead && (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await markRead(notification.id);
+                                    } catch (error: any) {
+                                      toast.error(error?.message || 'Erro ao marcar notificação como lida.');
+                                    }
+                                  }}
+                                  className="rounded-lg bg-muted px-2.5 py-1 text-foreground transition-colors hover:bg-muted/80"
+                                  style={{ fontSize: '0.74rem' }}
+                                >
+                                  Marcar como lida
+                                </button>
+                              )}
+                              {notification.status === 'pending_confirmation' ? (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await confirm(notification.id);
+                                    } catch (error: any) {
+                                      toast.error(error?.message || 'Erro ao confirmar designação.');
+                                    }
+                                  }}
+                                  className="rounded-lg bg-primary px-2.5 py-1 text-primary-foreground transition-colors hover:bg-primary/90"
+                                  style={{ fontSize: '0.74rem' }}
+                                >
+                                  Confirmar
+                                </button>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 rounded-lg bg-green-50 px-2.5 py-1 text-green-700" style={{ fontSize: '0.74rem' }}>
+                                  <Check size={12} />
+                                  Confirmada
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </header>
 

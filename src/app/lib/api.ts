@@ -3,6 +3,7 @@ import { supabase } from './supabase';
 import { Database } from './supabase-types';
 import { getMeetingDatesForMonth } from './audio-video-calendar';
 import { getSaturdaysForMonth } from './field-service-calendar';
+import type { AssignmentNotification } from '../types';
 
 const PHONE_EMAIL_DOMAIN = 'jwgestao.app';
 const DEFAULT_PASSWORD = '001914';
@@ -88,11 +89,17 @@ export interface CreateAudioVideoAssignmentInput {
   date: string;
   weekday: string;
   sound: string;
+  sound_member_id?: string | null;
   image: string;
+  image_member_id?: string | null;
   stage: string;
+  stage_member_id?: string | null;
   roving_mic_1: string;
+  roving_mic_1_member_id?: string | null;
   roving_mic_2: string;
+  roving_mic_2_member_id?: string | null;
   attendants: string[];
+  attendants_member_ids?: string[];
 }
 
 export interface CreateFieldServiceAssignmentInput {
@@ -101,6 +108,7 @@ export interface CreateFieldServiceAssignmentInput {
   weekday: string;
   time: string;
   responsible: string;
+  responsible_member_id?: string | null;
   location: string;
   category: string;
 }
@@ -118,7 +126,9 @@ export interface CreateCartAssignmentInput {
   time: string;
   location: string;
   publisher1: string;
+  publisher1_member_id?: string | null;
   publisher2: string;
+  publisher2_member_id?: string | null;
   week: number;
 }
 
@@ -136,11 +146,17 @@ function mapAudioVideoAssignment(row: any) {
     date: row.date,
     weekday: row.weekday,
     sound: row.sound,
+    soundMemberId: row.sound_member_id || null,
     image: row.image,
+    imageMemberId: row.image_member_id || null,
     stage: row.stage,
+    stageMemberId: row.stage_member_id || null,
     rovingMic1: row.roving_mic_1,
+    rovingMic1MemberId: row.roving_mic_1_member_id || null,
     rovingMic2: row.roving_mic_2,
+    rovingMic2MemberId: row.roving_mic_2_member_id || null,
     attendants: Array.isArray(row.attendants) ? row.attendants : [],
+    attendantsMemberIds: Array.isArray(row.attendants_member_ids) ? row.attendants_member_ids : [],
   };
 }
 
@@ -150,6 +166,7 @@ function mapFieldServiceAssignment(row: any) {
     weekday: row.weekday,
     time: row.time,
     responsible: row.responsible,
+    responsibleMemberId: row.responsible_member_id || null,
     location: row.location,
     category: row.category,
   };
@@ -163,8 +180,28 @@ function mapCartAssignment(row: any) {
     time: row.time,
     location: row.location,
     publisher1: row.publisher1,
+    publisher1MemberId: row.publisher1_member_id || null,
     publisher2: row.publisher2,
+    publisher2MemberId: row.publisher2_member_id || null,
     week: row.week,
+  };
+}
+
+function mapAssignmentNotification(row: any): AssignmentNotification {
+  return {
+    id: row.id,
+    memberId: row.member_id,
+    category: row.category,
+    sourceType: row.source_type,
+    sourceId: row.source_id,
+    slotKey: row.slot_key,
+    title: row.title,
+    message: row.message,
+    assignmentDate: row.assignment_date,
+    status: row.status,
+    isRead: Boolean(row.is_read),
+    createdAt: row.created_at,
+    confirmedAt: row.confirmed_at,
   };
 }
 
@@ -179,6 +216,45 @@ function formatDatabaseWriteError(context: string, error: any) {
   }
 
   return `${context}: ${error.message}`;
+}
+
+function formatShortDate(date: string | null | undefined) {
+  if (!date) return '';
+  const dateObj = new Date(`${date}T12:00:00`);
+  return dateObj.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+  });
+}
+
+function preserveNotificationState(existing: any, payload: {
+  title: string;
+  message: string;
+  assignment_date: string | null;
+}) {
+  const metadataChanged =
+    existing?.title !== payload.title ||
+    existing?.message !== payload.message ||
+    existing?.assignment_date !== payload.assignment_date ||
+    existing?.status === 'revoked';
+
+  if (metadataChanged) {
+    return {
+      status: 'pending_confirmation',
+      is_read: false,
+      read_at: null,
+      confirmed_at: null,
+      revoked_at: null,
+    };
+  }
+
+  return {
+    status: existing.status || 'pending_confirmation',
+    is_read: Boolean(existing.is_read),
+    read_at: existing.read_at || null,
+    confirmed_at: existing.confirmed_at || null,
+    revoked_at: null,
+  };
 }
 
 // Isolated client for signUp — must include noOpLock to avoid NavigatorLockAcquireTimeoutError
@@ -200,6 +276,123 @@ function createIsolatedAuthClient() {
       },
     },
   });
+}
+
+async function revokeNotificationsForSourceIds(sourceType: string, sourceIds: string[]) {
+  if (sourceIds.length === 0) {
+    return;
+  }
+
+  const { error } = await supabase
+    .from('member_assignment_notifications')
+    .update({
+      status: 'revoked',
+      revoked_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('source_type', sourceType)
+    .in('source_id', sourceIds)
+    .neq('status', 'revoked');
+
+  if (error) {
+    throw new Error(formatDatabaseWriteError('Erro ao revogar notificações antigas', error));
+  }
+}
+
+async function upsertAssignmentNotificationSlot(input: {
+  memberId?: string | null;
+  sourceType: string;
+  sourceId: string;
+  slotKey: string;
+  category: AssignmentNotification['category'];
+  assignmentDate?: string | null;
+  title: string;
+  message: string;
+}) {
+  const timestamp = new Date().toISOString();
+
+  if (!input.memberId) {
+    const { error } = await supabase
+      .from('member_assignment_notifications')
+      .update({
+        status: 'revoked',
+        revoked_at: timestamp,
+        updated_at: timestamp,
+      })
+      .eq('source_type', input.sourceType)
+      .eq('source_id', input.sourceId)
+      .eq('slot_key', input.slotKey)
+      .neq('status', 'revoked');
+
+    if (error) {
+      throw new Error(formatDatabaseWriteError('Erro ao revogar notificação sem membro', error));
+    }
+    return;
+  }
+
+  const { error: revokeOtherError } = await supabase
+    .from('member_assignment_notifications')
+    .update({
+      status: 'revoked',
+      revoked_at: timestamp,
+      updated_at: timestamp,
+    })
+    .eq('source_type', input.sourceType)
+    .eq('source_id', input.sourceId)
+    .eq('slot_key', input.slotKey)
+    .neq('member_id', input.memberId)
+    .neq('status', 'revoked');
+
+  if (revokeOtherError) {
+    throw new Error(formatDatabaseWriteError('Erro ao revogar notificações antigas da mesma vaga', revokeOtherError));
+  }
+
+  const { data: existing, error: existingError } = await supabase
+    .from('member_assignment_notifications')
+    .select('id, title, message, assignment_date, status, is_read, read_at, confirmed_at')
+    .eq('member_id', input.memberId)
+    .eq('source_type', input.sourceType)
+    .eq('source_id', input.sourceId)
+    .eq('slot_key', input.slotKey)
+    .maybeSingle();
+
+  if (existingError) {
+    throw new Error(formatDatabaseWriteError('Erro ao buscar notificação existente', existingError));
+  }
+
+  const persistedState = preserveNotificationState(existing, {
+    title: input.title,
+    message: input.message,
+    assignment_date: input.assignmentDate || null,
+  });
+
+  const { error: upsertError } = await supabase
+    .from('member_assignment_notifications')
+    .upsert(
+      {
+        member_id: input.memberId,
+        source_type: input.sourceType,
+        source_id: input.sourceId,
+        slot_key: input.slotKey,
+        category: input.category,
+        assignment_date: input.assignmentDate || null,
+        title: input.title,
+        message: input.message,
+        status: persistedState.status,
+        is_read: persistedState.is_read,
+        read_at: persistedState.read_at,
+        confirmed_at: persistedState.confirmed_at,
+        revoked_at: persistedState.revoked_at,
+        updated_at: timestamp,
+      },
+      {
+        onConflict: 'member_id,source_type,source_id,slot_key',
+      }
+    );
+
+  if (upsertError) {
+    throw new Error(formatDatabaseWriteError('Erro ao sincronizar notificação da designação', upsertError));
+  }
 }
 
 export const api = {
@@ -227,6 +420,412 @@ export const api = {
       );
 
     if (error) throw new Error(formatDatabaseWriteError('Erro ao salvar configuração', error));
+  },
+
+  async getMyAssignmentNotifications(memberId: string) {
+    const { data, error } = await supabase
+      .from('member_assignment_notifications')
+      .select('*')
+      .eq('member_id', memberId)
+      .neq('status', 'revoked')
+      .order('assignment_date', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(`Erro ao carregar notificações: ${error.message}`);
+
+    return (data || [])
+      .map(mapAssignmentNotification)
+      .sort((a, b) => {
+        if (a.status !== b.status) {
+          return a.status === 'pending_confirmation' ? -1 : 1;
+        }
+        const aDate = a.assignmentDate || '';
+        const bDate = b.assignmentDate || '';
+        if (aDate !== bDate) {
+          return aDate.localeCompare(bDate);
+        }
+        return b.createdAt.localeCompare(a.createdAt);
+      });
+  },
+
+  async getUnreadAssignmentNotificationsCount(memberId: string) {
+    const { count, error } = await supabase
+      .from('member_assignment_notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('member_id', memberId)
+      .eq('is_read', false)
+      .neq('status', 'revoked');
+
+    if (error) throw new Error(`Erro ao contar notificações: ${error.message}`);
+    return count || 0;
+  },
+
+  async markAssignmentNotificationRead(notificationId: string) {
+    const { error } = await supabase
+      .from('member_assignment_notifications')
+      .update({
+        is_read: true,
+        read_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', notificationId);
+
+    if (error) throw new Error(formatDatabaseWriteError('Erro ao marcar notificação como lida', error));
+  },
+
+  async markAllAssignmentNotificationsRead(memberId: string) {
+    const { error } = await supabase
+      .from('member_assignment_notifications')
+      .update({
+        is_read: true,
+        read_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('member_id', memberId)
+      .eq('is_read', false)
+      .neq('status', 'revoked');
+
+    if (error) throw new Error(formatDatabaseWriteError('Erro ao marcar todas as notificações como lidas', error));
+  },
+
+  async confirmAssignmentNotification(notificationId: string) {
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from('member_assignment_notifications')
+      .update({
+        status: 'confirmed',
+        is_read: true,
+        read_at: now,
+        confirmed_at: now,
+        revoked_at: null,
+        updated_at: now,
+      })
+      .eq('id', notificationId);
+
+    if (error) throw new Error(formatDatabaseWriteError('Erro ao confirmar designação', error));
+  },
+
+  async syncMidweekMeetingNotifications(meetingId: string) {
+    const { data, error } = await supabase
+      .from('midweek_meetings')
+      .select(`
+        id,
+        date,
+        president_id,
+        opening_prayer_id,
+        closing_prayer_id,
+        treasure_talk_title,
+        treasure_talk_speaker_id,
+        treasure_gems_speaker_id,
+        treasure_reading_student_id,
+        cbs_conductor_id,
+        cbs_reader_id
+      `)
+      .eq('id', meetingId)
+      .maybeSingle();
+
+    if (error) throw new Error(formatDatabaseWriteError('Erro ao carregar reunião para notificação', error));
+    if (!data) return;
+
+    const dateLabel = formatShortDate(data.date);
+    const slots = [
+      {
+        slotKey: 'president_id',
+        memberId: data.president_id,
+        title: 'Nova designação na reunião do meio de semana',
+        message: `Você foi designado para Presidente em ${dateLabel}.`,
+      },
+      {
+        slotKey: 'opening_prayer_id',
+        memberId: data.opening_prayer_id,
+        title: 'Nova designação na reunião do meio de semana',
+        message: `Você foi designado para Oração inicial em ${dateLabel}.`,
+      },
+      {
+        slotKey: 'closing_prayer_id',
+        memberId: data.closing_prayer_id,
+        title: 'Nova designação na reunião do meio de semana',
+        message: `Você foi designado para Oração final em ${dateLabel}.`,
+      },
+      {
+        slotKey: 'treasure_talk_speaker_id',
+        memberId: data.treasure_talk_speaker_id,
+        title: 'Nova designação na reunião do meio de semana',
+        message: `Você foi designado para ${data.treasure_talk_title || 'Tesouros da Palavra de Deus'} em ${dateLabel}.`,
+      },
+      {
+        slotKey: 'treasure_gems_speaker_id',
+        memberId: data.treasure_gems_speaker_id,
+        title: 'Nova designação na reunião do meio de semana',
+        message: `Você foi designado para Joias espirituais em ${dateLabel}.`,
+      },
+      {
+        slotKey: 'treasure_reading_student_id',
+        memberId: data.treasure_reading_student_id,
+        title: 'Nova designação na reunião do meio de semana',
+        message: `Você foi designado para Leitura da Bíblia em ${dateLabel}.`,
+      },
+      {
+        slotKey: 'cbs_conductor_id',
+        memberId: data.cbs_conductor_id,
+        title: 'Nova designação na reunião do meio de semana',
+        message: `Você foi designado para Dirigente do estudo bíblico em ${dateLabel}.`,
+      },
+      {
+        slotKey: 'cbs_reader_id',
+        memberId: data.cbs_reader_id,
+        title: 'Nova designação na reunião do meio de semana',
+        message: `Você foi designado para Leitor do estudo bíblico em ${dateLabel}.`,
+      },
+    ];
+
+    for (const slot of slots) {
+      await upsertAssignmentNotificationSlot({
+        memberId: slot.memberId,
+        sourceType: 'midweek_meeting_role',
+        sourceId: data.id,
+        slotKey: slot.slotKey,
+        category: 'midweek',
+        assignmentDate: data.date,
+        title: slot.title,
+        message: slot.message,
+      });
+    }
+  },
+
+  async syncMidweekMinistryPartNotifications(partId: string) {
+    const { data, error } = await supabase
+      .from('midweek_ministry_parts')
+      .select(`
+        id,
+        title,
+        student_id,
+        assistant_id,
+        meeting:midweek_meetings(date)
+      `)
+      .eq('id', partId)
+      .maybeSingle();
+
+    if (error) throw new Error(formatDatabaseWriteError('Erro ao carregar parte do ministério para notificação', error));
+    if (!data) return;
+
+    const meetingDate = Array.isArray(data.meeting) ? data.meeting[0]?.date : data.meeting?.date;
+    const dateLabel = formatShortDate(meetingDate);
+
+    await upsertAssignmentNotificationSlot({
+      memberId: data.student_id,
+      sourceType: 'midweek_ministry_part',
+      sourceId: data.id,
+      slotKey: 'student_id',
+      category: 'midweek',
+      assignmentDate: meetingDate,
+      title: 'Nova designação na reunião do meio de semana',
+      message: `Você foi designado para Estudante em ${data.title} em ${dateLabel}.`,
+    });
+
+    await upsertAssignmentNotificationSlot({
+      memberId: data.assistant_id,
+      sourceType: 'midweek_ministry_part',
+      sourceId: data.id,
+      slotKey: 'assistant_id',
+      category: 'midweek',
+      assignmentDate: meetingDate,
+      title: 'Nova designação na reunião do meio de semana',
+      message: `Você foi designado para Ajudante em ${data.title} em ${dateLabel}.`,
+    });
+  },
+
+  async syncMidweekChristianLifePartNotifications(partId: string) {
+    const { data, error } = await supabase
+      .from('midweek_christian_life_parts')
+      .select(`
+        id,
+        title,
+        speaker_id,
+        meeting:midweek_meetings(date)
+      `)
+      .eq('id', partId)
+      .maybeSingle();
+
+    if (error) throw new Error(formatDatabaseWriteError('Erro ao carregar parte de nossa vida cristã para notificação', error));
+    if (!data) return;
+
+    const meetingDate = Array.isArray(data.meeting) ? data.meeting[0]?.date : data.meeting?.date;
+    const dateLabel = formatShortDate(meetingDate);
+
+    await upsertAssignmentNotificationSlot({
+      memberId: data.speaker_id,
+      sourceType: 'midweek_christian_life_part',
+      sourceId: data.id,
+      slotKey: 'speaker_id',
+      category: 'midweek',
+      assignmentDate: meetingDate,
+      title: 'Nova designação na reunião do meio de semana',
+      message: `Você foi designado para ${data.title} em ${dateLabel}.`,
+    });
+  },
+
+  async syncWeekendMeetingNotifications(meetingId: string) {
+    const { data, error } = await supabase
+      .from('weekend_meetings')
+      .select(`
+        id,
+        date,
+        president_id,
+        watchtower_conductor_id,
+        watchtower_reader_id,
+        closing_prayer_id
+      `)
+      .eq('id', meetingId)
+      .maybeSingle();
+
+    if (error) throw new Error(formatDatabaseWriteError('Erro ao carregar reunião de fim de semana para notificação', error));
+    if (!data) return;
+
+    const dateLabel = formatShortDate(data.date);
+    const slots = [
+      {
+        slotKey: 'president_id',
+        memberId: data.president_id,
+        message: `Você foi designado para Presidente em ${dateLabel}.`,
+      },
+      {
+        slotKey: 'watchtower_conductor_id',
+        memberId: data.watchtower_conductor_id,
+        message: `Você foi designado para Dirigente da Sentinela em ${dateLabel}.`,
+      },
+      {
+        slotKey: 'watchtower_reader_id',
+        memberId: data.watchtower_reader_id,
+        message: `Você foi designado para Leitor da Sentinela em ${dateLabel}.`,
+      },
+      {
+        slotKey: 'closing_prayer_id',
+        memberId: data.closing_prayer_id,
+        message: `Você foi designado para Oração final em ${dateLabel}.`,
+      },
+    ];
+
+    for (const slot of slots) {
+      await upsertAssignmentNotificationSlot({
+        memberId: slot.memberId,
+        sourceType: 'weekend_meeting_role',
+        sourceId: data.id,
+        slotKey: slot.slotKey,
+        category: 'weekend',
+        assignmentDate: data.date,
+        title: 'Nova designação na reunião do fim de semana',
+        message: slot.message,
+      });
+    }
+  },
+
+  async syncAudioVideoAssignmentNotifications(assignmentId: string) {
+    const { data, error } = await supabase
+      .from('audio_video_assignments')
+      .select('*')
+      .eq('id', assignmentId)
+      .maybeSingle();
+
+    if (error) throw new Error(formatDatabaseWriteError('Erro ao carregar designação de áudio e vídeo para notificação', error));
+    if (!data) return;
+
+    const dateLabel = formatShortDate(data.date);
+    const weekdayLabel = data.weekday ? ` (${data.weekday})` : '';
+    const slots = [
+      { slotKey: 'sound', memberId: data.sound_member_id, role: 'Som' },
+      { slotKey: 'image', memberId: data.image_member_id, role: 'Imagem' },
+      { slotKey: 'stage', memberId: data.stage_member_id, role: 'Palco' },
+      { slotKey: 'roving_mic_1', memberId: data.roving_mic_1_member_id, role: 'Mic. Volante 1' },
+      { slotKey: 'roving_mic_2', memberId: data.roving_mic_2_member_id, role: 'Mic. Volante 2' },
+    ];
+
+    for (const slot of slots) {
+      await upsertAssignmentNotificationSlot({
+        memberId: slot.memberId,
+        sourceType: 'audio_video_role',
+        sourceId: data.id,
+        slotKey: slot.slotKey,
+        category: 'audio_video',
+        assignmentDate: data.date,
+        title: 'Nova designação de áudio e vídeo',
+        message: `Você foi designado para ${slot.role} em ${dateLabel}${weekdayLabel}.`,
+      });
+    }
+
+    const attendantsIds = Array.isArray(data.attendants_member_ids) ? data.attendants_member_ids : [];
+    const attendantsNames = Array.isArray(data.attendants) ? data.attendants : [];
+
+    for (let index = 0; index < Math.max(attendantsIds.length, attendantsNames.length); index += 1) {
+      await upsertAssignmentNotificationSlot({
+        memberId: attendantsIds[index] || null,
+        sourceType: 'audio_video_role',
+        sourceId: data.id,
+        slotKey: `attendant:${index}`,
+        category: 'audio_video',
+        assignmentDate: data.date,
+        title: 'Nova designação de áudio e vídeo',
+        message: `Você foi designado para Entradas / Auditório em ${dateLabel}${weekdayLabel}.`,
+      });
+    }
+  },
+
+  async syncFieldServiceAssignmentNotifications(assignmentId: string) {
+    const { data, error } = await supabase
+      .from('field_service_assignments')
+      .select('*')
+      .eq('id', assignmentId)
+      .maybeSingle();
+
+    if (error) throw new Error(formatDatabaseWriteError('Erro ao carregar saída de campo para notificação', error));
+    if (!data) return;
+
+    await upsertAssignmentNotificationSlot({
+      memberId: data.responsible_member_id,
+      sourceType: 'field_service_assignment',
+      sourceId: data.id,
+      slotKey: 'responsible',
+      category: 'field_service',
+      assignmentDate: null,
+      title: 'Nova designação de saída de campo',
+      message: `Você foi designado para responsável em ${data.weekday} às ${data.time}.`,
+    });
+  },
+
+  async syncCartAssignmentNotifications(assignmentId: string) {
+    const { data, error } = await supabase
+      .from('cart_assignments')
+      .select('*')
+      .eq('id', assignmentId)
+      .maybeSingle();
+
+    if (error) throw new Error(formatDatabaseWriteError('Erro ao carregar designação de carrinho para notificação', error));
+    if (!data) return;
+
+    const monthDate = `${data.year}-${String(data.month).padStart(2, '0')}-${String(data.day).padStart(2, '0')}`;
+    const dateLabel = formatShortDate(monthDate);
+
+    await upsertAssignmentNotificationSlot({
+      memberId: data.publisher1_member_id,
+      sourceType: 'cart_assignment',
+      sourceId: data.id,
+      slotKey: 'publisher1',
+      category: 'cart',
+      assignmentDate: monthDate,
+      title: 'Nova designação de carrinho',
+      message: `Você foi designado para Publicador 1 no dia ${dateLabel}.`,
+    });
+
+    await upsertAssignmentNotificationSlot({
+      memberId: data.publisher2_member_id,
+      sourceType: 'cart_assignment',
+      sourceId: data.id,
+      slotKey: 'publisher2',
+      category: 'cart',
+      assignmentDate: monthDate,
+      title: 'Nova designação de carrinho',
+      message: `Você foi designado para Publicador 2 no dia ${dateLabel}.`,
+    });
   },
 
   // Members (includes system_role from user_profiles via join)
@@ -434,16 +1033,23 @@ export const api = {
         date: input.date,
         weekday: input.weekday,
         sound: input.sound,
+        sound_member_id: input.sound_member_id || null,
         image: input.image,
+        image_member_id: input.image_member_id || null,
         stage: input.stage,
+        stage_member_id: input.stage_member_id || null,
         roving_mic_1: input.roving_mic_1,
+        roving_mic_1_member_id: input.roving_mic_1_member_id || null,
         roving_mic_2: input.roving_mic_2,
+        roving_mic_2_member_id: input.roving_mic_2_member_id || null,
         attendants: input.attendants,
+        attendants_member_ids: input.attendants_member_ids || [],
       })
       .select('*')
       .single();
 
     if (error) throw new Error(formatDatabaseWriteError('Erro ao criar designação de áudio e vídeo', error));
+    await this.syncAudioVideoAssignmentNotifications(data.id);
     return mapAudioVideoAssignment(data);
   },
 
@@ -484,11 +1090,17 @@ export const api = {
     if (input.date !== undefined) payload.date = input.date;
     if (input.weekday !== undefined) payload.weekday = input.weekday;
     if (input.sound !== undefined) payload.sound = input.sound;
+    if (input.sound_member_id !== undefined) payload.sound_member_id = input.sound_member_id;
     if (input.image !== undefined) payload.image = input.image;
+    if (input.image_member_id !== undefined) payload.image_member_id = input.image_member_id;
     if (input.stage !== undefined) payload.stage = input.stage;
+    if (input.stage_member_id !== undefined) payload.stage_member_id = input.stage_member_id;
     if (input.roving_mic_1 !== undefined) payload.roving_mic_1 = input.roving_mic_1;
+    if (input.roving_mic_1_member_id !== undefined) payload.roving_mic_1_member_id = input.roving_mic_1_member_id;
     if (input.roving_mic_2 !== undefined) payload.roving_mic_2 = input.roving_mic_2;
+    if (input.roving_mic_2_member_id !== undefined) payload.roving_mic_2_member_id = input.roving_mic_2_member_id;
     if (input.attendants !== undefined) payload.attendants = input.attendants;
+    if (input.attendants_member_ids !== undefined) payload.attendants_member_ids = input.attendants_member_ids;
 
     const { data, error } = await supabase
       .from('audio_video_assignments')
@@ -498,6 +1110,7 @@ export const api = {
       .single();
 
     if (error) throw new Error(formatDatabaseWriteError('Erro ao atualizar designação de áudio e vídeo', error));
+    await this.syncAudioVideoAssignmentNotifications(data.id);
     return mapAudioVideoAssignment(data);
   },
 
@@ -532,6 +1145,7 @@ export const api = {
       .single();
 
     if (error) throw new Error(formatDatabaseWriteError('Erro ao criar saída de campo', error));
+    await this.syncFieldServiceAssignmentNotifications(data.id);
     return mapFieldServiceAssignment(data);
   },
 
@@ -630,6 +1244,7 @@ export const api = {
       .single();
 
     if (error) throw new Error(formatDatabaseWriteError('Erro ao atualizar saída de campo', error));
+    await this.syncFieldServiceAssignmentNotifications(data.id);
     return mapFieldServiceAssignment(data);
   },
 
@@ -654,6 +1269,7 @@ export const api = {
       .single();
 
     if (error) throw new Error(formatDatabaseWriteError('Erro ao criar designação de carrinho', error));
+    await this.syncCartAssignmentNotifications(data.id);
     return mapCartAssignment(data);
   },
 
@@ -666,6 +1282,7 @@ export const api = {
       .single();
 
     if (error) throw new Error(formatDatabaseWriteError('Erro ao atualizar designação de carrinho', error));
+    await this.syncCartAssignmentNotifications(data.id);
     return mapCartAssignment(data);
   },
 
@@ -772,6 +1389,13 @@ export const api = {
       .single();
 
     if (fetchError) throw new Error(`Erro ao carregar reunião criada: ${fetchError.message}`);
+    await this.syncMidweekMeetingNotifications(createdMeeting.id);
+    for (const part of hydratedMeeting.ministry_parts || []) {
+      await this.syncMidweekMinistryPartNotifications(part.id);
+    }
+    for (const part of hydratedMeeting.christian_life_parts || []) {
+      await this.syncMidweekChristianLifePartNotifications(part.id);
+    }
     return hydratedMeeting;
   },
 
@@ -798,10 +1422,27 @@ export const api = {
       .single();
 
     if (error) throw new Error(formatDatabaseWriteError('Erro ao criar reunião de fim de semana', error));
+    await this.syncWeekendMeetingNotifications(data.id);
     return data;
   },
 
   async updateMidweekMeeting(meetingId: string, input: CreateMidweekMeetingInput) {
+    const [
+      { data: previousMinistryParts, error: previousMinistryPartsError },
+      { data: previousChristianLifeParts, error: previousChristianLifePartsError },
+    ] = await Promise.all([
+      supabase.from('midweek_ministry_parts').select('id').eq('meeting_id', meetingId),
+      supabase.from('midweek_christian_life_parts').select('id').eq('meeting_id', meetingId),
+    ]);
+
+    if (previousMinistryPartsError) {
+      throw new Error(formatDatabaseWriteError('Erro ao carregar partes antigas do ministério', previousMinistryPartsError));
+    }
+
+    if (previousChristianLifePartsError) {
+      throw new Error(formatDatabaseWriteError('Erro ao carregar partes antigas de nossa vida cristã', previousChristianLifePartsError));
+    }
+
     const { error } = await supabase
       .from('midweek_meetings')
       .update({
@@ -915,6 +1556,22 @@ export const api = {
       .single();
 
     if (fetchError) throw new Error(`Erro ao carregar reunião atualizada: ${fetchError.message}`);
+
+    await this.syncMidweekMeetingNotifications(meetingId);
+    await revokeNotificationsForSourceIds(
+      'midweek_ministry_part',
+      (previousMinistryParts || []).map(part => part.id)
+    );
+    await revokeNotificationsForSourceIds(
+      'midweek_christian_life_part',
+      (previousChristianLifeParts || []).map(part => part.id)
+    );
+    for (const part of data.ministry_parts || []) {
+      await this.syncMidweekMinistryPartNotifications(part.id);
+    }
+    for (const part of data.christian_life_parts || []) {
+      await this.syncMidweekChristianLifePartNotifications(part.id);
+    }
     return data;
   },
 
@@ -942,6 +1599,7 @@ export const api = {
       .single();
 
     if (error) throw new Error(formatDatabaseWriteError('Erro ao atualizar reunião de fim de semana', error));
+    await this.syncWeekendMeetingNotifications(meetingId);
     return data;
   },
 
