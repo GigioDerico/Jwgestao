@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationsContext';
@@ -14,6 +14,28 @@ import {
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
+
+function getWeekStart(date: Date) {
+  const normalized = new Date(date);
+  normalized.setHours(12, 0, 0, 0);
+  const day = normalized.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  normalized.setDate(normalized.getDate() + diff);
+  return normalized;
+}
+
+function formatWeekLabel(start: Date) {
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+
+  return `Semana de ${start.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+  })} a ${end.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+  })}`;
+}
 
 export function Dashboard() {
   const { user, isAdmin } = useAuth();
@@ -49,6 +71,47 @@ export function Dashboard() {
       }
     })();
   }, []);
+
+  const notificationGroups = useMemo(() => {
+    const groups = new Map<string, { label: string; items: typeof notifications }>();
+
+    for (const notification of notifications) {
+      if (!notification.assignmentDate) {
+        const existing = groups.get('no-date');
+        if (existing) {
+          existing.items.push(notification);
+        } else {
+          groups.set('no-date', {
+            label: 'Sem data definida',
+            items: [notification],
+          });
+        }
+        continue;
+      }
+
+      const assignmentDate = new Date(`${notification.assignmentDate}T12:00:00`);
+      const weekStart = getWeekStart(assignmentDate);
+      const key = weekStart.toISOString().slice(0, 10);
+      const existing = groups.get(key);
+
+      if (existing) {
+        existing.items.push(notification);
+      } else {
+        groups.set(key, {
+          label: formatWeekLabel(weekStart),
+          items: [notification],
+        });
+      }
+    }
+
+    return Array.from(groups.entries())
+      .sort(([aKey], [bKey]) => {
+        if (aKey === 'no-date') return 1;
+        if (bKey === 'no-date') return -1;
+        return aKey.localeCompare(bKey);
+      })
+      .map(([, group]) => group);
+  }, [notifications]);
 
   const stats = [
     { label: 'Membros', value: loading ? '...' : membersCount, icon: Users, color: 'bg-blue-500', path: '/members' },
@@ -99,39 +162,50 @@ export function Dashboard() {
         </div>
 
         {notifications.length > 0 ? (
-          <div className="divide-y divide-border">
-            {notifications.map((notification) => (
-              <div key={notification.id} className="px-4 md:px-5 py-3.5 flex items-start gap-3 hover:bg-muted/30 transition-colors">
-                <div className={`mt-0.5 shrink-0 ${notification.status === 'confirmed' ? 'text-green-500' : 'text-amber-500'}`}>
-                  {notification.status === 'confirmed' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+          <div>
+            {notificationGroups.map((group, groupIndex) => (
+              <div key={group.label} className={groupIndex > 0 ? 'border-t border-border' : ''}>
+                <div className="border-b border-border bg-muted/20 px-4 md:px-5 py-2">
+                  <p className="text-muted-foreground font-medium" style={{ fontSize: '0.78rem' }}>
+                    {group.label}
+                  </p>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>{notification.title}</p>
-                  <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>{notification.message}</p>
+                <div className="divide-y divide-border">
+                  {group.items.map((notification) => (
+                    <div key={notification.id} className="px-4 md:px-5 py-3.5 flex items-start gap-3 hover:bg-muted/30 transition-colors">
+                      <div className={`mt-0.5 shrink-0 ${notification.status === 'confirmed' ? 'text-green-500' : 'text-amber-500'}`}>
+                        {notification.status === 'confirmed' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>{notification.title}</p>
+                        <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>{notification.message}</p>
+                      </div>
+                      {notification.status === 'pending_confirmation' ? (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await confirm(notification.id);
+                            } catch (error: any) {
+                              console.error(error);
+                              toast.error(error?.message || 'Erro ao confirmar designação.');
+                            }
+                          }}
+                          className="shrink-0 rounded-full bg-primary/10 px-3 py-1 font-medium text-primary transition-colors hover:bg-primary/20"
+                          style={{ fontSize: '0.75rem' }}
+                        >
+                          Confirmar
+                        </button>
+                      ) : (
+                        <span
+                          className="shrink-0 rounded-full bg-green-50 px-3 py-1 font-medium text-green-700"
+                          style={{ fontSize: '0.75rem' }}
+                        >
+                          Confirmado ✓
+                        </span>
+                      )}
+                    </div>
+                  ))}
                 </div>
-                {notification.status === 'pending_confirmation' ? (
-                  <button
-                    onClick={async () => {
-                      try {
-                        await confirm(notification.id);
-                      } catch (error: any) {
-                        console.error(error);
-                        toast.error(error?.message || 'Erro ao confirmar designação.');
-                      }
-                    }}
-                    className="shrink-0 rounded-full bg-primary/10 px-3 py-1 font-medium text-primary transition-colors hover:bg-primary/20"
-                    style={{ fontSize: '0.75rem' }}
-                  >
-                    Confirmar
-                  </button>
-                ) : (
-                  <span
-                    className="shrink-0 rounded-full bg-green-50 px-3 py-1 font-medium text-green-700"
-                    style={{ fontSize: '0.75rem' }}
-                  >
-                    Confirmado ✓
-                  </span>
-                )}
               </div>
             ))}
           </div>

@@ -57,10 +57,21 @@ export function MembersList() {
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
   };
 
+  const formatZipMask = (digits: string): string => {
+    if (digits.length <= 5) return digits;
+    return `${digits.slice(0, 5)}-${digits.slice(5, 8)}`;
+  };
+
   const [newMemberForm, setNewMemberForm] = useState<CreateMemberInput>({
     full_name: '',
     phone: '',
     email: '',
+    address_street: '',
+    address_number: '',
+    address_neighborhood: '',
+    address_city: '',
+    address_state: '',
+    address_zip_code: '',
     emergency_contact_name: '',
     emergency_contact_phone: '',
     spiritual_status: 'estudante',
@@ -87,6 +98,12 @@ export function MembersList() {
         full_name: m.full_name,
         email: m.email || '',
         phone: m.phone || '',
+        address_street: m.address_street || '',
+        address_number: m.address_number || '',
+        address_neighborhood: m.address_neighborhood || '',
+        address_city: m.address_city || '',
+        address_state: m.address_state || '',
+        address_zip_code: m.address_zip_code || '',
         emergency_contact_name: m.emergency_contact_name || '',
         emergency_contact_phone: m.emergency_contact_phone || '',
         spiritual_status: m.spiritual_status,
@@ -127,6 +144,12 @@ export function MembersList() {
       full_name: '',
       phone: '',
       email: '',
+      address_street: '',
+      address_number: '',
+      address_neighborhood: '',
+      address_city: '',
+      address_state: '',
+      address_zip_code: '',
       emergency_contact_name: '',
       emergency_contact_phone: '',
       spiritual_status: 'estudante',
@@ -178,6 +201,12 @@ export function MembersList() {
       full_name: member.full_name,
       phone: member.phone,
       email: member.email,
+      address_street: member.address_street,
+      address_number: member.address_number,
+      address_neighborhood: member.address_neighborhood,
+      address_city: member.address_city,
+      address_state: member.address_state,
+      address_zip_code: member.address_zip_code,
       emergency_contact_name: member.emergency_contact_name,
       emergency_contact_phone: member.emergency_contact_phone,
       spiritual_status: member.spiritual_status,
@@ -881,6 +910,83 @@ export function MembersList() {
                   style={{ fontSize: '0.9rem' }}
                 />
               </div>
+              <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50/60 p-3">
+                <div>
+                  <p className="text-gray-700 font-medium" style={{ fontSize: '0.85rem' }}>Endereço</p>
+                  <p className="text-gray-500" style={{ fontSize: '0.72rem' }}>Opcional. Preencha apenas os campos que desejar.</p>
+                </div>
+                <div>
+                  <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Rua / Logradouro</label>
+                  <input
+                    type="text"
+                    value={newMemberForm.address_street || ''}
+                    onChange={e => setNewMemberForm(f => ({ ...f, address_street: e.target.value }))}
+                    placeholder="Ex: Rua das Flores"
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
+                    style={{ fontSize: '0.9rem' }}
+                  />
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div>
+                    <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Número</label>
+                    <input
+                      type="text"
+                      value={newMemberForm.address_number || ''}
+                      onChange={e => setNewMemberForm(f => ({ ...f, address_number: e.target.value }))}
+                      placeholder="123"
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
+                      style={{ fontSize: '0.9rem' }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Bairro</label>
+                    <input
+                      type="text"
+                      value={newMemberForm.address_neighborhood || ''}
+                      onChange={e => setNewMemberForm(f => ({ ...f, address_neighborhood: e.target.value }))}
+                      placeholder="Centro"
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
+                      style={{ fontSize: '0.9rem' }}
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div>
+                    <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Cidade</label>
+                    <input
+                      type="text"
+                      value={newMemberForm.address_city || ''}
+                      onChange={e => setNewMemberForm(f => ({ ...f, address_city: e.target.value }))}
+                      placeholder="São Paulo"
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
+                      style={{ fontSize: '0.9rem' }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Estado (UF)</label>
+                    <input
+                      type="text"
+                      value={newMemberForm.address_state || ''}
+                      onChange={e => setNewMemberForm(f => ({ ...f, address_state: e.target.value.toUpperCase().slice(0, 2) }))}
+                      placeholder="SP"
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
+                      style={{ fontSize: '0.9rem' }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>CEP</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={formatZipMask((newMemberForm.address_zip_code || '').replace(/\D/g, ''))}
+                    onChange={e => setNewMemberForm(f => ({ ...f, address_zip_code: e.target.value.replace(/\D/g, '').slice(0, 8) }))}
+                    placeholder="00000-000"
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
+                    style={{ fontSize: '0.9rem' }}
+                  />
+                </div>
+              </div>
               {/* Contato de Emergência */}
               <div>
                 <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Contato de Emergência</label>
@@ -1073,6 +1179,40 @@ export function MembersList() {
                 <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>E-mail</label>
                 <input type="email" value={editForm.email || ''} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground" style={{ fontSize: '0.9rem' }} />
               </div>
+              <div className="space-y-3 rounded-xl border border-gray-100 bg-gray-50/60 p-3">
+                <div>
+                  <p className="text-gray-700 font-medium" style={{ fontSize: '0.85rem' }}>Endereço</p>
+                  <p className="text-gray-500" style={{ fontSize: '0.72rem' }}>Opcional. Preencha apenas os campos que desejar.</p>
+                </div>
+                <div>
+                  <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Rua / Logradouro</label>
+                  <input type="text" value={editForm.address_street || ''} onChange={e => setEditForm(f => ({ ...f, address_street: e.target.value }))} placeholder="Ex: Rua das Flores" className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground" style={{ fontSize: '0.9rem' }} />
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div>
+                    <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Número</label>
+                    <input type="text" value={editForm.address_number || ''} onChange={e => setEditForm(f => ({ ...f, address_number: e.target.value }))} placeholder="123" className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground" style={{ fontSize: '0.9rem' }} />
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Bairro</label>
+                    <input type="text" value={editForm.address_neighborhood || ''} onChange={e => setEditForm(f => ({ ...f, address_neighborhood: e.target.value }))} placeholder="Centro" className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground" style={{ fontSize: '0.9rem' }} />
+                  </div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div>
+                    <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Cidade</label>
+                    <input type="text" value={editForm.address_city || ''} onChange={e => setEditForm(f => ({ ...f, address_city: e.target.value }))} placeholder="São Paulo" className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground" style={{ fontSize: '0.9rem' }} />
+                  </div>
+                  <div>
+                    <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Estado (UF)</label>
+                    <input type="text" value={editForm.address_state || ''} onChange={e => setEditForm(f => ({ ...f, address_state: e.target.value.toUpperCase().slice(0, 2) }))} placeholder="SP" className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground" style={{ fontSize: '0.9rem' }} />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>CEP</label>
+                  <input type="text" inputMode="numeric" value={formatZipMask((editForm.address_zip_code || '').replace(/\D/g, ''))} onChange={e => setEditForm(f => ({ ...f, address_zip_code: e.target.value.replace(/\D/g, '').slice(0, 8) }))} placeholder="00000-000" className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground" style={{ fontSize: '0.9rem' }} />
+                </div>
+              </div>
               <div>
                 <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Contato Emergência</label>
                 <input type="text" value={editForm.emergency_contact_name || ''} onChange={e => setEditForm(f => ({ ...f, emergency_contact_name: e.target.value }))} placeholder="Nome do contato" className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground" style={{ fontSize: '0.9rem' }} />
@@ -1087,8 +1227,8 @@ export function MembersList() {
                   <option value="estudante">Estudante</option>
                   <option value="publicador">Publicador Não Batizado</option>
                   <option value="publicador_batizado">Publicador Batizado</option>
-                  <option value="pioneiro_auxiliar">Pioneiro Auxiliar</option>
-                  <option value="pioneiro_regular">Pioneiro Regular</option>
+                  <option value="servo_ministerial">Servo Ministerial</option>
+                  <option value="anciao">Ancião</option>
                 </select>
               </div>
               <div>

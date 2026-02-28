@@ -318,6 +318,12 @@ export type Database = {
       }
       members: {
         Row: {
+          address_city: string | null
+          address_neighborhood: string | null
+          address_number: string | null
+          address_state: string | null
+          address_street: string | null
+          address_zip_code: string | null
           approved_audio_video: boolean | null
           approved_carrinho: boolean | null
           approved_indicadores: boolean | null
@@ -338,6 +344,12 @@ export type Database = {
             | null
         }
         Insert: {
+          address_city?: string | null
+          address_neighborhood?: string | null
+          address_number?: string | null
+          address_state?: string | null
+          address_street?: string | null
+          address_zip_code?: string | null
           approved_audio_video?: boolean | null
           approved_carrinho?: boolean | null
           approved_indicadores?: boolean | null
@@ -358,6 +370,12 @@ export type Database = {
             | null
         }
         Update: {
+          address_city?: string | null
+          address_neighborhood?: string | null
+          address_number?: string | null
+          address_state?: string | null
+          address_street?: string | null
+          address_zip_code?: string | null
           approved_audio_video?: boolean | null
           approved_carrinho?: boolean | null
           approved_indicadores?: boolean | null

@@ -1,55 +1,339 @@
-# JW Gestão - Documentação e Visão Geral
+# JW Gestao - Visao Geral do Aplicativo
 
-> Uma aplicação projetada para facilitar a organização, escalas e gestão geral de uma congregação local, auxiliando Anciãos e Servos Ministeriais no controle de publicadores e designações de reuniões.
+## 1. O que e o JW Gestao
 
-## 1. Sobre o Projeto
-O **JW Gestão** é uma plataforma focada especificamente nas necessidades de fluxo de informações de designações, calendário de reuniões e controle de membros de uma congregação.
-Ele permite a visão ampla de quem fará partes específicas na reunião cristã (Reunião Vida e Ministério e Reunião Pública), status e privilégios espirituais de cada membro agregado, bem como confirmações de recebimento das designações.
+O **JW Gestao** e um sistema interno para organizacao de uma congregacao local. O aplicativo centraliza cadastro de membros, reunioes, designacoes e configuracoes operacionais em uma unica interface, com foco em uso rapido no desktop e no celular.
 
----
-
-## 2. Tecnologias e Stack (Arquitetura)
-O JW Gestão foi idealizado e construído com uma stack moderna voltada para estabilidade, performance limpa e escalabilidade:
-
-### 🌐 Frontend & UI
-- **Framework Core:** React 18, empacotado através do **Vite** para ganho massivo de performance no build e recarregamento local (HMR).
-- **Linguagem:** TypeScript, mantendo a tipagem estrita e blindagem contra erros de compilação durante as rotinas de interface.
-- **Roteamento:** React Router (v7), organizando de forma coesa a navegação entre a tela de Login isolada e as telas autenticadas no `Layout` protegido.
-- **Estilização:** Tailwind CSS (v4), favorecendo componentes consistentes, uso flexível de design tokens e UI responsiva nativa.
-- **Componentização Avançada:** Radix UI (como Primitives sem estilo pré-definido) servindo de motor base para componentes semânticos e perfeitamente acessíveis (Select, Menus, Accordions, Dialogs, etc).
-- **Ícones:** Lucide React, ícones limpos e profissionais.
+O objetivo principal e reduzir controles dispersos em papel, mensagens e planilhas, deixando a rotina administrativa e de designacao mais organizada, visual e facil de acompanhar.
 
 ---
 
-## 3. Módulos e Páginas do Sistema
+## 2. Para que o sistema e usado
 
-A aplicação é segmentada para garantir foco produtivo na navegação:
+Hoje o aplicativo atende principalmente estas necessidades:
 
-### A. Painel de Controle (Dashboard)
-A central de observabilidade de quem tem acesso privilegiado.
-- *Analytics Rápido:* Demonstra o total populacional da congregação listado em número de Publicadores, Contagem de Reuniões programadas, Designações pendentes de confirmação pelo orador e as já confirmadas.
-- *Lista de Próximas Reuniões:* Agrupamento cronológico (Ex: de Fevereiro, com os presidentes previstos, temática semanal como "Isaías 33-35", divididos entre *Vida e Ministério* ou *Reunião Pública*).
-- *Quadro de Anúncios:* Notificações importantes de gestão, como visita de superintendente de circuito ou arranjos especiais.
-
-### B. Gestão de Membros (Membros da Congregação)
-A base principal de dados gerenciais da congregação. Permite:
-- **Filtragem e Buscas:** Por nome ou filtragem condicional de privilégio local (Todos, Ancião, Servo Ministerial, Publicador).
-- **Visualização Detalhada:** Informando a situação da tabela de atividades do membro (Ativo / Inativo).
-- **Controle de Privilégios (Tags textuais):** Gestão visual sobre quem cuida de áudio/vídeo, microfones, contas, etc.
-
-### C. Sistema de Reuniões (Meetings)
-Controle focado na pauta semanal. Módulos que permitem ver o que acontecerá, quem preside, se está agendada parte padrão da *Sentinela* nos finais de semana ou o bloco da *Vida e Ministério Cristã* do meio de semana.
-
-### D. Designações (Assignments)
-Este é um módulo interativo e altamente essencial.
-- Mapeamento cruzado (Relacionamento visual) que atrela o "Membro" (orador/ajudante/estudante/indicador) a um "Dia de Reunião" e uma "Classe" (Parte do corpo/estudo).
-- Lógica de aceitação de privilégio visual: `Pendente` (necessário que o membro visualize e dê "Confirmar") versus `OK / Confirmado` (status finalizado sinalizado na cor verde com check).
-
-### E. Configurações (Settings)
-Gestão local da estrutura base e das contas e layout (Light / Dark mode, perfis administrativos).
+- cadastro e manutencao dos membros da congregacao
+- controle de informacoes espirituais e organizacionais de cada membro
+- consulta e acompanhamento das reunioes de meio de semana e fim de semana
+- montagem e edicao de designacoes por tipo de servico
+- notificacao de membros sobre designacoes recebidas
+- confirmacao de recebimento das designacoes pelo proprio membro
+- exportacao de escalas e quadros em **JPG** e **PDF**
+- administracao de permissoes por funcao e configuracoes locais da congregacao
 
 ---
 
-## 4. O Fluxo de Trabalho e Funcionalidades Core
-- O sistema se guia pela premissa da **simplicidade**. Apenas listagens vitais com botões de ação bem denotados (como adição direta de membros no botão "+ Adicionar Novo Membro").
-- Totalmente Mobile-Friendly, o que significa que anciãos ou publicadores responsáveis ​​pelo controle de indicadores/áudio podem consultar em tempo real a escala utilizando celulares sem nenhuma quebra na experiência de uso da interface do Tailwind.
+## 3. Perfil de usuarios e acesso
+
+O sistema trabalha com autenticacao e controle de acesso por perfil.
+
+### Autenticacao
+
+- O login e feito por **telefone + senha**.
+- Internamente, o telefone e convertido para um identificador de autenticacao baseado em email.
+- A sessao e restaurada automaticamente quando o usuario volta ao app.
+
+### Perfis do sistema
+
+Os perfis atualmente considerados no controle de permissao sao:
+
+- `coordenador`
+- `secretario`
+- `designador`
+- `publicador`
+
+O perfil `coordenador` atua como perfil com acesso total. Os demais perfis usam uma matriz de permissoes configuravel, com defaults de fallback quando necessario.
+
+---
+
+## 4. Stack e arquitetura atual
+
+O aplicativo atual foi construido com uma stack web moderna, com suporte a uso mobile.
+
+- **Frontend:** React 18
+- **Build e dev server:** Vite
+- **Linguagem:** TypeScript
+- **Roteamento:** React Router
+- **Estilizacao:** Tailwind CSS
+- **Componentes de interface:** combinacao de componentes proprios com Radix UI e Material UI em pontos especificos
+- **Backend/Banco/Auth:** Supabase
+- **Recursos nativos mobile:** Capacitor
+
+### Integracoes em uso
+
+- **Supabase Auth:** autenticacao e sessao
+- **Supabase Database:** persistencia de membros, reunioes, designacoes, grupos, permissoes e notificacoes
+- **Supabase Storage:** upload e remocao de avatar do usuario
+- **Capacitor Geolocation:** permissao de localizacao
+- **Capacitor Push Notifications:** permissao de notificacoes push
+
+---
+
+## 5. Estrutura de navegacao
+
+Depois do login, o usuario entra em um layout autenticado com menu lateral e barra superior.
+
+As rotas principais atualmente sao:
+
+- `/dashboard`
+- `/members`
+- `/meetings`
+- `/assignments/meetings`
+- `/assignments/audio-video`
+- `/assignments/field-service`
+- `/assignments/cart`
+- `/settings`
+
+O menu **Designacoes** e um grupo com submenu, separado por tipo de designacao. Isso permite que cada area tenha sua propria tela e evolua com regras especificas.
+
+---
+
+## 6. Modulos principais do aplicativo
+
+### 6.1 Dashboard
+
+O dashboard e a visao geral do sistema para o usuario autenticado.
+
+Principais funcoes:
+
+- exibicao de indicadores rapidos para usuarios com permissao
+- resumo de membros cadastrados
+- contagem de reunioes cadastradas
+- destaque de membros com privilegios especificos, como anciaos
+- secao **Minhas Designacoes**, mostrando ao usuario logado as proximas designacoes dele
+- acao de confirmacao de designacoes diretamente do dashboard
+- atalhos rapidos para areas operacionais
+
+O dashboard combina visao administrativa com uma visao pessoal, para que o publicador tambem consiga ver o que foi designado para ele.
+
+### 6.2 Membros
+
+O modulo de membros e a base cadastral do sistema.
+
+Ele permite:
+
+- listar todos os membros cadastrados
+- buscar por nome
+- filtrar por situacao espiritual
+- filtrar por grupo de campo
+- alternar modo de visualizacao entre lista, agrupado por grupo de campo e agrupado por familia
+- cadastrar novo membro
+- editar membro existente
+
+#### Informacoes mantidas no cadastro
+
+O cadastro atual contem, entre outros:
+
+- nome completo
+- telefone
+- email
+- situacao espiritual
+- genero
+- grupo de campo
+- organizacao familiar
+- privilegios e aprovacoes internas
+- perfil de sistema
+- contato de emergencia
+
+#### Endereco estruturado
+
+O fluxo atual de criacao e edicao de membros tambem inclui endereco estruturado, com estes campos:
+
+- rua/logradouro
+- numero
+- bairro
+- cidade
+- estado (UF)
+- CEP
+
+Esses dados sao persistidos no banco e aparecem nos formularios de cadastro e edicao, mas nao sao exibidos na listagem principal nesta etapa.
+
+### 6.3 Reunioes
+
+O modulo de reunioes e a area de consulta e acompanhamento das reunioes da congregacao.
+
+Ele trabalha com dois grupos principais:
+
+- **Meio de semana**
+- **Fim de semana**
+
+Principais funcoes:
+
+- visualizar reunioes cadastradas
+- alternar entre os tipos de reuniao
+- consultar detalhes das partes e responsaveis
+- gerar documentos de impressao/exportacao
+- exportar em **JPG** e **PDF**
+
+Essa tela serve como area de visualizacao e saida de material. As designacoes detalhadas ficam separadas em modulos especificos.
+
+### 6.4 Designacoes de Reunioes
+
+A rota `/assignments/meetings` concentra as designacoes ligadas as reunioes congregacionais.
+
+Principais funcoes:
+
+- gerenciar designacoes de reunioes de meio de semana e fim de semana
+- criar ou editar registros completos de reuniao
+- definir horarios, canticos e estrutura da reuniao
+- preencher partes do bloco de meio de semana
+- preencher partes do fim de semana
+- editar designacoes ja existentes por modal
+
+Este modulo cobre o fluxo mais detalhado de escalas da reuniao, incluindo distribuicao de partes e responsaveis.
+
+### 6.5 Designacoes de Audio e Video
+
+A rota `/assignments/audio-video` e dedicada a escala tecnica das reunioes.
+
+Principais funcoes:
+
+- gerar a estrutura do mes com base nas datas reais de reuniao
+- criar e editar a escala por data
+- preencher funcoes tecnicas como som, imagem, palco, microfone 1, microfone 2 e entradas/auditorio
+- evitar repeticao indevida da mesma pessoa em funcoes restritas no mesmo dia
+- exportar a escala do mes em **JPG** e **PDF**
+
+Quando o mes ja foi totalmente gerado, a interface oculta a secao de geracao mensal e passa a exibir apenas a manutencao da escala.
+
+### 6.6 Designacoes de Saida de Campo
+
+A rota `/assignments/field-service` organiza a escala mensal de saida de campo.
+
+Categorias atualmente trabalhadas:
+
+- Terca-feira
+- Quarta-feira
+- Sexta-feira
+- Sabado
+- Sabado - Rural
+- Domingo
+
+Principais funcoes:
+
+- gerar a estrutura mensal da escala
+- preencher responsavel, horario e local
+- adicionar linhas extras para grupos de domingo
+- adicionar linhas extras para sabado rural
+- ajustar visual de impressao para caber a escala e o quadro final
+- exportar em **JPG** e **PDF**
+
+Assim como em outros modulos mensais, quando o mes ja estiver completamente estruturado, a secao de geracao deixa de aparecer.
+
+### 6.7 Designacoes de Carrinho
+
+A rota `/assignments/cart` controla a escala mensal do carrinho.
+
+Principais funcoes:
+
+- organizar designacoes por semana dentro do mes
+- cadastrar linhas manuais da escala
+- definir dia, dia da semana, horario, local, publicador 1 e publicador 2
+- editar designacoes existentes
+- exibir em formato de tabela no desktop
+- exibir em formato de cards no mobile
+- exportar em **JPG** e **PDF**
+
+O modulo tambem recebeu ajustes visuais de legibilidade, com linhas divisorias mais claras entre registros e cabecalho proprio na visualizacao mobile.
+
+### 6.8 Configuracoes
+
+O modulo de configuracoes centraliza as definicoes administrativas do sistema.
+
+Principais funcoes:
+
+- definir o nome da congregacao
+- gerenciar a matriz de permissoes por perfil
+- editar o que cada perfil pode visualizar ou alterar
+- criar grupos de saida de campo
+- editar grupos de saida de campo
+- remover grupos de saida de campo
+- definir dirigente e ajudante dos grupos
+
+Essa area e essencial para adaptar o aplicativo a realidade local da congregacao sem depender de mudancas no codigo para cada ajuste operacional.
+
+---
+
+## 7. Notificacoes e confirmacoes
+
+O sistema possui uma camada de notificacoes voltada principalmente para designacoes.
+
+Recursos atuais:
+
+- carregamento de notificacoes ligadas ao membro logado
+- atualizacao em tempo real via subscription
+- marcacao individual como lida
+- marcacao de todas como lidas
+- confirmacao de recebimento da designacao
+
+Essas notificacoes aparecem na interface autenticada e tambem reforcam o fluxo de acompanhamento pessoal de responsabilidades.
+
+---
+
+## 8. Perfil do usuario
+
+O app possui uma area de perfil acessivel a partir do layout principal.
+
+Nessa area, o usuario pode:
+
+- visualizar dados basicos do proprio perfil
+- atualizar informacoes pessoais disponiveis
+- enviar avatar
+- remover avatar
+- conceder ou revisar permissoes nativas do dispositivo
+
+Isso permite que a experiencia do usuario seja mais completa, inclusive em ambiente mobile instalado via Capacitor.
+
+---
+
+## 9. Exportacao, impressao e uso mobile
+
+Uma parte importante do app e a geracao de materiais prontos para consulta e impressao.
+
+### Exportacoes
+
+Atualmente, modulos como reunioes e designacoes conseguem gerar:
+
+- **JPG**, usando um renderizador proprio para converter a interface em imagem
+- **PDF**, com suporte a exportacao e fluxo de impressao
+
+Esse recurso foi ajustado para evitar problemas comuns de exportacao de canvas em navegadores e manter melhor previsibilidade visual.
+
+### Uso mobile
+
+O sistema foi pensado para funcionar bem em telas menores:
+
+- layouts responsivos
+- cards especificos em telas mobile quando necessario
+- integracao com recursos nativos por Capacitor
+
+Na pratica, isso permite consulta e operacao tanto no computador quanto no celular, inclusive em atividades do dia a dia da congregacao.
+
+---
+
+## 10. Estrutura funcional resumida
+
+Em termos práticos, o fluxo atual do aplicativo e:
+
+1. o usuario entra com telefone e senha
+2. o sistema identifica o membro vinculado e o perfil de acesso
+3. o menu e ajustado conforme as permissoes
+4. o usuario consulta dashboard, membros, reunioes ou designacoes
+5. as escalas podem ser editadas e exportadas
+6. os membros designados recebem notificacoes e podem confirmar recebimento
+
+---
+
+## 11. Escopo atual do produto
+
+No estado atual, o JW Gestao ja cobre bem as rotinas centrais de:
+
+- cadastro congregacional
+- organizacao de reunioes
+- distribuicao de designacoes
+- configuracao administrativa
+- exportacao de escalas
+
+O sistema esta estruturado de forma modular, com cada tipo de designacao em sua propria pagina, o que facilita manutencao, crescimento de funcionalidades e ajustes especificos por area.
+
+Essa separacao e um dos pontos mais importantes da arquitetura funcional atual do aplicativo.

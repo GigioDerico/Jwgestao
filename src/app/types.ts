@@ -14,6 +14,12 @@ export interface Member {
   full_name: string;
   email: string;
   phone: string;
+  address_street: string;
+  address_number: string;
+  address_neighborhood: string;
+  address_city: string;
+  address_state: string;
+  address_zip_code: string;
   emergency_contact_name: string;
   emergency_contact_phone: string;
   spiritual_status: 'publicador' | 'publicador_batizado' | 'pioneiro_auxiliar' | 'pioneiro_regular' | 'estudante' | 'servo_ministerial' | 'anciao';

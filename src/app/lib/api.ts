@@ -8,10 +8,31 @@ import type { AssignmentNotification } from '../types';
 const PHONE_EMAIL_DOMAIN = 'jwgestao.app';
 const DEFAULT_PASSWORD = '001914';
 
+function normalizeOptionalText(value?: string) {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+}
+
+function normalizeOptionalState(value?: string) {
+  const normalized = value?.trim().slice(0, 2).toUpperCase();
+  return normalized ? normalized : null;
+}
+
+function normalizeOptionalZipCode(value?: string) {
+  const normalized = value?.replace(/\D/g, '');
+  return normalized ? normalized : null;
+}
+
 export interface CreateMemberInput {
   full_name: string;
   phone?: string;
   email?: string;
+  address_street?: string;
+  address_number?: string;
+  address_neighborhood?: string;
+  address_city?: string;
+  address_state?: string;
+  address_zip_code?: string;
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
   spiritual_status?: string;
@@ -852,9 +873,15 @@ export const api = {
   },
 
   async updateMember(memberId: string, input: Partial<CreateMemberInput>) {
-    const normalizedEmail = input.email?.trim() || null;
-    const normalizedEmergencyContactName = input.emergency_contact_name?.trim() || null;
+    const normalizedEmail = normalizeOptionalText(input.email);
+    const normalizedEmergencyContactName = normalizeOptionalText(input.emergency_contact_name);
     const normalizedEmergencyContactPhone = input.emergency_contact_phone?.replace(/\D/g, '') || null;
+    const normalizedAddressStreet = normalizeOptionalText(input.address_street);
+    const normalizedAddressNumber = normalizeOptionalText(input.address_number);
+    const normalizedAddressNeighborhood = normalizeOptionalText(input.address_neighborhood);
+    const normalizedAddressCity = normalizeOptionalText(input.address_city);
+    const normalizedAddressState = normalizeOptionalState(input.address_state);
+    const normalizedAddressZipCode = normalizeOptionalZipCode(input.address_zip_code);
 
     const { error } = await supabase
       .from('members')
@@ -862,6 +889,12 @@ export const api = {
         full_name: input.full_name,
         phone: input.phone ? input.phone.replace(/\D/g, '') : undefined,
         email: normalizedEmail,
+        address_street: normalizedAddressStreet,
+        address_number: normalizedAddressNumber,
+        address_neighborhood: normalizedAddressNeighborhood,
+        address_city: normalizedAddressCity,
+        address_state: normalizedAddressState,
+        address_zip_code: normalizedAddressZipCode,
         emergency_contact_name: normalizedEmergencyContactName,
         emergency_contact_phone: normalizedEmergencyContactPhone,
         spiritual_status: input.spiritual_status as any,
@@ -882,6 +915,16 @@ export const api = {
 
   async createMember(input: CreateMemberInput): Promise<{ member_id: string; auth_user_id: string }> {
     const phoneDigits = (input.phone || '').replace(/\D/g, '');
+    const normalizedEmail = normalizeOptionalText(input.email);
+    const normalizedEmergencyContactName = normalizeOptionalText(input.emergency_contact_name);
+    const normalizedEmergencyContactPhone = input.emergency_contact_phone?.replace(/\D/g, '') || null;
+    const normalizedAddressStreet = normalizeOptionalText(input.address_street);
+    const normalizedAddressNumber = normalizeOptionalText(input.address_number);
+    const normalizedAddressNeighborhood = normalizeOptionalText(input.address_neighborhood);
+    const normalizedAddressCity = normalizeOptionalText(input.address_city);
+    const normalizedAddressState = normalizeOptionalState(input.address_state);
+    const normalizedAddressZipCode = normalizeOptionalZipCode(input.address_zip_code);
+
     if (!phoneDigits || phoneDigits.length < 10) {
       throw new Error('Telefone é obrigatório para criar o acesso do membro.');
     }
@@ -892,9 +935,15 @@ export const api = {
       .insert({
         full_name: input.full_name,
         phone: phoneDigits,
-        email: input.email || null,
-        emergency_contact_name: input.emergency_contact_name || null,
-        emergency_contact_phone: input.emergency_contact_phone || null,
+        email: normalizedEmail,
+        address_street: normalizedAddressStreet,
+        address_number: normalizedAddressNumber,
+        address_neighborhood: normalizedAddressNeighborhood,
+        address_city: normalizedAddressCity,
+        address_state: normalizedAddressState,
+        address_zip_code: normalizedAddressZipCode,
+        emergency_contact_name: normalizedEmergencyContactName,
+        emergency_contact_phone: normalizedEmergencyContactPhone,
         spiritual_status: (input.spiritual_status || 'publicador') as any,
         gender: input.gender,
         group_id: input.group_id || null,
