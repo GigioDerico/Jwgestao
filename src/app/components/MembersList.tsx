@@ -35,6 +35,7 @@ export function MembersList() {
   const [groupFilter, setGroupFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [showAddModal, setShowAddModal] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [allMembers, setAllMembers] = useState<Member[]>([]);
@@ -294,6 +295,42 @@ export function MembersList() {
     m => !m.isFamilyHead && !m.familyHeadId
   );
 
+  const isSectionExpanded = (sectionId: string) => Boolean(expandedSections[sectionId]);
+
+  const toggleSection = (sectionId: string) => {
+    setExpandedSections(current => ({
+      ...current,
+      [sectionId]: !current[sectionId],
+    }));
+  };
+
+  const currentSectionIds = viewMode === 'service_group'
+    ? [
+      ...membersByServiceGroup.map(({ group }) => `group:${group.id}`),
+      ...(noGroupMembers.length > 0 ? ['group:none'] : []),
+    ]
+    : viewMode === 'family'
+      ? [
+        ...membersByFamily.map(({ head }) => `family:${head.id}`),
+        ...(noFamilyMembers.length > 0 ? ['family:none'] : []),
+      ]
+      : [];
+
+  const anyCurrentSectionExpanded = currentSectionIds.some(sectionId => isSectionExpanded(sectionId));
+  const allCurrentSectionsExpanded =
+    currentSectionIds.length > 0 && currentSectionIds.every(sectionId => isSectionExpanded(sectionId));
+
+  const setCurrentSectionsExpanded = (expanded: boolean) => {
+    if (currentSectionIds.length === 0) return;
+    setExpandedSections(current => {
+      const next = { ...current };
+      currentSectionIds.forEach(sectionId => {
+        next[sectionId] = expanded;
+      });
+      return next;
+    });
+  };
+
   const MemberCard = ({ member, isNested = false }: { member: Member; isNested?: boolean }) => (
     <div className={`group ${isNested ? '' : ''}`}>
       <button
@@ -541,17 +578,23 @@ export function MembersList() {
     subtitle,
     count,
     color = 'blue',
+    expanded,
+    onToggle,
   }: {
     title: string;
     subtitle?: string;
     count: number;
     color?: 'blue' | 'amber';
+    expanded?: boolean;
+    onToggle?: () => void;
   }) => (
-    <div
-      className={`px-4 py-3 flex items-center gap-3 border-b border-border/60 ${color === 'amber'
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`w-full px-4 py-3 flex items-center gap-3 border-b border-border/60 text-left transition-colors ${color === 'amber'
         ? 'bg-amber-50/70'
         : 'bg-primary/5'
-        }`}
+        } ${onToggle ? 'hover:brightness-[0.99]' : ''}`}
     >
       <div
         className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${color === 'amber'
@@ -580,7 +623,14 @@ export function MembersList() {
       >
         {count} membro{count !== 1 ? 's' : ''}
       </span>
-    </div>
+      {onToggle && (
+        expanded ? (
+          <ChevronUp size={16} className="text-muted-foreground shrink-0" />
+        ) : (
+          <ChevronDown size={16} className="text-muted-foreground shrink-0" />
+        )
+      )}
+    </button>
   );
 
   return (
@@ -743,6 +793,31 @@ export function MembersList() {
         </button>
       </div>
 
+      {viewMode !== 'list' && currentSectionIds.length > 0 && (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setCurrentSectionsExpanded(true)}
+            disabled={allCurrentSectionsExpanded}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border bg-card text-foreground hover:bg-muted/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+            style={{ fontSize: '0.82rem' }}
+          >
+            <ChevronDown size={14} />
+            Expandir todos
+          </button>
+          <button
+            type="button"
+            onClick={() => setCurrentSectionsExpanded(false)}
+            disabled={!anyCurrentSectionExpanded}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border bg-card text-foreground hover:bg-muted/40 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+            style={{ fontSize: '0.82rem' }}
+          >
+            <ChevronUp size={14} />
+            Retrair todos
+          </button>
+        </div>
+      )}
+
       {/* ---- VIEW: LIST ---- */}
       {viewMode === 'list' && (
         <div className="bg-card rounded-xl border border-border overflow-hidden divide-y divide-border shadow-sm">
@@ -760,6 +835,10 @@ export function MembersList() {
       {viewMode === 'service_group' && (
         <div className="space-y-4">
           {membersByServiceGroup.map(({ group, members: groupMembers }) => (
+            (() => {
+              const sectionId = `group:${group.id}`;
+              const expanded = isSectionExpanded(sectionId);
+              return (
             <div
               key={group.id}
               className="bg-card rounded-xl border border-border overflow-hidden shadow-sm"
@@ -769,23 +848,43 @@ export function MembersList() {
                 subtitle={`Dirigente: ${group.overseer}`}
                 count={groupMembers.length}
                 color="blue"
+                expanded={expanded}
+                onToggle={() => toggleSection(sectionId)}
               />
-              <div className="divide-y divide-border">
-                {groupMembers.map(member => (
-                  <MemberCard key={member.id} member={member} />
-                ))}
-              </div>
+              {expanded && (
+                <div className="divide-y divide-border">
+                  {groupMembers.map(member => (
+                    <MemberCard key={member.id} member={member} />
+                  ))}
+                </div>
+              )}
             </div>
+              );
+            })()
           ))}
           {noGroupMembers.length > 0 && (
-            <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
-              <GroupHeader title="Sem Grupo" count={noGroupMembers.length} color="blue" />
-              <div className="divide-y divide-border">
-                {noGroupMembers.map(member => (
-                  <MemberCard key={member.id} member={member} />
-                ))}
-              </div>
-            </div>
+            (() => {
+              const sectionId = 'group:none';
+              const expanded = isSectionExpanded(sectionId);
+              return (
+                <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
+                  <GroupHeader
+                    title="Sem Grupo"
+                    count={noGroupMembers.length}
+                    color="blue"
+                    expanded={expanded}
+                    onToggle={() => toggleSection(sectionId)}
+                  />
+                  {expanded && (
+                    <div className="divide-y divide-border">
+                      {noGroupMembers.map(member => (
+                        <MemberCard key={member.id} member={member} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()
           )}
           {membersByServiceGroup.length === 0 && noGroupMembers.length === 0 && (
             <div className="bg-card rounded-xl border border-border py-12 text-center text-muted-foreground shadow-sm" style={{ fontSize: '0.9rem' }}>
@@ -799,6 +898,10 @@ export function MembersList() {
       {viewMode === 'family' && (
         <div className="space-y-4">
           {membersByFamily.map(({ head, members: familyMembers }) => (
+            (() => {
+              const sectionId = `family:${head.id}`;
+              const expanded = isSectionExpanded(sectionId);
+              return (
             <div
               key={head.id}
               className="bg-card rounded-xl border border-border overflow-hidden shadow-sm"
@@ -812,41 +915,64 @@ export function MembersList() {
                 }
                 count={1 + familyMembers.length}
                 color="amber"
+                expanded={expanded}
+                onToggle={() => toggleSection(sectionId)}
               />
-              <div className="divide-y divide-border">
-                {/* Head always first */}
-                <MemberCard key={head.id} member={head} />
-                {familyMembers.map(member => (
-                  <MemberCard key={member.id} member={member} isNested />
-                ))}
-              </div>
+              {expanded && (
+                <div className="divide-y divide-border">
+                  {/* Head always first */}
+                  <MemberCard key={head.id} member={head} />
+                  {familyMembers.map(member => (
+                    <MemberCard key={member.id} member={member} isNested />
+                  ))}
+                </div>
+              )}
             </div>
+              );
+            })()
           ))}
 
           {noFamilyMembers.length > 0 && (
-            <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
-              <div className="px-4 py-3 flex items-center gap-3 border-b border-border/60 bg-muted/30">
-                <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-                  <Users size={15} className="text-muted-foreground" />
+            (() => {
+              const sectionId = 'family:none';
+              const expanded = isSectionExpanded(sectionId);
+              return (
+                <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection(sectionId)}
+                    className="w-full px-4 py-3 flex items-center gap-3 border-b border-border/60 bg-muted/30 text-left transition-colors hover:bg-muted/40"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                      <Users size={15} className="text-muted-foreground" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-bold text-muted-foreground" style={{ fontSize: '0.85rem' }}>
+                        Sem família cadastrada
+                      </p>
+                    </div>
+                    <span
+                      className="px-2 py-0.5 bg-muted text-muted-foreground rounded-full font-medium shrink-0"
+                      style={{ fontSize: '0.72rem' }}
+                    >
+                      {noFamilyMembers.length} membro{noFamilyMembers.length !== 1 ? 's' : ''}
+                    </span>
+                    {expanded ? (
+                      <ChevronUp size={16} className="text-muted-foreground shrink-0" />
+                    ) : (
+                      <ChevronDown size={16} className="text-muted-foreground shrink-0" />
+                    )}
+                  </button>
+                  {expanded && (
+                    <div className="divide-y divide-border">
+                      {noFamilyMembers.map(member => (
+                        <MemberCard key={member.id} member={member} />
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="flex-1">
-                  <p className="font-bold text-muted-foreground" style={{ fontSize: '0.85rem' }}>
-                    Sem família cadastrada
-                  </p>
-                </div>
-                <span
-                  className="px-2 py-0.5 bg-muted text-muted-foreground rounded-full font-medium shrink-0"
-                  style={{ fontSize: '0.72rem' }}
-                >
-                  {noFamilyMembers.length} membro{noFamilyMembers.length !== 1 ? 's' : ''}
-                </span>
-              </div>
-              <div className="divide-y divide-border">
-                {noFamilyMembers.map(member => (
-                  <MemberCard key={member.id} member={member} />
-                ))}
-              </div>
-            </div>
+              );
+            })()
           )}
 
           {membersByFamily.length === 0 && noFamilyMembers.length === 0 && (

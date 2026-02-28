@@ -480,13 +480,10 @@ export function SettingsPage() {
                     <span>{(group.assistants as any[]).map((a: any) => a.assistant?.full_name ?? a.member_id).filter(Boolean).join(', ')}</span>
                   </div>
                 )}
-                <div className="mt-4 pt-4 border-t border-border flex justify-between items-center">
+                <div className="mt-4 pt-4 border-t border-border">
                   <span className="text-muted-foreground" style={{ fontSize: '0.75rem' }}>
                     {membersByGroup[group.id] ?? 0} membros vinculados
                   </span>
-                  <button className="text-primary hover:underline font-medium" style={{ fontSize: '0.75rem' }}>
-                    Ver lista
-                  </button>
                 </div>
               </div>
             ))}
