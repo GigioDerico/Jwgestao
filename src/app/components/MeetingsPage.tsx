@@ -272,8 +272,8 @@ export function MeetingsPage() {
     setExporting(type);
     try {
       if (type === 'image') {
-        await downloadElementAsImage(element, `${baseFilename}.png`);
-        toast.success('Imagem gerada com sucesso.');
+        await downloadElementAsImage(element, `${baseFilename}.jpg`);
+        toast.success('Imagem JPG gerada com sucesso.');
       } else {
         await downloadElementAsPdf(element, `${baseFilename}.pdf`);
         toast.success('PDF gerado com sucesso.');

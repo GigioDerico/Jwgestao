@@ -181,7 +181,7 @@ function createPdfFromJpegBytes(options: {
 
 export async function downloadElementAsImage(element: HTMLElement, filename: string) {
   const { canvas } = await renderElementToCanvas(element);
-  const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+  const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92));
   if (!blob) {
     throw new Error('Nao foi possivel gerar a imagem.');
   }

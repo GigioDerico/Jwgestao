@@ -163,8 +163,8 @@ export function CartAssignments() {
     setExporting(type);
     try {
       if (type === 'image') {
-        await downloadElementAsImage(exportRef.current, `${baseFilename}.png`);
-        toast.success('Imagem gerada com sucesso.');
+        await downloadElementAsImage(exportRef.current, `${baseFilename}.jpg`);
+        toast.success('Imagem JPG gerada com sucesso.');
       } else {
         await downloadElementAsPdf(exportRef.current, `${baseFilename}.pdf`);
         toast.success('PDF gerado com sucesso.');

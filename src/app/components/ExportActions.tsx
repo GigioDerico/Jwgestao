@@ -24,7 +24,7 @@ export function ExportActions({
         style={{ fontSize: '0.82rem' }}
       >
         <Download size={14} />
-        {exporting === 'image' ? 'Gerando imagem...' : 'Baixar imagem'}
+        {exporting === 'image' ? 'Gerando JPG...' : 'Baixar JPG'}
       </button>
       <button
         type="button"
