@@ -6,7 +6,6 @@ import { getSaturdaysForMonth } from './field-service-calendar';
 import type { AssignmentNotification } from '../types';
 
 const PHONE_EMAIL_DOMAIN = 'jwgestao.app';
-const DEFAULT_PASSWORD = '001914';
 
 function normalizeOptionalText(value?: string) {
   const normalized = value?.trim();
@@ -630,7 +629,7 @@ export const api = {
     if (error) throw new Error(formatDatabaseWriteError('Erro ao carregar parte do ministério para notificação', error));
     if (!data) return;
 
-    const meetingDate = Array.isArray(data.meeting) ? data.meeting[0]?.date : data.meeting?.date;
+    const meetingDate = Array.isArray(data.meeting) ? (data.meeting[0] as any)?.date : (data.meeting as any)?.date;
     const dateLabel = formatShortDate(meetingDate);
 
     await upsertAssignmentNotificationSlot({
@@ -671,7 +670,7 @@ export const api = {
     if (error) throw new Error(formatDatabaseWriteError('Erro ao carregar parte de nossa vida cristã para notificação', error));
     if (!data) return;
 
-    const meetingDate = Array.isArray(data.meeting) ? data.meeting[0]?.date : data.meeting?.date;
+    const meetingDate = Array.isArray(data.meeting) ? (data.meeting[0] as any)?.date : (data.meeting as any)?.date;
     const dateLabel = formatShortDate(meetingDate);
 
     await upsertAssignmentNotificationSlot({
@@ -913,7 +912,7 @@ export const api = {
     if (error) throw new Error(`Erro ao atualizar membro: ${error.message}`);
   },
 
-  async createMember(input: CreateMemberInput): Promise<{ member_id: string; auth_user_id: string }> {
+  async createMember(input: CreateMemberInput): Promise<{ member_id: string; auth_user_id: string; email_auth?: string; temp_password?: string }> {
     const phoneDigits = (input.phone || '').replace(/\D/g, '');
     const normalizedEmail = normalizeOptionalText(input.email);
     const normalizedEmergencyContactName = normalizeOptionalText(input.emergency_contact_name);
@@ -968,10 +967,14 @@ export const api = {
 
     let authData: any;
     let authError: any;
+    let randomSecurePass = '';
     try {
+      // Cria a conta do Supabase usando uma senha pseudo-aleatoria forte que o admin *nunca* verá
+      // Logo depois emitimos o MagicLink de reset/recovery pelo servidor
+      randomSecurePass = `Pw${crypto.randomUUID()}-${Date.now()}`;
       const signUpPromise = isolatedClient.auth.signUp({
         email: authEmail,
-        password: DEFAULT_PASSWORD,
+        password: randomSecurePass,
       });
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('signUp timeout (15s)')), 15000)
@@ -996,18 +999,10 @@ export const api = {
         if (existingProfile) {
           throw new Error('Este telefone já está cadastrado. O membro já existe na lista.');
         }
-        const signInResult = await isolatedClient.auth.signInWithPassword({ email: authEmail, password: DEFAULT_PASSWORD });
-        if (signInResult.data?.user) {
-          const { error: profileErr } = await supabase.from('user_profiles').insert({
-            id: signInResult.data.user.id,
-            member_id: existingMember.id,
-            system_role: input.system_role || 'publicador',
-          });
-          await isolatedClient.auth.signOut();
-          if (profileErr) throw new Error(`Erro ao vincular acesso: ${profileErr.message}`);
-          return { member_id: existingMember.id, auth_user_id: signInResult.data.user.id };
-        }
-        throw new Error('Este telefone já está cadastrado. O membro pode já existir na lista.');
+
+        // Se a role estivesse linkada à profile mas vazou... vamos forçar nova requisição de recuperação
+        // Não podemos logar passivamente.
+        throw new Error('Este usuário já possui conta autenticável, porém falta o perfil. Contate o suporte para sincronizar manualmente.');
       }
       await supabase.from('members').delete().eq('id', member.id);
       throw new Error(`Erro ao criar acesso: ${authError.message}`);
@@ -1037,7 +1032,99 @@ export const api = {
     }
 
     await isolatedClient.auth.signOut();
-    return { member_id: member.id, auth_user_id: authData.user.id };
+
+    // Step 4: Gerar Magic Link localmente através de Edge Function Cloud ou DB Function (se aplicável),
+    // Como estamos restritos no cliente, pedimos ao servidor um link de recovery.
+    try {
+      await supabase.auth.resetPasswordForEmail(authEmail, {
+        redirectTo: `${window.location.origin}/auth/update-password`,
+      });
+    } catch (err: any) {
+      console.warn('Erro ao emitir aviso de boas vindas', err);
+    }
+
+    return {
+      member_id: member.id,
+      auth_user_id: authData.user.id,
+      email_auth: authEmail,
+      temp_password: randomSecurePass
+    };
+  },
+
+  /**
+   * Força a redefinição de Senha do Auth vinculada a este membro, via RPC.
+   * Útil para revogar acessos ou recuperar senhas perdidas.
+   */
+  async generateMemberMagicLink(memberId: string, phone: string) {
+    // Buscar a autênticão (profile) do membro
+    const { data: profile, error: profileErr } = await supabase
+      .from('user_profiles')
+      .select('id')
+      .eq('member_id', memberId)
+      .maybeSingle();
+
+    if (profileErr) {
+      throw new Error(`Falha ao buscar perfil do membro: ${profileErr.message}`);
+    }
+
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData?.user) throw new Error('Administrador não autenticado.');
+
+    const tempPassword = `Pw${crypto.randomUUID()}-${Date.now()}`;
+    const authEmail = `${phone.replace(/\D/g, '')}@${PHONE_EMAIL_DOMAIN}`;
+
+    if (!profile) {
+      const isolatedClient = createIsolatedAuthClient();
+      try {
+        const { data: signUpData, error: signUpError } = await isolatedClient.auth.signUp({
+          email: authEmail,
+          password: tempPassword,
+        });
+
+        if (signUpError) {
+          throw new Error(`Falha ao gerar credenciais Auth para perfil legado: ${signUpError.message}`);
+        }
+
+        if (!signUpData?.user) throw new Error('Erro inesperado: conta não foi criada pelo provedor.');
+
+        const { error: insertErr } = await supabase.from('user_profiles').insert({
+          id: signUpData.user.id,
+          member_id: memberId,
+          system_role: 'publicador',
+        });
+
+        if (insertErr) {
+          throw new Error(`Erro ao vincular perfil gerado: ${insertErr.message}`);
+        }
+
+        return {
+          success: true,
+          email_auth: authEmail,
+          temp_password: tempPassword,
+          magicLink: `${window.location.origin}/auth/setup-password?e=${encodeURIComponent(authEmail)}&p=${encodeURIComponent(tempPassword)}`
+        };
+      } finally {
+        await isolatedClient.auth.signOut();
+      }
+    }
+
+    // Sobrescrever a senha usando o RPC impositivo
+    const { error: rpcError } = await supabase.rpc('admin_reset_user_password', {
+      target_auth_id: profile.id,
+      target_member_id: memberId,
+      temp_password: tempPassword,
+    });
+
+    if (rpcError) {
+      throw new Error(`Sem permissão ou falha ao resetar acesso. ${rpcError.message}`);
+    }
+
+    return {
+      success: true,
+      email_auth: authEmail,
+      temp_password: tempPassword,
+      magicLink: `${window.location.origin}/auth/setup-password?e=${encodeURIComponent(authEmail)}&p=${encodeURIComponent(tempPassword)}`
+    };
   },
 
   // Get System Role
@@ -1071,7 +1158,7 @@ export const api = {
       .lte('date', end)
       .order('date', { ascending: true });
 
-    if (error) throw new Error(`Erro ao buscar designações de áudio e vídeo: ${error.message}`);
+    if (error) throw new Error(`Erro ao buscar designações de áudio e vídeo: ${error.message} `);
     return (data || []).map(mapAudioVideoAssignment);
   },
 
@@ -1172,7 +1259,7 @@ export const api = {
       .order('category', { ascending: true })
       .order('weekday', { ascending: true });
 
-    if (error) throw new Error(`Erro ao buscar saídas de campo: ${error.message}`);
+    if (error) throw new Error(`Erro ao buscar saídas de campo: ${error.message} `);
     return (data || []).map(mapFieldServiceAssignment);
   },
 
@@ -1182,7 +1269,7 @@ export const api = {
       .select('id, name')
       .order('name', { ascending: true });
 
-    if (error) throw new Error(`Erro ao buscar grupos de serviço: ${error.message}`);
+    if (error) throw new Error(`Erro ao buscar grupos de serviço: ${error.message} `);
     return data || [];
   },
 
@@ -1306,7 +1393,7 @@ export const api = {
       .order('week', { ascending: true })
       .order('day', { ascending: true });
 
-    if (error) throw new Error(`Erro ao buscar designações de carrinho: ${error.message}`);
+    if (error) throw new Error(`Erro ao buscar designações de carrinho: ${error.message} `);
     return (data || []).map(mapCartAssignment);
   },
 
@@ -1423,21 +1510,21 @@ export const api = {
       .from('midweek_meetings')
       .select(`
         *,
-        president:members!midweek_meetings_president_id_fkey(full_name),
-        opening_prayer:members!midweek_meetings_opening_prayer_id_fkey(full_name),
-        closing_prayer:members!midweek_meetings_closing_prayer_id_fkey(full_name),
-        treasure_talk_speaker:members!midweek_meetings_treasure_talk_speaker_id_fkey(full_name),
-        treasure_gems_speaker:members!midweek_meetings_treasure_gems_speaker_id_fkey(full_name),
-        treasure_reading_student:members!midweek_meetings_treasure_reading_student_id_fkey(full_name),
-        cbs_conductor:members!midweek_meetings_cbs_conductor_id_fkey(full_name),
-        cbs_reader:members!midweek_meetings_cbs_reader_id_fkey(full_name),
-        ministry_parts:midweek_ministry_parts(*, student:members!midweek_ministry_parts_student_id_fkey(full_name), assistant:members!midweek_ministry_parts_assistant_id_fkey(full_name)),
-        christian_life_parts:midweek_christian_life_parts(*, speaker:members!midweek_christian_life_parts_speaker_id_fkey(full_name))
+        president: members!midweek_meetings_president_id_fkey(full_name),
+          opening_prayer: members!midweek_meetings_opening_prayer_id_fkey(full_name),
+            closing_prayer: members!midweek_meetings_closing_prayer_id_fkey(full_name),
+              treasure_talk_speaker: members!midweek_meetings_treasure_talk_speaker_id_fkey(full_name),
+                treasure_gems_speaker: members!midweek_meetings_treasure_gems_speaker_id_fkey(full_name),
+                  treasure_reading_student: members!midweek_meetings_treasure_reading_student_id_fkey(full_name),
+                    cbs_conductor: members!midweek_meetings_cbs_conductor_id_fkey(full_name),
+                      cbs_reader: members!midweek_meetings_cbs_reader_id_fkey(full_name),
+                        ministry_parts: midweek_ministry_parts(*, student: members!midweek_ministry_parts_student_id_fkey(full_name), assistant: members!midweek_ministry_parts_assistant_id_fkey(full_name)),
+                          christian_life_parts: midweek_christian_life_parts(*, speaker: members!midweek_christian_life_parts_speaker_id_fkey(full_name))
       `)
       .eq('id', createdMeeting.id)
       .single();
 
-    if (fetchError) throw new Error(`Erro ao carregar reunião criada: ${fetchError.message}`);
+    if (fetchError) throw new Error(`Erro ao carregar reunião criada: ${fetchError.message} `);
     await this.syncMidweekMeetingNotifications(createdMeeting.id);
     for (const part of hydratedMeeting.ministry_parts || []) {
       await this.syncMidweekMinistryPartNotifications(part.id);
@@ -1463,11 +1550,11 @@ export const api = {
       })
       .select(`
         *,
-        president:members!weekend_meetings_president_id_fkey(full_name),
-        closing_prayer:members!weekend_meetings_closing_prayer_id_fkey(full_name),
-        watchtower_conductor:members!weekend_meetings_watchtower_conductor_id_fkey(full_name),
-        watchtower_reader:members!weekend_meetings_watchtower_reader_id_fkey(full_name)
-      `)
+        president: members!weekend_meetings_president_id_fkey(full_name),
+          closing_prayer: members!weekend_meetings_closing_prayer_id_fkey(full_name),
+            watchtower_conductor: members!weekend_meetings_watchtower_conductor_id_fkey(full_name),
+              watchtower_reader: members!weekend_meetings_watchtower_reader_id_fkey(full_name)
+                `)
       .single();
 
     if (error) throw new Error(formatDatabaseWriteError('Erro ao criar reunião de fim de semana', error));
@@ -1589,22 +1676,22 @@ export const api = {
     const { data, error: fetchError } = await supabase
       .from('midweek_meetings')
       .select(`
-        *,
-        president:members!midweek_meetings_president_id_fkey(full_name),
-        opening_prayer:members!midweek_meetings_opening_prayer_id_fkey(full_name),
-        closing_prayer:members!midweek_meetings_closing_prayer_id_fkey(full_name),
-        treasure_talk_speaker:members!midweek_meetings_treasure_talk_speaker_id_fkey(full_name),
-        treasure_gems_speaker:members!midweek_meetings_treasure_gems_speaker_id_fkey(full_name),
-        treasure_reading_student:members!midweek_meetings_treasure_reading_student_id_fkey(full_name),
-        cbs_conductor:members!midweek_meetings_cbs_conductor_id_fkey(full_name),
-        cbs_reader:members!midweek_meetings_cbs_reader_id_fkey(full_name),
-        ministry_parts:midweek_ministry_parts(*, student:members!midweek_ministry_parts_student_id_fkey(full_name), assistant:members!midweek_ministry_parts_assistant_id_fkey(full_name)),
-        christian_life_parts:midweek_christian_life_parts(*, speaker:members!midweek_christian_life_parts_speaker_id_fkey(full_name))
+                *,
+                president: members!midweek_meetings_president_id_fkey(full_name),
+                  opening_prayer: members!midweek_meetings_opening_prayer_id_fkey(full_name),
+                    closing_prayer: members!midweek_meetings_closing_prayer_id_fkey(full_name),
+                      treasure_talk_speaker: members!midweek_meetings_treasure_talk_speaker_id_fkey(full_name),
+                        treasure_gems_speaker: members!midweek_meetings_treasure_gems_speaker_id_fkey(full_name),
+                          treasure_reading_student: members!midweek_meetings_treasure_reading_student_id_fkey(full_name),
+                            cbs_conductor: members!midweek_meetings_cbs_conductor_id_fkey(full_name),
+                              cbs_reader: members!midweek_meetings_cbs_reader_id_fkey(full_name),
+                                ministry_parts: midweek_ministry_parts(*, student: members!midweek_ministry_parts_student_id_fkey(full_name), assistant: members!midweek_ministry_parts_assistant_id_fkey(full_name)),
+                                  christian_life_parts: midweek_christian_life_parts(*, speaker: members!midweek_christian_life_parts_speaker_id_fkey(full_name))
       `)
       .eq('id', meetingId)
       .single();
 
-    if (fetchError) throw new Error(`Erro ao carregar reunião atualizada: ${fetchError.message}`);
+    if (fetchError) throw new Error(`Erro ao carregar reunião atualizada: ${fetchError.message} `);
 
     await this.syncMidweekMeetingNotifications(meetingId);
     await revokeNotificationsForSourceIds(
@@ -1640,11 +1727,11 @@ export const api = {
       .eq('id', meetingId)
       .select(`
         *,
-        president:members!weekend_meetings_president_id_fkey(full_name),
-        closing_prayer:members!weekend_meetings_closing_prayer_id_fkey(full_name),
-        watchtower_conductor:members!weekend_meetings_watchtower_conductor_id_fkey(full_name),
-        watchtower_reader:members!weekend_meetings_watchtower_reader_id_fkey(full_name)
-      `)
+        president: members!weekend_meetings_president_id_fkey(full_name),
+          closing_prayer: members!weekend_meetings_closing_prayer_id_fkey(full_name),
+            watchtower_conductor: members!weekend_meetings_watchtower_conductor_id_fkey(full_name),
+              watchtower_reader: members!weekend_meetings_watchtower_reader_id_fkey(full_name)
+                `)
       .single();
 
     if (error) throw new Error(formatDatabaseWriteError('Erro ao atualizar reunião de fim de semana', error));
@@ -1657,18 +1744,18 @@ export const api = {
     const { data, error } = await supabase
       .from('midweek_meetings')
       .select(`
-        *,
-        president:members!midweek_meetings_president_id_fkey(full_name),
-        opening_prayer:members!midweek_meetings_opening_prayer_id_fkey(full_name),
-        closing_prayer:members!midweek_meetings_closing_prayer_id_fkey(full_name),
-        treasure_talk_speaker:members!midweek_meetings_treasure_talk_speaker_id_fkey(full_name),
-        treasure_gems_speaker:members!midweek_meetings_treasure_gems_speaker_id_fkey(full_name),
-        treasure_reading_student:members!midweek_meetings_treasure_reading_student_id_fkey(full_name),
-        cbs_conductor:members!midweek_meetings_cbs_conductor_id_fkey(full_name),
-        cbs_reader:members!midweek_meetings_cbs_reader_id_fkey(full_name),
-        ministry_parts:midweek_ministry_parts(*, student:members!midweek_ministry_parts_student_id_fkey(full_name), assistant:members!midweek_ministry_parts_assistant_id_fkey(full_name)),
-        christian_life_parts:midweek_christian_life_parts(*, speaker:members!midweek_christian_life_parts_speaker_id_fkey(full_name))
-      `)
+                *,
+                president: members!midweek_meetings_president_id_fkey(full_name),
+                  opening_prayer: members!midweek_meetings_opening_prayer_id_fkey(full_name),
+                    closing_prayer: members!midweek_meetings_closing_prayer_id_fkey(full_name),
+                      treasure_talk_speaker: members!midweek_meetings_treasure_talk_speaker_id_fkey(full_name),
+                        treasure_gems_speaker: members!midweek_meetings_treasure_gems_speaker_id_fkey(full_name),
+                          treasure_reading_student: members!midweek_meetings_treasure_reading_student_id_fkey(full_name),
+                            cbs_conductor: members!midweek_meetings_cbs_conductor_id_fkey(full_name),
+                              cbs_reader: members!midweek_meetings_cbs_reader_id_fkey(full_name),
+                                ministry_parts: midweek_ministry_parts(*, student: members!midweek_ministry_parts_student_id_fkey(full_name), assistant: members!midweek_ministry_parts_assistant_id_fkey(full_name)),
+                                  christian_life_parts: midweek_christian_life_parts(*, speaker: members!midweek_christian_life_parts_speaker_id_fkey(full_name))
+                                    `)
       .order('date', { ascending: true });
 
     if (error) throw error;
@@ -1680,12 +1767,12 @@ export const api = {
     const { data, error } = await supabase
       .from('weekend_meetings')
       .select(`
-        *,
-        president:members!weekend_meetings_president_id_fkey(full_name),
-        closing_prayer:members!weekend_meetings_closing_prayer_id_fkey(full_name),
-        watchtower_conductor:members!weekend_meetings_watchtower_conductor_id_fkey(full_name),
-        watchtower_reader:members!weekend_meetings_watchtower_reader_id_fkey(full_name)
-      `)
+                                    *,
+                                    president: members!weekend_meetings_president_id_fkey(full_name),
+                                      closing_prayer: members!weekend_meetings_closing_prayer_id_fkey(full_name),
+                                        watchtower_conductor: members!weekend_meetings_watchtower_conductor_id_fkey(full_name),
+                                          watchtower_reader: members!weekend_meetings_watchtower_reader_id_fkey(full_name)
+                                            `)
       .order('date', { ascending: true });
 
     if (error) throw error;

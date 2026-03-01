@@ -11,6 +11,7 @@ import {
   FieldServiceAssignmentsPage,
 } from './components/AssignmentTypePages';
 import { SettingsPage } from './components/SettingsPage';
+import { SetupPasswordPage } from './components/SetupPassword';
 
 export const router = createBrowserRouter([
   {
@@ -20,6 +21,10 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     Component: LoginPage,
+  },
+  {
+    path: '/auth/setup-password',
+    Component: SetupPasswordPage,
   },
   {
     path: '/',

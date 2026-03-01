@@ -180,12 +180,30 @@ export function MembersList() {
 
     setSavingMember(true);
     try {
-      await api.createMember({
+      const res = await api.createMember({
         ...newMemberForm,
         group_id: newMemberForm.group_id || undefined,
         family_head_id: newMemberForm.family_head_id || undefined,
       });
-      toast.success(`Membro "${newMemberForm.full_name}" criado com sucesso! Senha padrão: 001914`);
+      // Com MagicLink, o member.email_auth virá em res.email_auth caso o admin precise acionar reset para ele manualmente depois.
+      const magicLink = `${window.location.origin}/auth/setup-password?e=${encodeURIComponent(res.email_auth || '')}&p=${encodeURIComponent(res.temp_password || '')}`;
+      toast.success(
+        <div>
+          <p>Membro "{newMemberForm.full_name}" criado com sucesso!</p>
+          <div className="mt-2 text-sm bg-black/10 p-2 rounded break-all max-w-[250px]">
+            Magic Link para o primeiro acesso:
+            <br />
+            <a href={magicLink} target="_blank" rel="noopener noreferrer" className="text-blue-500 font-medium underline break-words">{magicLink}</a>
+          </div>
+          <button
+            onClick={() => navigator.clipboard.writeText(magicLink)}
+            className="mt-2 bg-primary text-white text-xs px-2 py-1 rounded"
+          >
+            Copiar Link
+          </button>
+        </div>,
+        { duration: 15000 }
+      );
       setShowAddModal(false);
       resetNewMemberForm();
       await fetchMembers();
@@ -553,9 +571,53 @@ export function MembersList() {
               </div>
             )}
 
-            {/* Edit Button */}
+            {/* Action Buttons */}
             {canEdit && (
-              <div className="sm:col-span-2 mt-3 flex justify-end">
+              <div className="sm:col-span-2 mt-3 flex justify-end gap-3 flex-wrap">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const phone = member.phone || '';
+                      if (!phone || phone.replace(/\D/g, '').length < 10) {
+                        toast.error('Telefone com DDD é obrigatório para gerar link.');
+                        return;
+                      }
+                      const loadingId = toast.loading('Gerando link...');
+                      const res = await api.generateMemberMagicLink(member.id, phone);
+                      toast.dismiss(loadingId);
+                      toast.success(
+                        <div>
+                          <p>Link de Acesso gerado com sucesso!</p>
+                          <div className="mt-2 text-sm bg-black/10 p-2 rounded break-all max-w-[250px]">
+                            A senha atual do membro foi revogada. Envie o link abaixo para o primeiro acesso:
+                            <br />
+                            <a href={res.magicLink} target="_blank" rel="noopener noreferrer" className="text-blue-500 font-medium underline break-words">{res.magicLink}</a>
+                          </div>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(res.magicLink);
+                              toast.dismiss(); // Fecha todos ou fecha o do card de sucesso via context
+                              toast.success('Link copiado com sucesso!', { duration: 3000 });
+                              setExpandedId(null);
+                            }}
+                            className="mt-2 bg-primary text-white text-xs px-2 py-1 rounded"
+                          >
+                            Copiar Link
+                          </button>
+                        </div>,
+                        { duration: 15000 }
+                      );
+                    } catch (err: any) {
+                      toast.dismiss();
+                      toast.error(err.message || 'Erro ao gerar link de acesso.');
+                    }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-xl hover:bg-primary/20 transition-colors font-medium border border-primary/20 shadow-sm"
+                  style={{ fontSize: '0.85rem' }}
+                >
+                  Gerar Link de Acesso
+                </button>
                 <button
                   onClick={() => handleOpenEdit(member)}
                   className="flex items-center gap-2 px-4 py-2 bg-[#082c45] text-white rounded-xl hover:bg-[#0a4a7a] transition-colors font-medium"
@@ -839,26 +901,26 @@ export function MembersList() {
               const sectionId = `group:${group.id}`;
               const expanded = isSectionExpanded(sectionId);
               return (
-            <div
-              key={group.id}
-              className="bg-card rounded-xl border border-border overflow-hidden shadow-sm"
-            >
-              <GroupHeader
-                title={group.name}
-                subtitle={`Dirigente: ${group.overseer}`}
-                count={groupMembers.length}
-                color="blue"
-                expanded={expanded}
-                onToggle={() => toggleSection(sectionId)}
-              />
-              {expanded && (
-                <div className="divide-y divide-border">
-                  {groupMembers.map(member => (
-                    <MemberCard key={member.id} member={member} />
-                  ))}
+                <div
+                  key={group.id}
+                  className="bg-card rounded-xl border border-border overflow-hidden shadow-sm"
+                >
+                  <GroupHeader
+                    title={group.name}
+                    subtitle={`Dirigente: ${group.overseer}`}
+                    count={groupMembers.length}
+                    color="blue"
+                    expanded={expanded}
+                    onToggle={() => toggleSection(sectionId)}
+                  />
+                  {expanded && (
+                    <div className="divide-y divide-border">
+                      {groupMembers.map(member => (
+                        <MemberCard key={member.id} member={member} />
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
               );
             })()
           ))}
@@ -902,32 +964,32 @@ export function MembersList() {
               const sectionId = `family:${head.id}`;
               const expanded = isSectionExpanded(sectionId);
               return (
-            <div
-              key={head.id}
-              className="bg-card rounded-xl border border-border overflow-hidden shadow-sm"
-            >
-              <GroupHeader
-                title={`Família ${head.full_name}`}
-                subtitle={
-                  familyMembers.length > 0
-                    ? `${familyMembers.length} membro(s) vinculado(s)`
-                    : 'Nenhum membro vinculado ainda'
-                }
-                count={1 + familyMembers.length}
-                color="amber"
-                expanded={expanded}
-                onToggle={() => toggleSection(sectionId)}
-              />
-              {expanded && (
-                <div className="divide-y divide-border">
-                  {/* Head always first */}
-                  <MemberCard key={head.id} member={head} />
-                  {familyMembers.map(member => (
-                    <MemberCard key={member.id} member={member} isNested />
-                  ))}
+                <div
+                  key={head.id}
+                  className="bg-card rounded-xl border border-border overflow-hidden shadow-sm"
+                >
+                  <GroupHeader
+                    title={`Família ${head.full_name}`}
+                    subtitle={
+                      familyMembers.length > 0
+                        ? `${familyMembers.length} membro(s) vinculado(s)`
+                        : 'Nenhum membro vinculado ainda'
+                    }
+                    count={1 + familyMembers.length}
+                    color="amber"
+                    expanded={expanded}
+                    onToggle={() => toggleSection(sectionId)}
+                  />
+                  {expanded && (
+                    <div className="divide-y divide-border">
+                      {/* Head always first */}
+                      <MemberCard key={head.id} member={head} />
+                      {familyMembers.map(member => (
+                        <MemberCard key={member.id} member={member} isNested />
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
               );
             })()
           ))}
@@ -1022,7 +1084,7 @@ export function MembersList() {
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
                   style={{ fontSize: '0.9rem' }}
                 />
-                <p className="text-gray-400 mt-1" style={{ fontSize: '0.72rem' }}>Será usado como login. Senha padrão: 001914</p>
+                <p className="text-gray-400 mt-1" style={{ fontSize: '0.72rem' }}>O login será feito através de Link Mágico emitido ao final.</p>
               </div>
               {/* E-mail */}
               <div>
