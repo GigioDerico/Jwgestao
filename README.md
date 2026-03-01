@@ -77,7 +77,8 @@ Prioridades de evolucao mais naturais para o projeto:
 3. continuar refinando a experiencia mobile em todas as telas
 4. ampliar a documentacao funcional e guias de treinamento
 5. expandir regras e automacoes por tipo de designacao
-6. incluir um historico de partes feitas por membros com graficos de participacao
+8. incluir um histórico de partes feitas por membros com gráficos de participação
+9. desenvolvimento e publicação de aplicativos nativos (Android e iOS) via Capacitor
 
 ### Executando localmente
 
@@ -195,6 +196,7 @@ The most natural next priorities are:
 4. expand functional documentation and training material
 5. extend rules and automation for each assignment type
 6. add a participation history for member assignments with engagement charts
+7. develop and publish native mobile applications (Android and iOS) via Capacitor
 
 ### Running locally
 
