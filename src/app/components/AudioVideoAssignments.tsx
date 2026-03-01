@@ -599,7 +599,10 @@ export function AudioVideoAssignments({
   };
 
   return (
-    <div className="relative space-y-4">
+    <div
+      className="relative space-y-4"
+      style={{ fontFamily: 'Calibri, Arial, sans-serif' }}
+    >
       <div className="bg-card rounded-xl border border-border p-3 shadow-sm">
         <div className="flex items-center justify-between">
           <button onClick={prevMonth} className="rounded-lg p-2 transition-colors hover:bg-gray-100">
@@ -620,7 +623,7 @@ export function AudioVideoAssignments({
             <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>
               Exportação do mês visível
             </p>
-            <p className="text-muted-foreground" style={{ fontSize: '0.82rem' }}>
+            <p className="text-muted-foreground" style={{ fontSize: '14px' }}>
               Exporta a grade de quinta e domingo do mês atualmente selecionado.
             </p>
           </div>
@@ -640,7 +643,7 @@ export function AudioVideoAssignments({
           <div className="border-b border-border px-4 py-3 md:flex md:items-center md:justify-between">
             <div>
               <h4 className="text-foreground" style={{ fontSize: '0.95rem' }}>Gerar escala do mês</h4>
-              <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>
+              <p className="text-muted-foreground" style={{ fontSize: '14px' }}>
                 Serão considerados apenas os dias de quinta e domingo do mês selecionado.
               </p>
             </div>
@@ -649,13 +652,13 @@ export function AudioVideoAssignments({
               onClick={handleGenerateMonth}
               disabled={loading || generating || saving}
               className="mt-3 inline-flex items-center rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60 md:mt-0"
-              style={{ fontSize: '0.85rem' }}
+              style={{ fontSize: '14px' }}
             >
               {generating ? 'Gerando...' : 'Gerar mês'}
             </button>
           </div>
           <div className="px-4 py-3">
-            <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>
+            <p className="text-muted-foreground" style={{ fontSize: '14px' }}>
               {loading
                 ? 'Carregando dados salvos do mês...'
                 : 'Clique em cada cargo para escolher os membros habilitados. Dias ainda não gerados aparecem vazios.'}
@@ -666,12 +669,12 @@ export function AudioVideoAssignments({
 
       <div className="hidden md:block bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
         <div className="bg-[#4a9bc7] px-4 py-3">
-          <h4 className="text-center tracking-wide text-white" style={{ fontSize: '0.9rem' }}>
+          <h4 className="text-center tracking-wide text-white" style={{ fontSize: '14px' }}>
             Áudio e Vídeo / Indicadores
           </h4>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full" style={{ fontSize: '0.82rem' }}>
+          <table className="w-full" style={{ fontSize: '14px' }}>
             <thead>
               <tr className="bg-[#5badd4] text-white">
                 <th className="px-3 py-2.5 text-left" style={{ width: '14%' }}>Data</th>
@@ -691,7 +694,7 @@ export function AudioVideoAssignments({
                 >
                   <td className="px-3 py-2.5 text-gray-700">
                     <div className="font-medium">{formatDate(row.date)}</div>
-                    <div className="text-gray-400" style={{ fontSize: '0.74rem' }}>
+                    <div className="text-gray-400" style={{ fontSize: '14px' }}>
                       {row.weekday} {row.assignment ? '' : '• não gerada'}
                     </div>
                   </td>
@@ -712,19 +715,19 @@ export function AudioVideoAssignments({
         {calendarRows.map(row => (
           <div key={row.date} className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
             <div className="bg-[#4a9bc7] px-4 py-2 flex items-center justify-between">
-              <span className="text-white" style={{ fontSize: '0.85rem' }}>
+              <span className="text-white" style={{ fontSize: '14px' }}>
                 {formatDate(row.date)} • {row.weekday}
               </span>
-              <span className="text-white/90" style={{ fontSize: '0.72rem' }}>
+              <span className="text-white/90" style={{ fontSize: '14px' }}>
                 {row.assignment ? 'gerada' : 'não gerada'}
               </span>
             </div>
             <div className="space-y-3 p-3">
               <section className="space-y-2">
-                <h5 className="text-gray-500" style={{ fontSize: '0.72rem' }}>Áudio e Vídeo</h5>
+                <h5 className="text-gray-500" style={{ fontSize: '14px' }}>Áudio e Vídeo</h5>
                 {SINGLE_ROLE_CONFIG.filter(role => role.group === 'audioVideo').map(role => (
                   <div key={role.key} className="flex items-center gap-3">
-                    <span className="w-24 shrink-0 text-gray-500" style={{ fontSize: '0.74rem' }}>
+                    <span className="w-24 shrink-0 text-gray-500" style={{ fontSize: '14px' }}>
                       {role.label}
                     </span>
                     <div className="flex-1">{renderSingleRoleButton(row, role.key)}</div>
@@ -732,17 +735,17 @@ export function AudioVideoAssignments({
                 ))}
               </section>
               <section className="space-y-2 border-t border-gray-100 pt-3">
-                <h5 className="text-gray-500" style={{ fontSize: '0.72rem' }}>Indicadores</h5>
+                <h5 className="text-gray-500" style={{ fontSize: '14px' }}>Indicadores</h5>
                 {SINGLE_ROLE_CONFIG.filter(role => role.group === 'indicators').map(role => (
                   <div key={role.key} className="flex items-center gap-3">
-                    <span className="w-24 shrink-0 text-gray-500" style={{ fontSize: '0.74rem' }}>
+                    <span className="w-24 shrink-0 text-gray-500" style={{ fontSize: '14px' }}>
                       {role.label}
                     </span>
                     <div className="flex-1">{renderSingleRoleButton(row, role.key)}</div>
                   </div>
                 ))}
                 <div className="flex items-center gap-3">
-                  <span className="w-24 shrink-0 text-gray-500" style={{ fontSize: '0.74rem' }}>
+                  <span className="w-24 shrink-0 text-gray-500" style={{ fontSize: '14px' }}>
                     Entradas
                   </span>
                   <div className="flex-1">{renderAttendantsButton(row)}</div>
@@ -760,13 +763,13 @@ export function AudioVideoAssignments({
               <h4 className="text-foreground" style={{ fontSize: '0.92rem' }}>
                 Resumo de Designações do Mês
               </h4>
-              <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>
+              <p className="text-muted-foreground" style={{ fontSize: '14px' }}>
                 Total de vezes que cada membro apareceu na escala visível.
               </p>
             </div>
             <span
               className="rounded-full bg-primary/10 px-2.5 py-1 text-primary"
-              style={{ fontSize: '0.74rem' }}
+              style={{ fontSize: '14px' }}
             >
               {assignmentSummary.reduce((sum, item) => sum + item.total, 0)} designações
             </span>
@@ -779,7 +782,7 @@ export function AudioVideoAssignments({
                 className="rounded-xl border border-border/70 bg-background px-3 py-2.5"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <span className="truncate text-foreground" style={{ fontSize: '0.84rem' }}>
+                  <span className="truncate text-foreground" style={{ fontSize: '14px' }}>
                     {item.name}
                   </span>
                   <span
@@ -788,7 +791,7 @@ export function AudioVideoAssignments({
                         ? 'bg-primary/10 text-primary'
                         : 'bg-muted text-muted-foreground'
                     }`}
-                    style={{ fontSize: '0.74rem' }}
+                    style={{ fontSize: '14px' }}
                   >
                     {item.total}x
                   </span>
@@ -801,11 +804,11 @@ export function AudioVideoAssignments({
                       <span
                         key={`${item.name}-${group.label}`}
                         className={`rounded-full px-2 py-0.5 ${
-                          count > 0
+                        count > 0
                           ? 'bg-white text-foreground border border-border'
                           : 'bg-muted/70 text-muted-foreground'
                         }`}
-                        style={{ fontSize: '0.7rem' }}
+                        style={{ fontSize: '14px' }}
                       >
                         {group.label} {count}x
                       </span>
@@ -850,11 +853,11 @@ export function AudioVideoAssignments({
         >
           <div className="overflow-hidden rounded-xl border border-gray-200">
             <div className="bg-[#4a9bc7] px-3 py-2.5">
-              <h4 className="text-center tracking-wide text-white" style={{ fontSize: '0.9rem', lineHeight: 1.1 }}>
+              <h4 className="text-center tracking-wide text-white" style={{ fontSize: '14px', lineHeight: 1.1 }}>
                 Áudio e Vídeo / Indicadores — {MONTHS[currentMonth]} {currentYear}
               </h4>
             </div>
-            <table className="w-full table-fixed" style={{ fontSize: '0.74rem', lineHeight: 1.05 }}>
+            <table className="w-full table-fixed" style={{ fontSize: '14px', lineHeight: 1.05 }}>
               <thead>
                 <tr className="bg-[#5badd4] text-white">
                   <th className="px-2 py-1.5 text-center whitespace-nowrap" style={{ width: '8%' }}>Data</th>
@@ -875,7 +878,7 @@ export function AudioVideoAssignments({
                     >
                       <td className="px-2 py-1.5 text-center text-gray-700 whitespace-nowrap">
                         <div className="font-medium">{formatDate(row.date)}</div>
-                        <div className="text-gray-400" style={{ fontSize: '0.64rem', lineHeight: 1 }}>
+                        <div className="text-gray-400" style={{ fontSize: '14px', lineHeight: 1 }}>
                           {row.weekday.toUpperCase()}
                         </div>
                       </td>
@@ -939,7 +942,7 @@ function MemberSelectModal({
         <div className="shrink-0 border-b border-gray-100 p-4 flex items-center justify-between">
           <div>
             <h3 className="text-gray-900">Editar Designação</h3>
-            <p className="mt-0.5 text-gray-500" style={{ fontSize: '0.8rem' }}>{label}</p>
+            <p className="mt-0.5 text-gray-500" style={{ fontSize: '14px' }}>{label}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 transition-colors hover:text-gray-600">
             <X size={20} />
@@ -980,7 +983,7 @@ function MemberSelectModal({
             </button>
           ))}
           {filteredMembers.length === 0 && (
-            <p className="px-3 py-4 text-gray-500" style={{ fontSize: '0.85rem' }}>
+            <p className="px-3 py-4 text-gray-500" style={{ fontSize: '14px' }}>
               Nenhum membro encontrado.
             </p>
           )}
@@ -1047,7 +1050,7 @@ function AttendantsSelectModal({
         <div className="shrink-0 border-b border-gray-100 p-4 flex items-center justify-between">
           <div>
             <h3 className="text-gray-900">Entradas / Auditório</h3>
-            <p className="mt-0.5 text-gray-500" style={{ fontSize: '0.8rem' }}>
+            <p className="mt-0.5 text-gray-500" style={{ fontSize: '14px' }}>
               Selecione um ou mais membros com privilégio de indicadores.
             </p>
           </div>
@@ -1082,22 +1085,22 @@ function AttendantsSelectModal({
                 style={{ fontSize: '0.9rem' }}
               >
                 <span>{member.full_name}</span>
-                <span className={`rounded-full px-2 py-0.5 ${isSelected ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`} style={{ fontSize: '0.7rem' }}>
+                <span className={`rounded-full px-2 py-0.5 ${isSelected ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`} style={{ fontSize: '14px' }}>
                   {isSelected ? 'Selecionado' : 'Selecionar'}
                 </span>
               </button>
             );
           })}
           {filteredMembers.length === 0 && (
-            <p className="px-3 py-4 text-gray-500" style={{ fontSize: '0.85rem' }}>
+            <p className="px-3 py-4 text-gray-500" style={{ fontSize: '14px' }}>
               Nenhum membro encontrado.
             </p>
           )}
         </div>
         <div className="shrink-0 border-t border-gray-100 p-3">
           <div className="mb-3">
-            <p className="text-gray-500" style={{ fontSize: '0.75rem' }}>Selecionados</p>
-            <p className="text-gray-700" style={{ fontSize: '0.82rem' }}>
+            <p className="text-gray-500" style={{ fontSize: '14px' }}>Selecionados</p>
+            <p className="text-gray-700" style={{ fontSize: '14px' }}>
               {selected.length > 0 ? selected.join(' / ') : 'A definir'}
             </p>
           </div>

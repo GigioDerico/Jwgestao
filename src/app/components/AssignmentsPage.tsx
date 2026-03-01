@@ -17,8 +17,9 @@ import {
   parseWeekendSpeakerCongregation,
   serializeWeekendSpeakerCongregation,
 } from '../helpers';
-import { Plus, X, ChevronDown, BookOpen } from 'lucide-react';
+import { Plus, X, ChevronDown, BookOpen, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { sendDesignationWhatsApp } from '../lib/whatsapp';
 
 type MeetingEditField = {
   label: string;
@@ -808,7 +809,7 @@ function MeetingsAssignmentsContent({
           <AssignmentSection title="Faça Seu Melhor no Ministério" color="bg-[#c4972a]">
             {ministryParts.length === 0 && <div className="p-3 text-sm text-gray-500">Nenhuma parte cadastrada no banco.</div>}
             {ministryParts.map((part: any, idx: number) => (
-              <div key={idx} className="space-y-1">
+              <div key={idx} className="space-y-1 relative pb-2 mb-2 border-b border-gray-50 last:border-0 last:pb-0 last:mb-0">
                 <AssignmentField
                   label={`${part.part_number}. ${part.title} (${part.duration} min) — Estudante`}
                   value={part.student?.full_name || 'Desconhecido'}
@@ -823,6 +824,32 @@ function MeetingsAssignmentsContent({
                     indent
                     canEdit={canEditAssignments}
                   />
+                )}
+                {part.student?.phone && (
+                  <div className="flex justify-end pr-3 pt-1">
+                    <button
+                      onClick={async () => {
+                        const toastId = toast.loading('Enviando WhatsApp...');
+                        try {
+                          await sendDesignationWhatsApp({
+                            studentName: part.student.full_name,
+                            assistantName: part.assistant?.full_name,
+                            date: new Date(meeting.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+                            partNumber: part.part_number,
+                            location: part.room || 'Salão Principal',
+                            phone: part.student.phone
+                          });
+                          toast.success('Designação enviada com sucesso!', { id: toastId });
+                        } catch (err: any) {
+                          toast.error(err.message || 'Erro ao enviar WhatsApp.', { id: toastId });
+                        }
+                      }}
+                      className="flex items-center gap-1.5 text-[0.8rem] font-medium text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors border border-green-100"
+                    >
+                      <MessageCircle size={15} />
+                      Enviar Designação
+                    </button>
+                  </div>
                 )}
               </div>
             ))}

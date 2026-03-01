@@ -1292,6 +1292,15 @@ export const api = {
       {
         month: monthIndex + 1,
         year,
+        weekday: 'Segunda-feira',
+        time: '08:45',
+        responsible: 'A definir',
+        location: 'Salão do Reino',
+        category: 'Segunda-feira',
+      },
+      {
+        month: monthIndex + 1,
+        year,
         weekday: 'Terça-feira',
         time: '16:30',
         responsible: 'A definir',
@@ -1336,7 +1345,7 @@ export const api = {
       })),
     ];
 
-    const fixedCategories = new Set(['Terça-feira', 'Quarta-feira', 'Sexta-feira']);
+    const fixedCategories = new Set(['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Sexta-feira']);
     let createdCount = 0;
 
     for (const row of expectedRows) {
@@ -1518,7 +1527,7 @@ export const api = {
                   treasure_reading_student: members!midweek_meetings_treasure_reading_student_id_fkey(full_name),
                     cbs_conductor: members!midweek_meetings_cbs_conductor_id_fkey(full_name),
                       cbs_reader: members!midweek_meetings_cbs_reader_id_fkey(full_name),
-                        ministry_parts: midweek_ministry_parts(*, student: members!midweek_ministry_parts_student_id_fkey(full_name), assistant: members!midweek_ministry_parts_assistant_id_fkey(full_name)),
+                        ministry_parts: midweek_ministry_parts(*, student: members!midweek_ministry_parts_student_id_fkey(full_name, phone), assistant: members!midweek_ministry_parts_assistant_id_fkey(full_name)),
                           christian_life_parts: midweek_christian_life_parts(*, speaker: members!midweek_christian_life_parts_speaker_id_fkey(full_name))
       `)
       .eq('id', createdMeeting.id)
@@ -1685,7 +1694,7 @@ export const api = {
                           treasure_reading_student: members!midweek_meetings_treasure_reading_student_id_fkey(full_name),
                             cbs_conductor: members!midweek_meetings_cbs_conductor_id_fkey(full_name),
                               cbs_reader: members!midweek_meetings_cbs_reader_id_fkey(full_name),
-                                ministry_parts: midweek_ministry_parts(*, student: members!midweek_ministry_parts_student_id_fkey(full_name), assistant: members!midweek_ministry_parts_assistant_id_fkey(full_name)),
+                                ministry_parts: midweek_ministry_parts(*, student: members!midweek_ministry_parts_student_id_fkey(full_name, phone), assistant: members!midweek_ministry_parts_assistant_id_fkey(full_name)),
                                   christian_life_parts: midweek_christian_life_parts(*, speaker: members!midweek_christian_life_parts_speaker_id_fkey(full_name))
       `)
       .eq('id', meetingId)
@@ -1753,7 +1762,7 @@ export const api = {
                           treasure_reading_student: members!midweek_meetings_treasure_reading_student_id_fkey(full_name),
                             cbs_conductor: members!midweek_meetings_cbs_conductor_id_fkey(full_name),
                               cbs_reader: members!midweek_meetings_cbs_reader_id_fkey(full_name),
-                                ministry_parts: midweek_ministry_parts(*, student: members!midweek_ministry_parts_student_id_fkey(full_name), assistant: members!midweek_ministry_parts_assistant_id_fkey(full_name)),
+                                ministry_parts: midweek_ministry_parts(*, student: members!midweek_ministry_parts_student_id_fkey(full_name, phone), assistant: members!midweek_ministry_parts_assistant_id_fkey(full_name)),
                                   christian_life_parts: midweek_christian_life_parts(*, speaker: members!midweek_christian_life_parts_speaker_id_fkey(full_name))
                                     `)
       .order('date', { ascending: true });

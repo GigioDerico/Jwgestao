@@ -44,6 +44,8 @@ export function SettingsPage() {
   const [savingCongregationName, setSavingCongregationName] = useState(false);
   const [midweekMeetingTime, setMidweekMeetingTime] = useState('');
   const [weekendMeetingTime, setWeekendMeetingTime] = useState('');
+  const [uazapiInstance, setUazapiInstance] = useState('');
+  const [uazapiToken, setUazapiToken] = useState('');
 
   const isCoordinator = user?.role === 'coordenador';
   const canManageGroups = user?.role === 'coordenador' || user?.role === 'secretario';
@@ -69,7 +71,7 @@ export function SettingsPage() {
       .from('field_service_groups')
       .select('*, overseer:members!overseer_id(full_name), assistants:field_service_group_assistants(member_id, assistant:members(full_name))');
     // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/01de7b58-075b-4ec4-b2be-533b4a69e95c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SettingsPage:fetchGroups',message:'fetch groups result',data:{count:data?.length,error:error?.message,sampleGroup:data?.[0]?{keys:Object.keys(data[0]),overseer_id:data[0].overseer_id}:null},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7243/ingest/01de7b58-075b-4ec4-b2be-533b4a69e95c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'SettingsPage:fetchGroups', message: 'fetch groups result', data: { count: data?.length, error: error?.message, sampleGroup: data?.[0] ? { keys: Object.keys(data[0]), overseer_id: data[0].overseer_id } : null }, timestamp: Date.now(), hypothesisId: 'H3' }) }).catch(() => { });
     // #endregion
     if (data) setGroups(data);
 
@@ -85,15 +87,19 @@ export function SettingsPage() {
 
   const fetchCongregationName = async () => {
     try {
-      const [nameValue, midweekTimeValue, weekendTimeValue] = await Promise.all([
+      const [nameValue, midweekTimeValue, weekendTimeValue, instanceValue, tokenValue] = await Promise.all([
         api.getAppSetting('congregation_name'),
         api.getAppSetting('midweek_meeting_time'),
         api.getAppSetting('weekend_meeting_time'),
+        api.getAppSetting('uazapi_instance'),
+        api.getAppSetting('uazapi_token'),
       ]);
 
       setCongregationName(!nameValue || nameValue === 'Congregação local' ? DEFAULT_CONGREGATION_NAME : nameValue);
       setMidweekMeetingTime(midweekTimeValue || '');
       setWeekendMeetingTime(weekendTimeValue || '');
+      setUazapiInstance(instanceValue || '');
+      setUazapiToken(tokenValue || '');
     } catch (err) {
       console.error('Erro ao buscar nome da congregacao', err);
     }
@@ -137,7 +143,7 @@ export function SettingsPage() {
 
   const handleOpenEdit = (group: any) => {
     // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/01de7b58-075b-4ec4-b2be-533b4a69e95c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'SettingsPage:handleOpenEdit',message:'group object',data:{groupKeys:Object.keys(group),overseer_id:group.overseer_id,overseer:group.overseer,assistants:group.assistants,assistantsLen:(group.assistants||[]).length},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7243/ingest/01de7b58-075b-4ec4-b2be-533b4a69e95c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'SettingsPage:handleOpenEdit', message: 'group object', data: { groupKeys: Object.keys(group), overseer_id: group.overseer_id, overseer: group.overseer, assistants: group.assistants, assistantsLen: (group.assistants || []).length }, timestamp: Date.now(), hypothesisId: 'H1' }) }).catch(() => { });
     // #endregion
     const assistants = group.assistants || [];
     const assistantIds = Array.isArray(assistants) ? assistants.map((a: any) => a.member_id) : [];
@@ -236,6 +242,8 @@ export function SettingsPage() {
         api.setAppSetting('congregation_name', congregationName.trim()),
         api.setAppSetting('midweek_meeting_time', normalizedMidweekTime),
         api.setAppSetting('weekend_meeting_time', normalizedWeekendTime),
+        api.setAppSetting('uazapi_instance', uazapiInstance.trim()),
+        api.setAppSetting('uazapi_token', uazapiToken.trim()),
       ]);
       toast.success('Dados da congregação salvos com sucesso!');
     } catch (err: any) {
@@ -309,14 +317,36 @@ export function SettingsPage() {
               className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
-          <button
-            onClick={handleSaveCongregationName}
-            disabled={savingCongregationName}
-            className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
-            style={{ fontSize: '0.9rem' }}
-          >
-            {savingCongregationName ? 'Salvando...' : 'Salvar dados'}
-          </button>
+          <div className="w-full sm:w-1/2">
+            <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Instância UAZAPI</label>
+            <input
+              type="text"
+              value={uazapiInstance}
+              onChange={e => setUazapiInstance(e.target.value)}
+              placeholder="Ex.: i91011ijkl"
+              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <div className="w-full sm:w-1/2">
+            <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Token UAZAPI</label>
+            <input
+              type="password"
+              value={uazapiToken}
+              onChange={e => setUazapiToken(e.target.value)}
+              placeholder="Ex.: abc123xyz"
+              className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <div className="w-full flex justify-end">
+            <button
+              onClick={handleSaveCongregationName}
+              disabled={savingCongregationName}
+              className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
+              style={{ fontSize: '0.9rem' }}
+            >
+              {savingCongregationName ? 'Salvando...' : 'Salvar dados'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -563,75 +593,75 @@ export function SettingsPage() {
           ...(editingGroup.overseer_id ? [{ id: editingGroup.overseer_id, full_name: editingGroup.overseer_name || 'Dirigente atual' }] : []),
         ];
         return (
-        <div
-          className="fixed inset-0 bg-[#082c45]/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
-          onClick={() => { if (!savingGroup) setEditingGroup(null); }}
-        >
           <div
-            className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl animate-in zoom-in-95 duration-200"
-            onClick={e => e.stopPropagation()}
+            className="fixed inset-0 bg-[#082c45]/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
+            onClick={() => { if (!savingGroup) setEditingGroup(null); }}
           >
-            <div className="p-5 border-b border-border flex items-center justify-between">
-              <h3 className="text-[#082c45] font-bold">Editar Grupo</h3>
-              <button onClick={() => setEditingGroup(null)} className="text-muted-foreground hover:text-foreground p-1 transition-colors" disabled={savingGroup}>
-                <X size={20} />
-              </button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Nome do grupo *</label>
-                <input
-                  type="text"
-                  value={editingGroup.name}
-                  onChange={e => setEditingGroup(g => g ? { ...g, name: e.target.value } : null)}
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
-                  style={{ fontSize: '0.9rem' }}
-                />
+            <div
+              className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl animate-in zoom-in-95 duration-200"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="p-5 border-b border-border flex items-center justify-between">
+                <h3 className="text-[#082c45] font-bold">Editar Grupo</h3>
+                <button onClick={() => setEditingGroup(null)} className="text-muted-foreground hover:text-foreground p-1 transition-colors" disabled={savingGroup}>
+                  <X size={20} />
+                </button>
               </div>
-              <div>
-                <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Dirigente do grupo *</label>
-                <select
-                  value={editingGroup.overseer_id}
-                  onChange={e => setEditingGroup(g => g ? { ...g, overseer_id: e.target.value } : null)}
-                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
-                  style={{ fontSize: '0.9rem' }}
-                >
-                  <option value="">Selecione o dirigente...</option>
-                  {displayMembers.map(m => (
-                    <option key={m.id} value={m.id}>{m.full_name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Ajudantes (opcional)</label>
-                <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1.5">
-                  {displayMembers.filter(m => m.id !== editingGroup.overseer_id).map(m => (
-                    <label key={m.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-2 py-1">
-                      <input
-                        type="checkbox"
-                        checked={editingGroup.assistant_ids.includes(m.id)}
-                        onChange={e => {
-                          setEditingGroup(g => g ? {
-                            ...g,
-                            assistant_ids: e.target.checked ? [...g.assistant_ids, m.id] : g.assistant_ids.filter(id => id !== m.id),
-                          } : null);
-                        }}
-                        className="accent-[#35bdf8]"
-                      />
-                      <span style={{ fontSize: '0.9rem' }}>{m.full_name}</span>
-                    </label>
-                  ))}
+              <div className="p-5 space-y-4">
+                <div>
+                  <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Nome do grupo *</label>
+                  <input
+                    type="text"
+                    value={editingGroup.name}
+                    onChange={e => setEditingGroup(g => g ? { ...g, name: e.target.value } : null)}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
+                    style={{ fontSize: '0.9rem' }}
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Dirigente do grupo *</label>
+                  <select
+                    value={editingGroup.overseer_id}
+                    onChange={e => setEditingGroup(g => g ? { ...g, overseer_id: e.target.value } : null)}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
+                    style={{ fontSize: '0.9rem' }}
+                  >
+                    <option value="">Selecione o dirigente...</option>
+                    {displayMembers.map(m => (
+                      <option key={m.id} value={m.id}>{m.full_name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Ajudantes (opcional)</label>
+                  <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1.5">
+                    {displayMembers.filter(m => m.id !== editingGroup.overseer_id).map(m => (
+                      <label key={m.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-2 py-1">
+                        <input
+                          type="checkbox"
+                          checked={editingGroup.assistant_ids.includes(m.id)}
+                          onChange={e => {
+                            setEditingGroup(g => g ? {
+                              ...g,
+                              assistant_ids: e.target.checked ? [...g.assistant_ids, m.id] : g.assistant_ids.filter(id => id !== m.id),
+                            } : null);
+                          }}
+                          className="accent-[#35bdf8]"
+                        />
+                        <span style={{ fontSize: '0.9rem' }}>{m.full_name}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="p-5 pt-0 flex gap-2 justify-end">
-              <button onClick={() => setEditingGroup(null)} className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50" style={{ fontSize: '0.9rem' }} disabled={savingGroup}>Cancelar</button>
-              <button onClick={handleSaveEdit} disabled={!editingGroup.overseer_id.trim() || savingGroup} className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed" style={{ fontSize: '0.9rem' }}>
-                {savingGroup ? <Loader2 size={16} className="animate-spin" /> : null} Salvar
-              </button>
+              <div className="p-5 pt-0 flex gap-2 justify-end">
+                <button onClick={() => setEditingGroup(null)} className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50" style={{ fontSize: '0.9rem' }} disabled={savingGroup}>Cancelar</button>
+                <button onClick={handleSaveEdit} disabled={!editingGroup.overseer_id.trim() || savingGroup} className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed" style={{ fontSize: '0.9rem' }}>
+                  {savingGroup ? <Loader2 size={16} className="animate-spin" /> : null} Salvar
+                </button>
+              </div>
             </div>
           </div>
-        </div>
         );
       })()}
 

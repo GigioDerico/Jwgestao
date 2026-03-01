@@ -194,7 +194,7 @@ export function Layout() {
           </div>
         </div>
 
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+        <nav className={`flex-1 p-3 space-y-1 ${sidebarCollapsed ? 'lg:overflow-visible overflow-y-auto' : 'overflow-y-auto'}`}>
           {filteredNav.map((item) => {
             const isActive = location.pathname.startsWith(item.path);
             const hasChildren = Boolean(item.children?.length);
@@ -203,7 +203,7 @@ export function Layout() {
               const isExpanded = assignmentsMenuOpen || isActive;
 
               return (
-                <div key={item.path} className={`space-y-1 ${sidebarCollapsed ? 'relative' : ''}`}>
+                <div key={item.path} className={`space-y-1 ${sidebarCollapsed ? 'relative group' : ''}`}>
                   <button
                     onClick={() => setAssignmentsMenuOpen(value => !value)}
                     title={item.label}
@@ -221,42 +221,40 @@ export function Layout() {
                     ))}
                   </button>
 
-                  {isExpanded && (
-                    <div
-                      className={
-                        sidebarCollapsed
-                          ? 'lg:absolute lg:left-full lg:top-0 lg:ml-3 lg:min-w-56 lg:rounded-2xl lg:border lg:border-white/10 lg:bg-primary-foreground lg:p-2 lg:shadow-2xl'
-                          : 'ml-9 space-y-1'
-                      }
-                    >
-                      {sidebarCollapsed && (
-                        <div className="hidden lg:block px-3 py-2 text-white/50" style={{ fontSize: '0.72rem' }}>
-                          {item.label}
-                        </div>
-                      )}
-                      {item.children?.map((child) => {
-                        const isChildActive = location.pathname === child.path;
+                  <div
+                    className={
+                      sidebarCollapsed
+                        ? `ml-9 space-y-1 block lg:absolute lg:left-full lg:top-0 lg:ml-3 lg:space-y-0 lg:min-w-56 lg:rounded-2xl lg:border lg:border-white/10 lg:bg-[#1a202c] lg:p-2 lg:shadow-2xl lg:opacity-0 lg:invisible lg:group-hover:opacity-100 lg:group-hover:visible lg:transition-all lg:z-[60] ${isExpanded ? 'block' : 'hidden lg:block'}`
+                        : `ml-9 space-y-1 transition-all ${isExpanded ? 'block' : 'hidden'}`
+                    }
+                  >
+                    {sidebarCollapsed && (
+                      <div className="hidden lg:block px-3 py-2 text-white/50" style={{ fontSize: '0.72rem' }}>
+                        {item.label}
+                      </div>
+                    )}
+                    {item.children?.map((child) => {
+                      const isChildActive = location.pathname === child.path;
 
-                        return (
-                          <button
-                            key={child.path}
-                            onClick={() => {
-                              navigate(child.path);
-                              setSidebarOpen(false);
-                              setAssignmentsMenuOpen(false);
-                            }}
-                            className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${isChildActive
-                              ? 'bg-white/12 text-white'
-                              : 'text-white/50 hover:bg-white/8 hover:text-white/85'
-                              }`}
-                            style={{ fontSize: '0.82rem' }}
-                          >
-                            {child.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+                      return (
+                        <button
+                          key={child.path}
+                          onClick={() => {
+                            navigate(child.path);
+                            setSidebarOpen(false);
+                            setAssignmentsMenuOpen(false);
+                          }}
+                          className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${isChildActive
+                            ? 'bg-white/12 text-white'
+                            : 'text-white/50 hover:bg-white/8 hover:text-white/85'
+                            }`}
+                          style={{ fontSize: '0.82rem' }}
+                        >
+                          {child.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               );
             }

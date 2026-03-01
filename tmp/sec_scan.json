@@ -1,0 +1,276 @@
+{
+  "project": ".",
+  "timestamp": "2026-02-28T17:14:04.883627",
+  "scan_type": "all",
+  "scans": {
+    "dependencies": {
+      "tool": "dependency_scanner",
+      "findings": [
+        {
+          "type": "Missing Lock File",
+          "severity": "high",
+          "message": "yarn: No lock file found. Supply chain integrity at risk."
+        },
+        {
+          "type": "Missing Lock File",
+          "severity": "high",
+          "message": "pnpm: No lock file found. Supply chain integrity at risk."
+        }
+      ],
+      "status": "[OK] Secure",
+      "npm_audit": {
+        "critical": 0,
+        "high": 0,
+        "moderate": 1,
+        "low": 0
+      }
+    },
+    "secrets": {
+      "tool": "secret_scanner",
+      "findings": [
+        {
+          "file": "create_user.js",
+          "type": "Password",
+          "severity": "high",
+          "count": 1
+        },
+        {
+          "file": "create_user.js",
+          "type": "JWT Token",
+          "severity": "high",
+          "count": 1
+        },
+        {
+          "file": "seed.js",
+          "type": "JWT Token",
+          "severity": "high",
+          "count": 1
+        },
+        {
+          "file": "supabase/config.toml",
+          "type": "API Key",
+          "severity": "high",
+          "count": 1
+        },
+        {
+          "file": "supabase/config.toml",
+          "type": "Token",
+          "severity": "high",
+          "count": 1
+        },
+        {
+          "file": ".agent/skills/vulnerability-scanner/scripts/security_scan.py",
+          "type": "Bearer Token",
+          "severity": "critical",
+          "count": 1
+        },
+        {
+          "file": "src/app/lib/api.ts",
+          "type": "Password",
+          "severity": "high",
+          "count": 1
+        }
+      ],
+      "status": "[!!] CRITICAL: Secrets exposed!",
+      "scanned_files": 141,
+      "by_severity": {
+        "critical": 1,
+        "high": 6,
+        "medium": 0
+      }
+    },
+    "code_patterns": {
+      "tool": "pattern_scanner",
+      "findings": [
+        {
+          "file": "ios/App/App/public/assets/index-DDh8fzti.js",
+          "line": 9,
+          "pattern": "SQL String Concat",
+          "severity": "critical",
+          "category": "SQL Injection risk",
+          "snippet": "*/var Qd;function hh(){if(Qd)return De;Qd=1;var n=Symbol.for(\"react.element\"),o="
+        },
+        {
+          "file": "ios/App/App/public/assets/index-DDh8fzti.js",
+          "line": 33,
+          "pattern": "dangerouslySetInnerHTML",
+          "severity": "high",
+          "category": "XSS risk",
+          "snippet": "*/var Zd;function wh(){if(Zd)return Ht;Zd=1;var n=lu(),o=xh();function l(e){for("
+        },
+        {
+          "file": "ios/App/App/public/assets/index-DDh8fzti.js",
+          "line": 33,
+          "pattern": "SQL String Concat",
+          "severity": "critical",
+          "category": "SQL Injection risk",
+          "snippet": "*/var Zd;function wh(){if(Zd)return Ht;Zd=1;var n=lu(),o=xh();function l(e){for("
+        },
+        {
+          "file": "ios/App/App/public/assets/index-DDh8fzti.js",
+          "line": 37,
+          "pattern": "dangerouslySetInnerHTML",
+          "severity": "high",
+          "category": "XSS risk",
+          "snippet": "`+s[h].replace(\" at new \",\" at \");return e.displayName&&N.includes(\"<anonymous>\""
+        },
+        {
+          "file": "ios/App/App/public/assets/index-DDh8fzti.js",
+          "line": 37,
+          "pattern": "innerHTML assignment",
+          "severity": "medium",
+          "category": "XSS risk",
+          "snippet": "`+s[h].replace(\" at new \",\" at \");return e.displayName&&N.includes(\"<anonymous>\""
+        },
+        {
+          "file": "ios/App/App/public/assets/index-DDh8fzti.js",
+          "line": 37,
+          "pattern": "SQL String Concat",
+          "severity": "critical",
+          "category": "SQL Injection risk",
+          "snippet": "`+s[h].replace(\" at new \",\" at \");return e.displayName&&N.includes(\"<anonymous>\""
+        },
+        {
+          "file": "ios/App/App/public/assets/index-DDh8fzti.js",
+          "line": 38,
+          "pattern": "dangerouslySetInnerHTML",
+          "severity": "high",
+          "category": "XSS risk",
+          "snippet": "`).replace(Cp,\"\")}function Qo(e,t,r){if(t=fc(t),fc(e)!==t&&r)throw Error(l(425))"
+        },
+        {
+          "file": "ios/App/App/public/assets/index-DDh8fzti.js",
+          "line": 38,
+          "pattern": "SQL String Concat",
+          "severity": "critical",
+          "category": "SQL Injection risk",
+          "snippet": "`).replace(Cp,\"\")}function Qo(e,t,r){if(t=fc(t),fc(e)!==t&&r)throw Error(l(425))"
+        },
+        {
+          "file": "ios/App/App/public/assets/index-DDh8fzti.js",
+          "line": 40,
+          "pattern": "dangerouslySetInnerHTML",
+          "severity": "high",
+          "category": "XSS risk",
+          "snippet": "`+u.stack}return{value:e,source:t,stack:s,digest:null}}function ns(e,t,r){return"
+        },
+        {
+          "file": "ios/App/App/public/assets/index-DDh8fzti.js",
+          "line": 40,
+          "pattern": "innerHTML assignment",
+          "severity": "medium",
+          "category": "XSS risk",
+          "snippet": "`+u.stack}return{value:e,source:t,stack:s,digest:null}}function ns(e,t,r){return"
+        },
+        {
+          "file": "ios/App/App/public/assets/index-DDh8fzti.js",
+          "line": 50,
+          "pattern": "SQL String Concat",
+          "severity": "critical",
+          "category": "SQL Injection risk",
+          "snippet": "`,\"\"):String(l.body);return{path:o,submission:{formMethod:f,formAction:m,formEnc"
+        },
+        {
+          "file": "android/app/src/main/assets/public/assets/index-DDh8fzti.js",
+          "line": 9,
+          "pattern": "SQL String Concat",
+          "severity": "critical",
+          "category": "SQL Injection risk",
+          "snippet": "*/var Qd;function hh(){if(Qd)return De;Qd=1;var n=Symbol.for(\"react.element\"),o="
+        },
+        {
+          "file": "android/app/src/main/assets/public/assets/index-DDh8fzti.js",
+          "line": 33,
+          "pattern": "dangerouslySetInnerHTML",
+          "severity": "high",
+          "category": "XSS risk",
+          "snippet": "*/var Zd;function wh(){if(Zd)return Ht;Zd=1;var n=lu(),o=xh();function l(e){for("
+        },
+        {
+          "file": "android/app/src/main/assets/public/assets/index-DDh8fzti.js",
+          "line": 33,
+          "pattern": "SQL String Concat",
+          "severity": "critical",
+          "category": "SQL Injection risk",
+          "snippet": "*/var Zd;function wh(){if(Zd)return Ht;Zd=1;var n=lu(),o=xh();function l(e){for("
+        },
+        {
+          "file": "android/app/src/main/assets/public/assets/index-DDh8fzti.js",
+          "line": 37,
+          "pattern": "dangerouslySetInnerHTML",
+          "severity": "high",
+          "category": "XSS risk",
+          "snippet": "`+s[h].replace(\" at new \",\" at \");return e.displayName&&N.includes(\"<anonymous>\""
+        },
+        {
+          "file": "android/app/src/main/assets/public/assets/index-DDh8fzti.js",
+          "line": 37,
+          "pattern": "innerHTML assignment",
+          "severity": "medium",
+          "category": "XSS risk",
+          "snippet": "`+s[h].replace(\" at new \",\" at \");return e.displayName&&N.includes(\"<anonymous>\""
+        },
+        {
+          "file": "android/app/src/main/assets/public/assets/index-DDh8fzti.js",
+          "line": 37,
+          "pattern": "SQL String Concat",
+          "severity": "critical",
+          "category": "SQL Injection risk",
+          "snippet": "`+s[h].replace(\" at new \",\" at \");return e.displayName&&N.includes(\"<anonymous>\""
+        },
+        {
+          "file": "android/app/src/main/assets/public/assets/index-DDh8fzti.js",
+          "line": 38,
+          "pattern": "dangerouslySetInnerHTML",
+          "severity": "high",
+          "category": "XSS risk",
+          "snippet": "`).replace(Cp,\"\")}function Qo(e,t,r){if(t=fc(t),fc(e)!==t&&r)throw Error(l(425))"
+        },
+        {
+          "file": "android/app/src/main/assets/public/assets/index-DDh8fzti.js",
+          "line": 38,
+          "pattern": "SQL String Concat",
+          "severity": "critical",
+          "category": "SQL Injection risk",
+          "snippet": "`).replace(Cp,\"\")}function Qo(e,t,r){if(t=fc(t),fc(e)!==t&&r)throw Error(l(425))"
+        },
+        {
+          "file": "android/app/src/main/assets/public/assets/index-DDh8fzti.js",
+          "line": 40,
+          "pattern": "dangerouslySetInnerHTML",
+          "severity": "high",
+          "category": "XSS risk",
+          "snippet": "`+u.stack}return{value:e,source:t,stack:s,digest:null}}function ns(e,t,r){return"
+        }
+      ],
+      "status": "[!!] CRITICAL: 12 dangerous patterns",
+      "scanned_files": 128,
+      "by_category": {
+        "SQL Injection risk": 10,
+        "XSS risk": 14,
+        "Code Injection risk": 2,
+        "Security disabled": 1
+      }
+    },
+    "configuration": {
+      "tool": "config_scanner",
+      "findings": [
+        {
+          "issue": "No security headers configuration found",
+          "severity": "medium",
+          "recommendation": "Configure CSP, HSTS, X-Frame-Options headers"
+        }
+      ],
+      "status": "[?] Minor configuration issues",
+      "checks": {
+        "security_headers_config": false
+      }
+    }
+  },
+  "summary": {
+    "total_findings": 30,
+    "critical": 10,
+    "high": 16,
+    "overall_status": "[!!] CRITICAL ISSUES FOUND"
+  }
+}
