@@ -17,6 +17,7 @@ interface AuthUser {
   gender?: string;
   spiritual_status?: string;
   member_id?: string;
+  group_id?: string;
   avatar?: string;
   approved_audio_video?: boolean;
   approved_indicadores?: boolean;
@@ -51,27 +52,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const buildAuthUser = useCallback(async (supaUser: User): Promise<AuthUser> => {
     const phoneDigits = supaUser.email?.replace(`@${PHONE_EMAIL_DOMAIN}`, '') || '';
     try {
-      const { data: profile } = await supabase
+      const { data: profileRows, error: profileError } = await supabase
         .from('user_profiles')
         .select('system_role, member_id')
         .eq('id', supaUser.id)
-        .single();
+        .limit(1);
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      const profile = profileRows?.[0];
+      const baseUser: AuthUser = {
+        id: supaUser.id,
+        phone: phoneDigits,
+        role: profile?.system_role || 'publicador',
+        name: 'Usuário',
+        member_id: profile?.member_id || undefined,
+      };
 
       if (profile?.member_id) {
-        const { data: member } = await supabase
+        const { data: memberRows, error: memberError } = await supabase
           .from('members')
-          .select('full_name, gender, spiritual_status, avatar_url, approved_audio_video, approved_indicadores, approved_carrinho')
+          .select('full_name, gender, spiritual_status, group_id, avatar_url, approved_audio_video, approved_indicadores, approved_carrinho')
           .eq('id', profile.member_id)
-          .single();
+          .limit(1);
+
+        if (memberError) {
+          console.warn('[Auth] Falha ao buscar membro do usuario autenticado:', memberError);
+          return baseUser;
+        }
+
+        const member = memberRows?.[0];
 
         return {
-          id: supaUser.id,
-          phone: phoneDigits,
-          role: profile.system_role || 'publicador',
-          name: member?.full_name || 'Usuário',
+          ...baseUser,
+          name: member?.full_name || baseUser.name,
           gender: member?.gender || undefined,
           spiritual_status: member?.spiritual_status || undefined,
-          member_id: profile.member_id,
+          group_id: (member as any)?.group_id || undefined,
           avatar: (member as any)?.avatar_url || undefined,
           approved_audio_video: Boolean((member as any)?.approved_audio_video),
           approved_indicadores: Boolean((member as any)?.approved_indicadores),
@@ -79,12 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
       }
 
-      return {
-        id: supaUser.id,
-        phone: phoneDigits,
-        role: profile?.system_role || 'publicador',
-        name: 'Usuário',
-      };
+      return baseUser;
     } catch {
       return {
         id: supaUser.id,
@@ -123,15 +137,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, s) => {
+      (_event, s) => {
         setSession(s);
-        if (s?.user) {
-          const authUser = await buildAuthUser(s.user);
-          setUser(authUser);
-        } else {
+
+        if (!s?.user) {
           setUser(null);
+          setLoading(false);
+          return;
         }
-        setLoading(false);
+
+        // Avoid Supabase calls directly inside the auth callback.
+        // Doing so can deadlock calls like auth.updateUser().
+        setTimeout(() => {
+          void (async () => {
+            try {
+              const authUser = await buildAuthUser(s.user);
+              if (!cancelled) {
+                setUser(authUser);
+              }
+            } finally {
+              if (!cancelled) {
+                setLoading(false);
+              }
+            }
+          })();
+        }, 0);
       }
     );
 

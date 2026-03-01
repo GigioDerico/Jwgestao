@@ -1,17 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Navigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
+import { formatPhoneDisplay } from '../helpers';
 import { BookOpen, Eye, EyeOff, Phone, Loader2 } from 'lucide-react';
 
 const REMEMBER_LOGIN_KEY = 'jwgestao-remember-login';
 const REMEMBERED_PHONE_KEY = 'jwgestao-remembered-phone';
-
-function formatPhone(raw: string): string {
-  const digits = raw.replace(/\D/g, '');
-  if (digits.length <= 2) return digits;
-  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
-}
 
 export function LoginPage() {
   const [phone, setPhone] = useState('');
@@ -121,7 +115,7 @@ export function LoginPage() {
                   type="tel"
                   inputMode="numeric"
                   name="username"
-                  value={formatPhone(phone)}
+                  value={formatPhoneDisplay(phone)}
                   onChange={handlePhoneChange}
                   placeholder="(11) 99999-9999"
                   className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#35bdf8] focus:border-transparent transition"

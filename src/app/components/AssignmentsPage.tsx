@@ -12,18 +12,35 @@ import {
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
+import {
+  formatWeekendSpeakerCongregation,
+  parseWeekendSpeakerCongregation,
+  serializeWeekendSpeakerCongregation,
+} from '../helpers';
 import { Plus, X, ChevronDown, BookOpen } from 'lucide-react';
 import { toast } from 'sonner';
 
 type MeetingEditField = {
   label: string;
-  mode: 'member' | 'text';
+  mode: 'member' | 'text' | 'weekend_speaker';
   currentValue: string;
+  secondaryValue?: string;
+  tertiaryValue?: string;
   table: 'midweek_meetings' | 'weekend_meetings' | 'midweek_ministry_parts' | 'midweek_christian_life_parts';
   rowId: string;
   column: string;
 };
 type MeetingFormMode = 'create' | 'edit';
+
+type AudioVideoRestrictionAssignment = {
+  date: string;
+  sound_member_id?: string | null;
+  image_member_id?: string | null;
+  stage_member_id?: string | null;
+  roving_mic_1_member_id?: string | null;
+  roving_mic_2_member_id?: string | null;
+  attendants_member_ids?: string[] | null;
+};
 
 const MINISTRY_PART_TYPES = [
   'Iniciando conversas',
@@ -88,6 +105,7 @@ const createEmptyWeekendDraft = () => ({
   talkTheme: '',
   talkSpeakerName: '',
   talkCongregation: '',
+  talkCongregationCity: '',
   watchtowerConductorId: '',
   watchtowerReaderId: '',
   closingPrayerId: '',
@@ -113,6 +131,35 @@ function getSequentialTimeError(times: { label: string; value: string }[]) {
   return null;
 }
 
+function getAudioVideoAssignedMemberIds(assignment?: AudioVideoRestrictionAssignment | null) {
+  if (!assignment) {
+    return new Set<string>();
+  }
+
+  return new Set(
+    [
+      assignment.sound_member_id,
+      assignment.image_member_id,
+      assignment.stage_member_id,
+      assignment.roving_mic_1_member_id,
+      assignment.roving_mic_2_member_id,
+      ...(Array.isArray(assignment.attendants_member_ids) ? assignment.attendants_member_ids : []),
+    ].filter((memberId): memberId is string => Boolean(memberId)),
+  );
+}
+
+function getUnavailableWeekendReaderIds(
+  date: string | undefined,
+  audioVideoAssignments: AudioVideoRestrictionAssignment[],
+) {
+  if (!date) {
+    return new Set<string>();
+  }
+
+  const sameDayAssignment = audioVideoAssignments.find(item => item.date === date);
+  return getAudioVideoAssignedMemberIds(sameDayAssignment);
+}
+
 export function AssignmentsPage() {
   const { user } = useAuth();
   const { can } = usePermissions();
@@ -129,19 +176,29 @@ export function AssignmentsPage() {
   const [midweekMeetings, setMidweekMeetings] = useState<any[]>([]);
   const [weekendMeetings, setWeekendMeetings] = useState<any[]>([]);
   const [allMembers, setAllMembers] = useState<any[]>([]);
+  const [audioVideoAssignments, setAudioVideoAssignments] = useState<AudioVideoRestrictionAssignment[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [membersData, mwData, weData] = await Promise.all([
+      const [membersData, mwData, weData, avData] = await Promise.all([
         api.getMembers(),
         api.getMidweekMeetings(),
-        api.getWeekendMeetings()
+        api.getWeekendMeetings(),
+        supabase
+          .from('audio_video_assignments')
+          .select('date, sound_member_id, image_member_id, stage_member_id, roving_mic_1_member_id, roving_mic_2_member_id, attendants_member_ids')
       ]);
+
+      if (avData.error) {
+        throw avData.error;
+      }
+
       setAllMembers(membersData);
       setMidweekMeetings(mwData);
       setWeekendMeetings(weData);
+      setAudioVideoAssignments((avData.data || []) as AudioVideoRestrictionAssignment[]);
     } catch (e) {
       console.error('Error fetching assignment data', e);
     } finally {
@@ -253,12 +310,15 @@ export function AssignmentsPage() {
   };
 
   const populateWeekendDraftFromMeeting = (meeting: any) => {
+    const talkCongregation = parseWeekendSpeakerCongregation(meeting?.talk_congregation);
+
     setWeekendDraft({
       date: meeting?.date || '',
       presidentId: meeting?.president_id || '',
       talkTheme: meeting?.talk_theme || '',
       talkSpeakerName: meeting?.talk_speaker_name || '',
-      talkCongregation: meeting?.talk_congregation || '',
+      talkCongregation: talkCongregation.congregation,
+      talkCongregationCity: talkCongregation.city,
       watchtowerConductorId: meeting?.watchtower_conductor_id || '',
       watchtowerReaderId: meeting?.watchtower_reader_id || '',
       closingPrayerId: meeting?.closing_prayer_id || '',
@@ -285,14 +345,33 @@ export function AssignmentsPage() {
     setShowCreateMeetingModal(true);
   };
 
-  const saveAssignment = async ({ value, memberId }: { value: string; memberId?: string | null }) => {
+  const saveAssignment = async ({
+    value,
+    memberId,
+    secondaryValue,
+    tertiaryValue,
+  }: {
+    value: string;
+    memberId?: string | null;
+    secondaryValue?: string;
+    tertiaryValue?: string;
+  }) => {
     if (!editField) return;
 
     const table = editField.table;
     const rowId = editField.rowId;
-    const payload = editField.mode === 'member'
-      ? { [editField.column]: memberId || null }
-      : { [editField.column]: value };
+    let payload: Record<string, any>;
+
+    if (editField.mode === 'member') {
+      payload = { [editField.column]: memberId || null };
+    } else if (editField.mode === 'weekend_speaker') {
+      payload = {
+        talk_speaker_name: value.trim(),
+        talk_congregation: serializeWeekendSpeakerCongregation(secondaryValue, tertiaryValue) || null,
+      };
+    } else {
+      payload = { [editField.column]: value };
+    }
 
     const { error } = await supabase
       .from(table)
@@ -496,7 +575,10 @@ export function AssignmentsPage() {
         closing_prayer_id: weekendDraft.closingPrayerId || undefined,
         talk_theme: weekendDraft.talkTheme.trim() || undefined,
         talk_speaker_name: weekendDraft.talkSpeakerName.trim(),
-        talk_congregation: weekendDraft.talkCongregation.trim() || undefined,
+        talk_congregation: serializeWeekendSpeakerCongregation(
+          weekendDraft.talkCongregation,
+          weekendDraft.talkCongregationCity,
+        ),
         watchtower_conductor_id: weekendDraft.watchtowerConductorId || undefined,
         watchtower_reader_id: weekendDraft.watchtowerReaderId || undefined,
       };
@@ -566,6 +648,7 @@ export function AssignmentsPage() {
         showEditModal={showEditModal}
         editField={editField}
         allMembers={allMembers}
+        audioVideoAssignments={audioVideoAssignments}
         canEditAssignments={canEditAssignments}
         onCloseModal={() => setShowEditModal(false)}
         onSaveModal={saveAssignment}
@@ -581,6 +664,7 @@ export function AssignmentsPage() {
           setMidweekDraft={setMidweekDraft}
           weekendDraft={weekendDraft}
           setWeekendDraft={setWeekendDraft}
+          audioVideoAssignments={audioVideoAssignments}
           onClose={() => setShowCreateMeetingModal(false)}
           onSave={handleCreateMeeting}
         />
@@ -600,6 +684,7 @@ function MeetingsAssignmentsContent({
   showEditModal,
   editField,
   allMembers,
+  audioVideoAssignments,
   canEditAssignments,
   onCloseModal,
   onSaveModal,
@@ -614,10 +699,39 @@ function MeetingsAssignmentsContent({
   showEditModal: boolean;
   editField: MeetingEditField | null;
   allMembers: any[];
+  audioVideoAssignments: AudioVideoRestrictionAssignment[];
   canEditAssignments: boolean;
   onCloseModal: () => void;
-  onSaveModal: (payload: { value: string; memberId?: string | null }) => void;
+  onSaveModal: (payload: {
+    value: string;
+    memberId?: string | null;
+    secondaryValue?: string;
+    tertiaryValue?: string;
+  }) => void;
 }) {
+  const weekendMaleMembers = allMembers.filter(member => member.gender === 'M');
+  const weekendPresidentMembers = weekendMaleMembers.filter(
+    member => member.spiritual_status === 'anciao' || member.spiritual_status === 'servo_ministerial',
+  );
+
+  const getEditModalMembers = (field: MeetingEditField | null) => {
+    if (!field || field.mode !== 'member' || field.table !== 'weekend_meetings') {
+      return allMembers;
+    }
+
+    if (field.column === 'president_id') {
+      return weekendPresidentMembers;
+    }
+
+    if (field.column === 'watchtower_reader_id') {
+      const meeting = weekendMeetings.find(item => item.id === field.rowId);
+      const unavailableMemberIds = getUnavailableWeekendReaderIds(meeting?.date, audioVideoAssignments);
+      return weekendMaleMembers.filter(member => !unavailableMemberIds.has(member.id));
+    }
+
+    return weekendMaleMembers;
+  };
+
   if (meetingType === 'midweek') {
     const meeting = midweekMeetings[selectedMeetingIdx];
     if (!meeting) return <div className="p-6 text-center text-gray-500 rounded-xl bg-white border border-gray-100">Não há reuniões de Meio de Semana cadastradas.</div>;
@@ -753,9 +867,12 @@ function MeetingsAssignmentsContent({
   }
 
   // Weekend view
-  // Weekend view
   const meeting = weekendMeetings[selectedMeetingIdx];
   if (!meeting) return <div className="p-6 text-center text-gray-500 rounded-xl bg-white border border-gray-100">Não há reuniões de Fim de Semana cadastradas.</div>;
+  const talkCongregationLabel = formatWeekendSpeakerCongregation(meeting.talk_congregation);
+  const talkSpeakerLabel = talkCongregationLabel
+    ? `${meeting.talk_speaker_name || 'Desconhecido'} (${talkCongregationLabel})`
+    : (meeting.talk_speaker_name || 'Desconhecido');
 
   return (
     <>
@@ -796,7 +913,24 @@ function MeetingsAssignmentsContent({
         <AssignmentSection title="Conferência Pública" color="bg-[#1a5fb4]">
           <AssignmentField label="Presidente" value={meeting.president?.full_name || 'Desconhecido'} onClick={() => openEdit({ label: 'Presidente', mode: 'member', currentValue: meeting.president?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'president_id' })} canEdit={canEditAssignments} />
           <AssignmentField label="Tema" value={meeting.talk_theme || 'Não definido'} onClick={() => openEdit({ label: 'Tema', mode: 'text', currentValue: meeting.talk_theme || '', table: 'weekend_meetings', rowId: meeting.id, column: 'talk_theme' })} canEdit={canEditAssignments} />
-          <AssignmentField label="Orador" value={`${meeting.talk_speaker_name || 'Desconhecido'} (${meeting.talk_congregation || ''})`} onClick={() => openEdit({ label: 'Orador', mode: 'text', currentValue: meeting.talk_speaker_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'talk_speaker_name' })} canEdit={canEditAssignments} />
+          <AssignmentField
+            label="Orador"
+            value={talkSpeakerLabel}
+            onClick={() => {
+              const talkCongregation = parseWeekendSpeakerCongregation(meeting.talk_congregation);
+              openEdit({
+                label: 'Orador',
+                mode: 'weekend_speaker',
+                currentValue: meeting.talk_speaker_name || '',
+                secondaryValue: talkCongregation.congregation,
+                tertiaryValue: talkCongregation.city,
+                table: 'weekend_meetings',
+                rowId: meeting.id,
+                column: 'talk_speaker_name',
+              });
+            }}
+            canEdit={canEditAssignments}
+          />
         </AssignmentSection>
 
         <AssignmentSection title="Estudo de A Sentinela" color="bg-[#1a5fb4]">
@@ -812,7 +946,7 @@ function MeetingsAssignmentsContent({
       {canEditAssignments && showEditModal && editField && (
         <EditModal
           field={editField}
-          members={allMembers}
+          members={getEditModalMembers(editField)}
           onClose={onCloseModal}
           onSave={onSaveModal}
         />
@@ -883,10 +1017,17 @@ function EditModal({
   field: MeetingEditField;
   members: any[];
   onClose: () => void;
-  onSave: (payload: { value: string; memberId?: string | null }) => void;
+  onSave: (payload: {
+    value: string;
+    memberId?: string | null;
+    secondaryValue?: string;
+    tertiaryValue?: string;
+  }) => void;
 }) {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(field.currentValue);
+  const [secondaryValue, setSecondaryValue] = useState(field.secondaryValue || '');
+  const [tertiaryValue, setTertiaryValue] = useState(field.tertiaryValue || '');
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(() => {
     const currentMember = members.find(m => m.full_name === field.currentValue);
     return currentMember?.id || null;
@@ -940,6 +1081,40 @@ function EditModal({
               ))}
             </div>
           </>
+        ) : field.mode === 'weekend_speaker' ? (
+          <div className="flex-1 space-y-4 p-4">
+            <div>
+              <label className="mb-1 block text-gray-500" style={{ fontSize: '0.8rem' }}>Nome completo do Orador</label>
+              <input
+                type="text"
+                value={selected}
+                onChange={e => setSelected(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                style={{ fontSize: '0.9rem' }}
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-gray-500" style={{ fontSize: '0.8rem' }}>Nome da Congregação</label>
+              <input
+                type="text"
+                value={secondaryValue}
+                onChange={e => setSecondaryValue(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                style={{ fontSize: '0.9rem' }}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-gray-500" style={{ fontSize: '0.8rem' }}>Cidade da Congregação</label>
+              <input
+                type="text"
+                value={tertiaryValue}
+                onChange={e => setTertiaryValue(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                style={{ fontSize: '0.9rem' }}
+              />
+            </div>
+          </div>
         ) : (
           <div className="flex-1 p-4">
             <label className="mb-1 block text-gray-500" style={{ fontSize: '0.8rem' }}>Valor</label>
@@ -959,7 +1134,12 @@ function EditModal({
             Cancelar
           </button>
           <button
-            onClick={() => onSave({ value: selected, memberId: field.mode === 'member' ? selectedMemberId : undefined })}
+            onClick={() => onSave({
+              value: selected,
+              memberId: field.mode === 'member' ? selectedMemberId : undefined,
+              secondaryValue: field.mode === 'weekend_speaker' ? secondaryValue : undefined,
+              tertiaryValue: field.mode === 'weekend_speaker' ? tertiaryValue : undefined,
+            })}
             className="px-4 py-2 bg-[#1a1a2e] text-white rounded-lg hover:bg-[#16213e] transition"
             style={{ fontSize: '0.9rem' }}
           >
@@ -980,6 +1160,7 @@ function CreateMeetingModal({
   setMidweekDraft,
   weekendDraft,
   setWeekendDraft,
+  audioVideoAssignments,
   onClose,
   onSave,
 }: {
@@ -991,18 +1172,30 @@ function CreateMeetingModal({
   setMidweekDraft: React.Dispatch<React.SetStateAction<MidweekDraft>>;
   weekendDraft: WeekendDraft;
   setWeekendDraft: React.Dispatch<React.SetStateAction<WeekendDraft>>;
+  audioVideoAssignments: AudioVideoRestrictionAssignment[];
   onClose: () => void;
   onSave: () => void;
 }) {
   const memberOptions = members.map((member: any) => ({
     id: member.id,
     name: member.full_name,
+    gender: member.gender,
+    spiritualStatus: member.spiritual_status,
   }));
+  const weekendMaleMemberOptions = memberOptions.filter(option => option.gender === 'M');
+  const weekendPresidentOptions = weekendMaleMemberOptions.filter(
+    option => option.spiritualStatus === 'anciao' || option.spiritualStatus === 'servo_ministerial',
+  );
+  const unavailableWeekendReaderIds = getUnavailableWeekendReaderIds(weekendDraft.date, audioVideoAssignments);
+  const weekendReaderOptions = weekendMaleMemberOptions.filter(
+    option => !unavailableWeekendReaderIds.has(option.id),
+  );
 
   const renderMemberSelect = (
     value: string,
     onChange: (value: string) => void,
     label: string,
+    options = memberOptions,
   ) => (
     <div>
       <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>{label}</label>
@@ -1013,7 +1206,7 @@ function CreateMeetingModal({
         style={{ fontSize: '0.9rem' }}
       >
         <option value="">Selecione...</option>
-        {memberOptions.map(option => (
+        {options.map(option => (
           <option key={option.id} value={option.id}>{option.name}</option>
         ))}
       </select>
@@ -1448,7 +1641,12 @@ function CreateMeetingModal({
                   className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
-              {renderMemberSelect(weekendDraft.presidentId, value => setWeekendDraft(prev => ({ ...prev, presidentId: value })), 'Presidente')}
+              {renderMemberSelect(
+                weekendDraft.presidentId,
+                value => setWeekendDraft(prev => ({ ...prev, presidentId: value })),
+                'Presidente',
+                weekendPresidentOptions,
+              )}
               <div className="md:col-span-2">
                 <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Tema da Conferência</label>
                 <input
@@ -1459,7 +1657,7 @@ function CreateMeetingModal({
                 />
               </div>
               <div>
-                <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Nome do Orador</label>
+                <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Nome completo do Orador</label>
                 <input
                   type="text"
                   value={weekendDraft.talkSpeakerName}
@@ -1468,7 +1666,7 @@ function CreateMeetingModal({
                 />
               </div>
               <div>
-                <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Congregação</label>
+                <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Nome da Congregação</label>
                 <input
                   type="text"
                   value={weekendDraft.talkCongregation}
@@ -1476,9 +1674,34 @@ function CreateMeetingModal({
                   className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
-              {renderMemberSelect(weekendDraft.watchtowerConductorId, value => setWeekendDraft(prev => ({ ...prev, watchtowerConductorId: value })), 'Dirigente da Sentinela')}
-              {renderMemberSelect(weekendDraft.watchtowerReaderId, value => setWeekendDraft(prev => ({ ...prev, watchtowerReaderId: value })), 'Leitor da Sentinela')}
-              {renderMemberSelect(weekendDraft.closingPrayerId, value => setWeekendDraft(prev => ({ ...prev, closingPrayerId: value })), 'Oração Final')}
+              <div>
+                <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Cidade da Congregação</label>
+                <input
+                  type="text"
+                  value={weekendDraft.talkCongregationCity}
+                  onChange={e => setWeekendDraft(prev => ({ ...prev, talkCongregationCity: e.target.value }))}
+                  className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div />
+              {renderMemberSelect(
+                weekendDraft.watchtowerConductorId,
+                value => setWeekendDraft(prev => ({ ...prev, watchtowerConductorId: value })),
+                'Dirigente da Sentinela',
+                weekendMaleMemberOptions,
+              )}
+              {renderMemberSelect(
+                weekendDraft.watchtowerReaderId,
+                value => setWeekendDraft(prev => ({ ...prev, watchtowerReaderId: value })),
+                'Leitor da Sentinela',
+                weekendReaderOptions,
+              )}
+              {renderMemberSelect(
+                weekendDraft.closingPrayerId,
+                value => setWeekendDraft(prev => ({ ...prev, closingPrayerId: value })),
+                'Oração Final',
+                weekendMaleMemberOptions,
+              )}
             </div>
           )}
         </div>

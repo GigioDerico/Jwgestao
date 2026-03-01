@@ -625,12 +625,24 @@ function createPdfFromJpegBytes(options: {
   jpegBytes: Uint8Array;
   imageWidth: number;
   imageHeight: number;
+  forceA4Portrait?: boolean;
 }) {
-  const { jpegBytes, imageWidth, imageHeight } = options;
+  const { jpegBytes, imageWidth, imageHeight, forceA4Portrait = false } = options;
   const encoder = new TextEncoder();
   const pageWidth = 595;
-  const pageHeight = Math.max(1, Math.round((pageWidth * imageHeight) / imageWidth));
-  const contentStream = `q\n${pageWidth} 0 0 ${pageHeight} 0 0 cm\n/Im0 Do\nQ`;
+  const pageHeight = forceA4Portrait
+    ? 842
+    : Math.max(1, Math.round((pageWidth * imageHeight) / imageWidth));
+  const imageScale = forceA4Portrait
+    ? Math.min(pageWidth / Math.max(1, imageWidth), pageHeight / Math.max(1, imageHeight))
+    : pageWidth / Math.max(1, imageWidth);
+  const drawWidth = Math.max(1, Math.round(imageWidth * imageScale));
+  const drawHeight = Math.max(1, Math.round(imageHeight * imageScale));
+  const offsetX = Math.max(0, Math.round((pageWidth - drawWidth) / 2));
+  const offsetY = forceA4Portrait
+    ? Math.max(0, Math.round((pageHeight - drawHeight) / 2))
+    : 0;
+  const contentStream = `q\n${drawWidth} 0 0 ${drawHeight} ${offsetX} ${offsetY} cm\n/Im0 Do\nQ`;
   const contentBytes = encoder.encode(contentStream);
 
   const parts: Uint8Array[] = [];
@@ -710,10 +722,12 @@ export async function downloadElementAsPdf(element: HTMLElement, filename: strin
   try {
     const { canvas, width, height } = await renderElementToCanvas(element);
     const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.95);
+    const forceA4Portrait = element.dataset.exportPdfPage === 'a4-portrait';
     const pdfBlob = createPdfFromJpegBytes({
       jpegBytes: dataUrlToBytes(jpegDataUrl),
       imageWidth: canvas.width,
       imageHeight: canvas.height,
+      forceA4Portrait,
     });
 
     if (!pdfBlob || width <= 0 || height <= 0) {

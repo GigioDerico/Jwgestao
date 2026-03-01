@@ -19,10 +19,15 @@ import {
   Bell,
   Check,
   CheckCheck,
+  Loader2,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 
+const SIDEBAR_COLLAPSED_KEY = 'jwgestao-sidebar-collapsed';
+
 export function Layout() {
-  const { user, logout } = useAuth();
+  const { user, logout, loading } = useAuth();
   const { can } = usePermissions();
   const {
     notifications,
@@ -36,6 +41,7 @@ export function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [assignmentsMenuOpen, setAssignmentsMenuOpen] = useState(location.pathname.startsWith('/assignments'));
@@ -73,6 +79,14 @@ export function Layout() {
   ];
 
   useEffect(() => {
+    try {
+      setSidebarCollapsed(globalThis.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1');
+    } catch (storageError) {
+      console.warn('[Layout] Nao foi possivel carregar a preferencia do menu lateral:', storageError);
+    }
+  }, []);
+
+  useEffect(() => {
     if (location.pathname.startsWith('/assignments')) {
       setAssignmentsMenuOpen(true);
     }
@@ -95,12 +109,39 @@ export function Layout() {
     navigate('/', { replace: true });
   };
 
+  const toggleSidebarCollapsed = () => {
+    setAssignmentsMenuOpen(false);
+    setSidebarCollapsed(current => {
+      const next = !current;
+
+      try {
+        if (next) {
+          globalThis.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, '1');
+        } else {
+          globalThis.localStorage.removeItem(SIDEBAR_COLLAPSED_KEY);
+        }
+      } catch (storageError) {
+        console.warn('[Layout] Nao foi possivel salvar a preferencia do menu lateral:', storageError);
+      }
+
+      return next;
+    });
+  };
+
   const roleLabels: Record<string, string> = {
     coordenador: 'Coordenador',
     secretario: 'Secretário',
     designador: 'Designador',
     publicador: 'Publicador',
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="animate-spin text-primary" size={32} />
+      </div>
+    );
+  }
 
   if (!user) {
     return <Navigate to="/" replace />;
@@ -118,18 +159,38 @@ export function Layout() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-primary-foreground text-white transform transition-transform duration-200 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        className={`fixed lg:static inset-y-0 left-0 z-50 w-64 ${sidebarCollapsed ? 'lg:w-20' : 'lg:w-64'} bg-primary-foreground text-white transform transition-all duration-200 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
           } flex flex-col`}
       >
         <div className="p-5 border-b border-white/10">
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-white tracking-wide" style={{ fontSize: '1.1rem' }}>Salão do Reino</h2>
-              <p className="text-white/50 mt-0.5" style={{ fontSize: '0.75rem' }}>Congregação Vicente Nunes</p>
+            <div className={`min-w-0 ${sidebarCollapsed ? 'hidden lg:block lg:text-center lg:w-full' : ''}`}>
+              {sidebarCollapsed ? (
+                <div
+                  className="hidden lg:flex h-10 w-10 items-center justify-center rounded-2xl bg-white/8 text-white mx-auto"
+                  title="Expandir menu lateral"
+                >
+                  <span className="font-bold" style={{ fontSize: '0.9rem' }}>SR</span>
+                </div>
+              ) : (
+                <>
+                  <h2 className="text-white tracking-wide" style={{ fontSize: '1.1rem' }}>Salão do Reino</h2>
+                  <p className="text-white/50 mt-0.5" style={{ fontSize: '0.75rem' }}>Congregação Vicente Nunes</p>
+                </>
+              )}
             </div>
-            <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-white/70 hover:text-white">
-              <X size={20} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleSidebarCollapsed}
+                className="hidden lg:inline-flex h-9 w-9 items-center justify-center rounded-xl text-white/70 transition-colors hover:bg-white/8 hover:text-white"
+                title={sidebarCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
+              >
+                {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+              </button>
+              <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-white/70 hover:text-white">
+                <X size={20} />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -142,25 +203,37 @@ export function Layout() {
               const isExpanded = assignmentsMenuOpen || isActive;
 
               return (
-                <div key={item.path} className="space-y-1">
+                <div key={item.path} className={`space-y-1 ${sidebarCollapsed ? 'relative' : ''}`}>
                   <button
                     onClick={() => setAssignmentsMenuOpen(value => !value)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${isActive
+                    title={item.label}
+                    className={`w-full flex items-center gap-3 rounded-lg transition-colors ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : 'px-3'} py-2.5 ${isActive
                       ? 'bg-primary text-primary-foreground'
                       : 'text-white/60 hover:bg-white/8 hover:text-white/90'
                       }`}
                   >
                     <item.icon size={18} />
-                    <span style={{ fontSize: '0.9rem' }}>{item.label}</span>
-                    {isExpanded ? (
+                    {!sidebarCollapsed && <span style={{ fontSize: '0.9rem' }}>{item.label}</span>}
+                    {!sidebarCollapsed && (isExpanded ? (
                       <ChevronDown size={14} className="ml-auto" />
                     ) : (
                       <ChevronRight size={14} className="ml-auto" />
-                    )}
+                    ))}
                   </button>
 
                   {isExpanded && (
-                    <div className="ml-9 space-y-1">
+                    <div
+                      className={
+                        sidebarCollapsed
+                          ? 'lg:absolute lg:left-full lg:top-0 lg:ml-3 lg:min-w-56 lg:rounded-2xl lg:border lg:border-white/10 lg:bg-primary-foreground lg:p-2 lg:shadow-2xl'
+                          : 'ml-9 space-y-1'
+                      }
+                    >
+                      {sidebarCollapsed && (
+                        <div className="hidden lg:block px-3 py-2 text-white/50" style={{ fontSize: '0.72rem' }}>
+                          {item.label}
+                        </div>
+                      )}
                       {item.children?.map((child) => {
                         const isChildActive = location.pathname === child.path;
 
@@ -170,6 +243,7 @@ export function Layout() {
                             onClick={() => {
                               navigate(child.path);
                               setSidebarOpen(false);
+                              setAssignmentsMenuOpen(false);
                             }}
                             className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${isChildActive
                               ? 'bg-white/12 text-white'
@@ -191,14 +265,15 @@ export function Layout() {
               <button
                 key={item.path}
                 onClick={() => { navigate(item.path); setSidebarOpen(false); }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${isActive
+                title={item.label}
+                className={`w-full flex items-center gap-3 rounded-lg transition-colors ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : 'px-3'} py-2.5 ${isActive
                   ? 'bg-primary text-primary-foreground'
                   : 'text-white/60 hover:bg-white/8 hover:text-white/90'
                   }`}
               >
                 <item.icon size={18} />
-                <span style={{ fontSize: '0.9rem' }}>{item.label}</span>
-                {isActive && <ChevronRight size={14} className="ml-auto" />}
+                {!sidebarCollapsed && <span style={{ fontSize: '0.9rem' }}>{item.label}</span>}
+                {!sidebarCollapsed && isActive && <ChevronRight size={14} className="ml-auto" />}
               </button>
             );
           })}
@@ -208,7 +283,8 @@ export function Layout() {
         <div className="p-4 border-t border-white/10">
           <button
             onClick={() => { setProfileOpen(true); setSidebarOpen(false); }}
-            className="w-full flex items-center gap-3 mb-3 px-3 py-2.5 rounded-xl hover:bg-white/8 transition-colors group text-left"
+            title={user.name}
+            className={`w-full flex items-center gap-3 mb-3 rounded-xl hover:bg-white/8 transition-colors group text-left ${sidebarCollapsed ? 'lg:justify-center lg:px-0 py-2.5' : 'px-3 py-2.5'}`}
           >
             <div className="w-9 h-9 rounded-full overflow-hidden bg-primary flex items-center justify-center shrink-0 group-hover:ring-2 group-hover:ring-[#35bdf8]/40 transition-all">
               {user.avatar ? (
@@ -219,18 +295,23 @@ export function Layout() {
                 </span>
               )}
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-white truncate group-hover:text-[#35bdf8] transition-colors" style={{ fontSize: '0.85rem' }}>{user.name}</p>
-              <p className="text-white/50" style={{ fontSize: '0.7rem' }}>{roleLabels[user.role]}</p>
-            </div>
-            <ChevronDown size={13} className="text-white/30 group-hover:text-[#35bdf8]/70 transition-colors shrink-0 -rotate-90" />
+            {!sidebarCollapsed && (
+              <>
+                <div className="min-w-0 flex-1">
+                  <p className="text-white truncate group-hover:text-[#35bdf8] transition-colors" style={{ fontSize: '0.85rem' }}>{user.name}</p>
+                  <p className="text-white/50" style={{ fontSize: '0.7rem' }}>{roleLabels[user.role]}</p>
+                </div>
+                <ChevronDown size={13} className="text-white/30 group-hover:text-[#35bdf8]/70 transition-colors shrink-0 -rotate-90" />
+              </>
+            )}
           </button>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-white/50 hover:text-white hover:bg-white/8 transition-colors"
+            title="Sair"
+            className={`w-full flex items-center gap-2 rounded-lg text-white/50 hover:text-white hover:bg-white/8 transition-colors ${sidebarCollapsed ? 'lg:justify-center lg:px-0 py-2.5' : 'px-3 py-2'}`}
           >
             <LogOut size={16} />
-            <span style={{ fontSize: '0.85rem' }}>Sair</span>
+            {!sidebarCollapsed && <span style={{ fontSize: '0.85rem' }}>Sair</span>}
           </button>
         </div>
       </aside>

@@ -14,10 +14,13 @@ export function WeekendMeetingView({ meeting }: Props) {
   });
 
   return (
-    <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
+    <div
+      className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm"
+      style={{ fontFamily: 'Calibri, Arial, sans-serif' }}
+    >
       {/* Header */}
       <div className="bg-[#1a5fb4] px-3 py-2.5 sm:px-4 md:px-5 sm:py-3">
-        <h3 className="text-center text-sm text-white sm:text-base">{dateFormatted}</h3>
+        <h3 className="text-center text-base font-semibold text-white sm:text-lg">{dateFormatted}</h3>
       </div>
 
       {/* Content */}
@@ -27,7 +30,7 @@ export function WeekendMeetingView({ meeting }: Props) {
 
         {/* Public Talk */}
         <div className="bg-blue-50/30 px-3 py-3 sm:px-4 md:px-5">
-          <p className="mb-2 text-blue-600" style={{ fontSize: '0.72rem', letterSpacing: '0.05em' }}>CONFERÊNCIA PÚBLICA</p>
+          <p className="mb-2 text-blue-600" style={{ fontSize: '0.9rem', letterSpacing: '0.05em' }}>CONFERÊNCIA PÚBLICA</p>
           <div className="space-y-2">
             <InfoRow
               label="Tema:"
@@ -45,7 +48,7 @@ export function WeekendMeetingView({ meeting }: Props) {
 
         {/* Watchtower Study */}
         <div className="bg-blue-50/30 px-3 py-3 sm:px-4 md:px-5">
-          <p className="mb-2 text-blue-600" style={{ fontSize: '0.72rem', letterSpacing: '0.05em' }}>ESTUDO DE A SENTINELA</p>
+          <p className="mb-2 text-blue-600" style={{ fontSize: '0.9rem', letterSpacing: '0.05em' }}>ESTUDO DE A SENTINELA</p>
           <div className="space-y-2">
             <InfoRow label="Dirigente:" value={meeting.watchtower_study.conductor} compact />
             <InfoRow label="Leitor:" value={meeting.watchtower_study.reader} valueClass="text-red-600" compact />
@@ -75,8 +78,8 @@ function InfoRow({
   if (compact) {
     return (
       <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
-        <span className="shrink-0 text-gray-500" style={{ fontSize: '0.8rem' }}>{label}</span>
-        <span className={`${valueClass} break-words`} style={{ fontSize: '0.8rem' }}>{value}</span>
+        <span className="shrink-0 text-gray-500" style={{ fontSize: '0.92rem' }}>{label}</span>
+        <span className={`${valueClass} break-words`} style={{ fontSize: '0.92rem' }}>{value}</span>
       </div>
     );
   }
@@ -85,8 +88,8 @@ function InfoRow({
     <div className="flex items-start gap-3 px-3 py-3 sm:items-center sm:px-4 md:px-5">
       {icon && <span className="text-gray-400 shrink-0">{icon}</span>}
       <div className="flex flex-1 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
-        <span className="shrink-0 text-gray-500" style={{ fontSize: '0.8rem' }}>{label}</span>
-        <span className={`${valueClass} break-words`} style={{ fontSize: '0.8rem' }}>{value}</span>
+        <span className="shrink-0 text-gray-500" style={{ fontSize: '0.96rem' }}>{label}</span>
+        <span className={`${valueClass} break-words`} style={{ fontSize: '0.96rem' }}>{value}</span>
       </div>
     </div>
   );

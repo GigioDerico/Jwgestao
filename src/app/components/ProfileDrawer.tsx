@@ -20,11 +20,26 @@ import { toast } from 'sonner';
 import { Geolocation } from '@capacitor/geolocation';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { supabase } from '../lib/supabase';
+import { formatPhoneDisplay } from '../helpers';
 
 interface ProfileDrawerProps {
   open: boolean;
   onClose: () => void;
 }
+
+const EMPTY_FORM = {
+  full_name: '',
+  email: '',
+  phone: '',
+  emergency_contact_name: '',
+  emergency_contact_phone: '',
+  address_street: '',
+  address_number: '',
+  address_neighborhood: '',
+  address_city: '',
+  address_state: '',
+  address_zip_code: '',
+};
 
 const roleLabels: Record<string, string> = {
   coordenador: 'Coordenador',
@@ -41,17 +56,12 @@ const genderLabels: Record<string, string> = {
 export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
   const { user, refreshUser } = useAuth();
 
-  const [form, setForm] = useState({
-    full_name: '',
-    email: '',
-    phone: '',
-    emergency_contact_name: '',
-    emergency_contact_phone: '',
-  });
+  const [form, setForm] = useState(EMPTY_FORM);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [removePhoto, setRemovePhoto] = useState(false);
+  const [groupName, setGroupName] = useState('Sem grupo');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [geoStatus, setGeoStatus] = useState<string>('unknown');
@@ -105,21 +115,116 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
     }
   };
 
-  // Sync form whenever drawer opens
   useEffect(() => {
-    if (user) {
-      setForm({
-        full_name: user.name || '',
-        email: '',
-        phone: user.phone || '',
-        emergency_contact_name: '',
-        emergency_contact_phone: '',
-      });
+    let cancelled = false;
+
+    const loadProfile = async () => {
+      if (!open || !user) {
+        return;
+      }
+
       setPhotoPreview(user.avatar || null);
       setRemovePhoto(false);
       setDirty(false);
-    }
+
+      const baseForm = {
+        ...EMPTY_FORM,
+        full_name: user.name || '',
+        phone: user.phone || '',
+      };
+
+      if (!user.member_id) {
+        setForm(baseForm);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('members')
+        .select(`
+          full_name,
+          email,
+          phone,
+          emergency_contact_name,
+          emergency_contact_phone,
+          address_street,
+          address_number,
+          address_neighborhood,
+          address_city,
+          address_state,
+          address_zip_code
+        `)
+        .eq('id', user.member_id)
+        .limit(1);
+
+      if (cancelled) {
+        return;
+      }
+
+      if (error) {
+        console.warn('[Profile] Falha ao carregar dados do membro:', error);
+        setForm(baseForm);
+        return;
+      }
+
+      const member = data?.[0];
+
+      setForm({
+        ...baseForm,
+        full_name: member?.full_name || baseForm.full_name,
+        email: member?.email || '',
+        phone: member?.phone || baseForm.phone,
+        emergency_contact_name: member?.emergency_contact_name || '',
+        emergency_contact_phone: member?.emergency_contact_phone || '',
+        address_street: member?.address_street || '',
+        address_number: member?.address_number || '',
+        address_neighborhood: member?.address_neighborhood || '',
+        address_city: member?.address_city || '',
+        address_state: member?.address_state || '',
+        address_zip_code: member?.address_zip_code || '',
+      });
+    };
+
+    void loadProfile();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user, open]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadGroupName = async () => {
+      if (!open || !user?.group_id) {
+        setGroupName('Sem grupo');
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('field_service_groups')
+        .select('name')
+        .eq('id', user.group_id)
+        .limit(1);
+
+      if (cancelled) {
+        return;
+      }
+
+      if (error) {
+        console.warn('[Profile] Falha ao carregar grupo do usuario:', error);
+        setGroupName('Sem grupo');
+        return;
+      }
+
+      setGroupName(data?.[0]?.name || 'Sem grupo');
+    };
+
+    void loadGroupName();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, user?.group_id]);
 
   const handleChange = (field: string, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -201,6 +306,15 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
       // 2) Update members table
       const updatePayload: Record<string, any> = {
         full_name: form.full_name.trim(),
+        email: form.email.trim() || null,
+        emergency_contact_name: form.emergency_contact_name.trim() || null,
+        emergency_contact_phone: form.emergency_contact_phone.trim() || null,
+        address_street: form.address_street.trim() || null,
+        address_number: form.address_number.trim() || null,
+        address_neighborhood: form.address_neighborhood.trim() || null,
+        address_city: form.address_city.trim() || null,
+        address_state: form.address_state.trim() || null,
+        address_zip_code: form.address_zip_code.trim() || null,
       };
       if (newAvatarUrl !== undefined) updatePayload.avatar_url = newAvatarUrl;
 
@@ -232,7 +346,6 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
     onClose();
   };
 
-  const groupName = 'Sem grupo'; // TODO: load from Supabase
   const familyHead = null;
   const familyMembersCount = 0;
 
@@ -363,13 +476,30 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
               </div>
               <div className="min-w-0">
                 <p className="text-gray-400 truncate" style={{ fontSize: '0.65rem' }}>GRUPO</p>
-                <p className="text-gray-800 truncate" style={{ fontSize: '0.78rem' }}>{groupName.split(' - ')[0]}</p>
+                <p className="text-gray-800 truncate" style={{ fontSize: '0.78rem' }}>{groupName}</p>
               </div>
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 px-3 py-3 flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center shrink-0">
-                <User size={14} className="text-pink-500" />
+              <div
+                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                  user.gender === 'M'
+                    ? 'bg-blue-50'
+                    : user.gender === 'F'
+                      ? 'bg-pink-50'
+                      : 'bg-gray-100'
+                }`}
+              >
+                <User
+                  size={14}
+                  className={
+                    user.gender === 'M'
+                      ? 'text-blue-500'
+                      : user.gender === 'F'
+                        ? 'text-pink-500'
+                        : 'text-gray-500'
+                  }
+                />
               </div>
               <div className="min-w-0">
                 <p className="text-gray-400 truncate" style={{ fontSize: '0.65rem' }}>GÊNERO</p>
@@ -445,13 +575,16 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
                     <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
                       type="tel"
-                      value={form.phone}
-                      onChange={e => handleChange('phone', e.target.value)}
-                      className="w-full pl-8 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#35bdf8] focus:border-transparent text-gray-800 transition"
+                      value={formatPhoneDisplay(form.phone)}
+                      readOnly
+                      className="w-full pl-8 pr-3 py-2.5 bg-gray-100 border border-gray-200 rounded-xl text-gray-500 transition cursor-not-allowed"
                       style={{ fontSize: '0.9rem' }}
                       placeholder="(11) 99999-0000"
                     />
                   </div>
+                  <p className="mt-1 text-gray-400" style={{ fontSize: '0.72rem' }}>
+                    O telefone de acesso é gerenciado pelo coordenador.
+                  </p>
                 </div>
               </div>
             </div>
@@ -480,11 +613,95 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
                     <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
                       type="tel"
-                      value={form.emergency_contact_phone}
-                      onChange={e => handleChange('emergency_contact_phone', e.target.value)}
+                      inputMode="numeric"
+                      value={formatPhoneDisplay(form.emergency_contact_phone)}
+                      onChange={e => handleChange('emergency_contact_phone', e.target.value.replace(/\D/g, '').slice(0, 11))}
                       className="w-full pl-8 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#35bdf8] focus:border-transparent text-gray-800 transition"
                       style={{ fontSize: '0.9rem' }}
                       placeholder="(11) 88888-0000"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Endereço */}
+            <div>
+              <h3 className="text-gray-700 font-bold mb-3 flex items-center gap-1.5" style={{ fontSize: '0.85rem' }}>
+                <Home size={14} className="text-primary" />
+                Endereço
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-gray-500 mb-1" style={{ fontSize: '0.78rem' }}>Rua</label>
+                  <input
+                    type="text"
+                    value={form.address_street}
+                    onChange={e => handleChange('address_street', e.target.value)}
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#35bdf8] focus:border-transparent text-gray-800 transition"
+                    style={{ fontSize: '0.9rem' }}
+                    placeholder="Nome da rua"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-gray-500 mb-1" style={{ fontSize: '0.78rem' }}>Número</label>
+                    <input
+                      type="text"
+                      value={form.address_number}
+                      onChange={e => handleChange('address_number', e.target.value)}
+                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#35bdf8] focus:border-transparent text-gray-800 transition"
+                      style={{ fontSize: '0.9rem' }}
+                      placeholder="123"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-500 mb-1" style={{ fontSize: '0.78rem' }}>CEP</label>
+                    <input
+                      type="text"
+                      value={form.address_zip_code}
+                      onChange={e => handleChange('address_zip_code', e.target.value)}
+                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#35bdf8] focus:border-transparent text-gray-800 transition"
+                      style={{ fontSize: '0.9rem' }}
+                      placeholder="00000-000"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-gray-500 mb-1" style={{ fontSize: '0.78rem' }}>Bairro</label>
+                  <input
+                    type="text"
+                    value={form.address_neighborhood}
+                    onChange={e => handleChange('address_neighborhood', e.target.value)}
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#35bdf8] focus:border-transparent text-gray-800 transition"
+                    style={{ fontSize: '0.9rem' }}
+                    placeholder="Seu bairro"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-gray-500 mb-1" style={{ fontSize: '0.78rem' }}>Cidade</label>
+                    <input
+                      type="text"
+                      value={form.address_city}
+                      onChange={e => handleChange('address_city', e.target.value)}
+                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#35bdf8] focus:border-transparent text-gray-800 transition"
+                      style={{ fontSize: '0.9rem' }}
+                      placeholder="Sua cidade"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-500 mb-1" style={{ fontSize: '0.78rem' }}>UF</label>
+                    <input
+                      type="text"
+                      value={form.address_state}
+                      onChange={e => handleChange('address_state', e.target.value.toUpperCase().slice(0, 2))}
+                      className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#35bdf8] focus:border-transparent text-gray-800 transition"
+                      style={{ fontSize: '0.9rem' }}
+                      placeholder="SP"
                     />
                   </div>
                 </div>

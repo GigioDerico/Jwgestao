@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import { getMeetingDatesForMonth, type AudioVideoMeetingDate } from '../lib/audio-video-calendar';
 import { downloadElementAsImage, downloadElementAsPdf } from '../lib/dom-export';
 import { ExportActions } from './ExportActions';
@@ -26,6 +27,15 @@ interface CalendarRow extends AudioVideoMeetingDate {
 }
 
 type RestrictedFieldKey = AudioVideoRoleKey | 'attendants';
+type AssignmentSummaryKey = AudioVideoRoleKey | 'attendants';
+
+const SUMMARY_DISPLAY_GROUPS = [
+  { label: 'Som', getCount: (item: Record<AssignmentSummaryKey | 'total', number>) => item.sound },
+  { label: 'Imagem', getCount: (item: Record<AssignmentSummaryKey | 'total', number>) => item.image },
+  { label: 'Palco', getCount: (item: Record<AssignmentSummaryKey | 'total', number>) => item.stage },
+  { label: 'Mic.', getCount: (item: Record<AssignmentSummaryKey | 'total', number>) => item.rovingMic1 + item.rovingMic2 },
+  { label: 'Indic.', getCount: (item: Record<AssignmentSummaryKey | 'total', number>) => item.attendants },
+] as const;
 
 const SINGLE_ROLE_CONFIG: {
   key: AudioVideoRoleKey;
@@ -36,8 +46,8 @@ const SINGLE_ROLE_CONFIG: {
   { key: 'sound', label: 'Som', group: 'audioVideo', hoverClass: 'hover:bg-sky-50' },
   { key: 'image', label: 'Imagem', group: 'audioVideo', hoverClass: 'hover:bg-indigo-50' },
   { key: 'stage', label: 'Palco', group: 'audioVideo', hoverClass: 'hover:bg-emerald-50' },
-  { key: 'rovingMic1', label: 'Mic. Volante 1', group: 'indicators', hoverClass: 'hover:bg-amber-50' },
-  { key: 'rovingMic2', label: 'Mic. Volante 2', group: 'indicators', hoverClass: 'hover:bg-amber-50' },
+  { key: 'rovingMic1', label: 'Mic. Volante 1', group: 'audioVideo', hoverClass: 'hover:bg-amber-50' },
+  { key: 'rovingMic2', label: 'Mic. Volante 2', group: 'audioVideo', hoverClass: 'hover:bg-amber-50' },
 ];
 
 const SINGLE_ROLE_LABELS = SINGLE_ROLE_CONFIG.reduce<Record<AudioVideoRoleKey, string>>((acc, role) => {
@@ -90,6 +100,102 @@ export function AudioVideoAssignments({
   const indicatorMembers = members.filter(member => Boolean(member.approved_indicadores));
   const currentEditAssignment = editModal ? data.find(item => item.id === editModal.id) || null : null;
   const currentAttendantsAssignment = attendantsModal ? data.find(item => item.id === attendantsModal.id) || null : null;
+  const assignmentCounts = new Map<string, Record<AssignmentSummaryKey | 'total', number>>();
+
+  for (const member of members) {
+    assignmentCounts.set(member.full_name, {
+      total: 0,
+      sound: 0,
+      image: 0,
+      stage: 0,
+      rovingMic1: 0,
+      rovingMic2: 0,
+      attendants: 0,
+    });
+  }
+
+  const incrementAssignmentCount = (name: string, key: AssignmentSummaryKey) => {
+    const current = assignmentCounts.get(name) || {
+      total: 0,
+      sound: 0,
+      image: 0,
+      stage: 0,
+      rovingMic1: 0,
+      rovingMic2: 0,
+      attendants: 0,
+    };
+
+    current[key] += 1;
+    current.total += 1;
+    assignmentCounts.set(name, current);
+  };
+
+  const singleRoleSummaryKeys: AudioVideoRoleKey[] = [
+    'sound',
+    'image',
+    'stage',
+    'rovingMic1',
+    'rovingMic2',
+  ];
+
+  for (const roleKey of singleRoleSummaryKeys) {
+    for (const row of calendarRows) {
+      const assignedName = normalizeAssignedValue(row.assignment?.[roleKey]);
+      if (!assignedName) {
+        continue;
+      }
+
+      incrementAssignmentCount(assignedName, roleKey);
+    }
+  }
+
+  for (const row of calendarRows) {
+    if (!row.assignment) {
+      continue;
+    }
+
+    for (const name of row.assignment.attendants) {
+      const normalized = normalizeAssignedValue(name);
+      if (normalized) {
+        incrementAssignmentCount(normalized, 'attendants');
+      }
+    }
+  }
+
+  const assignmentSummary = Array.from(assignmentCounts.entries())
+    .map(([name, counts]) => ({ name, ...counts }))
+    .sort((a, b) => {
+      if (b.total !== a.total) {
+        return b.total - a.total;
+      }
+
+      return a.name.localeCompare(b.name, 'pt-BR');
+    });
+
+  const loadEligibleMembers = async () => {
+    const { data: rows, error } = await supabase
+      .from('members')
+      .select('id, full_name, approved_audio_video, approved_indicadores')
+      .or('approved_audio_video.eq.true,approved_indicadores.eq.true')
+      .order('full_name');
+
+    if (error) {
+      throw error;
+    }
+
+    setMembers(
+      (rows || []).map((member: any) => ({
+        id: member.id,
+        full_name: member.full_name,
+        approved_audio_video: Boolean(
+          member.approved_audio_video ?? member.approvedAudioVideo
+        ),
+        approved_indicadores: Boolean(
+          member.approved_indicadores ?? member.approvedIndicadores
+        ),
+      }))
+    );
+  };
 
   const fetchAssignments = async () => {
     try {
@@ -105,19 +211,7 @@ export function AudioVideoAssignments({
   };
 
   useEffect(() => {
-    api
-      .getMembers()
-      .then(rawMembers => {
-        setMembers(
-          rawMembers.map((member: any) => ({
-            id: member.id,
-            full_name: member.full_name,
-            approved_audio_video: Boolean(member.approved_audio_video),
-            approved_indicadores: Boolean(member.approved_indicadores),
-          }))
-        );
-      })
-      .catch(error => {
+    loadEligibleMembers().catch(error => {
         console.error(error);
         toast.error('Erro ao carregar membros para a escala.');
       });
@@ -156,13 +250,13 @@ export function AudioVideoAssignments({
     return assignment[roleKey] || 'A definir';
   };
 
-  const normalizeAssignedValue = (value: string | undefined) => {
+  function normalizeAssignedValue(value: string | undefined) {
     if (!value || value === 'A definir') {
       return null;
     }
 
     return value;
-  };
+  }
 
   const findMemberIdByName = (fullName: string) => {
     if (!fullName || fullName === 'A definir') {
@@ -170,6 +264,42 @@ export function AudioVideoAssignments({
     }
 
     return members.find(member => member.full_name === fullName)?.id || null;
+  };
+
+  const getCurrentRoleMemberId = (
+    assignment: AudioVideoAssignment | null,
+    roleKey: AudioVideoRoleKey
+  ) => {
+    if (!assignment) {
+      return null;
+    }
+
+    const fieldMap: Record<AudioVideoRoleKey, keyof AudioVideoAssignment> = {
+      sound: 'soundMemberId',
+      image: 'imageMemberId',
+      stage: 'stageMemberId',
+      rovingMic1: 'rovingMic1MemberId',
+      rovingMic2: 'rovingMic2MemberId',
+    };
+
+    return (assignment[fieldMap[roleKey]] as string | null | undefined) || null;
+  };
+
+  const getResolvedAttendantsMemberIds = (values: string[]) => {
+    const existingIdsByName = new Map<string, string>();
+
+    if (currentAttendantsAssignment) {
+      currentAttendantsAssignment.attendants.forEach((name, index) => {
+        const currentId = currentAttendantsAssignment.attendantsMemberIds?.[index];
+        if (name && currentId) {
+          existingIdsByName.set(name, currentId);
+        }
+      });
+    }
+
+    return values
+      .map(value => findMemberIdByName(value) || existingIdsByName.get(value) || null)
+      .filter((value): value is string => Boolean(value));
   };
 
   const getUsedNamesForAssignment = (
@@ -241,12 +371,20 @@ export function AudioVideoAssignments({
     }
   };
 
-  const handleEditRole = (assignment: AudioVideoAssignment | null, field: AudioVideoRoleKey) => {
+  const handleEditRole = async (assignment: AudioVideoAssignment | null, field: AudioVideoRoleKey) => {
     if (!canEdit) {
       return;
     }
 
     if (!ensureRowExists(assignment)) {
+      return;
+    }
+
+    try {
+      await loadEligibleMembers();
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao atualizar a lista de membros elegíveis.');
       return;
     }
 
@@ -257,12 +395,20 @@ export function AudioVideoAssignments({
     });
   };
 
-  const handleEditAttendants = (assignment: AudioVideoAssignment | null) => {
+  const handleEditAttendants = async (assignment: AudioVideoAssignment | null) => {
     if (!canEdit) {
       return;
     }
 
     if (!ensureRowExists(assignment)) {
+      return;
+    }
+
+    try {
+      await loadEligibleMembers();
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao atualizar a lista de membros elegíveis.');
       return;
     }
 
@@ -305,10 +451,18 @@ export function AudioVideoAssignments({
 
     try {
       setSaving(true);
+      const currentMemberId = getCurrentRoleMemberId(currentEditAssignment, editModal.field);
+      const resolvedMemberId = newValue && newValue !== 'A definir'
+        ? findMemberIdByName(newValue) || (
+          normalizeAssignedValue(newValue) === normalizeAssignedValue(editModal.value)
+            ? currentMemberId
+            : null
+        )
+        : null;
+
       const updated = await api.updateAudioVideoAssignment(editModal.id, {
         [fieldMap[editModal.field]]: newValue || 'A definir',
-        [`${fieldMap[editModal.field]}_member_id`]:
-          newValue && newValue !== 'A definir' ? findMemberIdByName(newValue) : null,
+        [`${fieldMap[editModal.field]}_member_id`]: resolvedMemberId,
       } as any);
       setData(prev => prev.map(item => (item.id === editModal.id ? updated : item)));
       setEditModal(null);
@@ -339,9 +493,7 @@ export function AudioVideoAssignments({
       setSaving(true);
       const updated = await api.updateAudioVideoAssignment(attendantsModal.id, {
         attendants: values,
-        attendants_member_ids: values
-          .map(value => findMemberIdByName(value))
-          .filter((value): value is string => Boolean(value)),
+        attendants_member_ids: getResolvedAttendantsMemberIds(values),
       });
       setData(prev => prev.map(item => (item.id === attendantsModal.id ? updated : item)));
       setAttendantsModal(null);
@@ -357,11 +509,12 @@ export function AudioVideoAssignments({
     const roleConfig = SINGLE_ROLE_CONFIG.find(role => role.key === roleKey);
     const value = row.assignment ? getRoleValue(row.assignment, roleKey) : 'A definir';
     const isGenerated = Boolean(row.assignment);
+    const isPending = !isGenerated || value === 'A definir';
 
     if (!canEdit) {
       return (
         <div
-          className={`w-full rounded-lg px-3 py-2 text-left ${isGenerated ? 'text-gray-700' : 'text-gray-400'}`}
+          className={`w-full rounded-lg px-3 py-2 text-left ${isPending ? 'bg-red-50 text-red-700' : isGenerated ? 'text-gray-700' : 'text-gray-400'}`}
         >
           <span className={isGenerated ? '' : 'italic'}>{value}</span>
         </div>
@@ -373,7 +526,13 @@ export function AudioVideoAssignments({
         type="button"
         onClick={() => handleEditRole(row.assignment, roleKey)}
         disabled={loading || generating || saving}
-        className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${isGenerated ? `${roleConfig?.hoverClass || 'hover:bg-gray-50'} text-gray-700` : 'text-gray-400 hover:bg-gray-50'} disabled:cursor-not-allowed disabled:opacity-60`}
+        className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${
+          isPending
+            ? 'bg-red-50 text-red-700 hover:bg-red-100'
+            : isGenerated
+              ? `${roleConfig?.hoverClass || 'hover:bg-gray-50'} text-gray-700`
+              : 'text-gray-400 hover:bg-gray-50'
+        } disabled:cursor-not-allowed disabled:opacity-60`}
       >
         <span className={isGenerated ? '' : 'italic'}>{value}</span>
       </button>
@@ -385,11 +544,12 @@ export function AudioVideoAssignments({
       row.assignment && row.assignment.attendants.length > 0
         ? row.assignment.attendants.join(' / ')
         : 'A definir';
+    const isPending = !row.assignment || row.assignment.attendants.length === 0;
 
     if (!canEdit) {
       return (
         <div
-          className={`w-full rounded-lg px-3 py-2 text-left ${row.assignment ? 'text-gray-700' : 'text-gray-400'}`}
+          className={`w-full rounded-lg px-3 py-2 text-left ${isPending ? 'bg-red-50 text-red-700' : row.assignment ? 'text-gray-700' : 'text-gray-400'}`}
         >
           <span className={row.assignment && row.assignment.attendants.length > 0 ? '' : 'italic'}>{value}</span>
         </div>
@@ -401,7 +561,13 @@ export function AudioVideoAssignments({
         type="button"
         onClick={() => handleEditAttendants(row.assignment)}
         disabled={loading || generating || saving}
-        className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${row.assignment ? 'text-gray-700 hover:bg-slate-50' : 'text-gray-400 hover:bg-gray-50'} disabled:cursor-not-allowed disabled:opacity-60`}
+        className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${
+          isPending
+            ? 'bg-red-50 text-red-700 hover:bg-red-100'
+            : row.assignment
+              ? 'text-gray-700 hover:bg-slate-50'
+              : 'text-gray-400 hover:bg-gray-50'
+        } disabled:cursor-not-allowed disabled:opacity-60`}
       >
         <span className={row.assignment && row.assignment.attendants.length > 0 ? '' : 'italic'}>{value}</span>
       </button>
@@ -587,6 +753,71 @@ export function AudioVideoAssignments({
         ))}
       </div>
 
+      {assignmentSummary.length > 0 && (
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h4 className="text-foreground" style={{ fontSize: '0.92rem' }}>
+                Resumo de Designações do Mês
+              </h4>
+              <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>
+                Total de vezes que cada membro apareceu na escala visível.
+              </p>
+            </div>
+            <span
+              className="rounded-full bg-primary/10 px-2.5 py-1 text-primary"
+              style={{ fontSize: '0.74rem' }}
+            >
+              {assignmentSummary.reduce((sum, item) => sum + item.total, 0)} designações
+            </span>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {assignmentSummary.map(item => (
+              <div
+                key={item.name}
+                className="rounded-xl border border-border/70 bg-background px-3 py-2.5"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="truncate text-foreground" style={{ fontSize: '0.84rem' }}>
+                    {item.name}
+                  </span>
+                  <span
+                    className={`shrink-0 rounded-full px-2.5 py-0.5 font-medium ${
+                      item.total > 0
+                        ? 'bg-primary/10 text-primary'
+                        : 'bg-muted text-muted-foreground'
+                    }`}
+                    style={{ fontSize: '0.74rem' }}
+                  >
+                    {item.total}x
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {SUMMARY_DISPLAY_GROUPS.map(group => {
+                    const count = group.getCount(item);
+
+                    return (
+                      <span
+                        key={`${item.name}-${group.label}`}
+                        className={`rounded-full px-2 py-0.5 ${
+                          count > 0
+                          ? 'bg-white text-foreground border border-border'
+                          : 'bg-muted/70 text-muted-foreground'
+                        }`}
+                        style={{ fontSize: '0.7rem' }}
+                      >
+                        {group.label} {count}x
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {canEdit && editModal && (
         <MemberSelectModal
           label={SINGLE_ROLE_LABELS[editModal.field]}
@@ -610,28 +841,29 @@ export function AudioVideoAssignments({
         />
       )}
 
-      <div className="pointer-events-none absolute -left-[10000px] top-0 w-[900px]" aria-hidden="true">
+      <div className="pointer-events-none absolute -left-[10000px] top-0 w-[1200px]" aria-hidden="true">
         <div
           ref={exportRef}
-          className="w-[900px] bg-white px-4 py-4 text-[#141414]"
+          data-export-pdf-mode="single-page"
+          className="w-[1200px] bg-white px-3 py-3 text-[#141414]"
           style={{ fontFamily: 'Calibri, Arial, sans-serif' }}
         >
           <div className="overflow-hidden rounded-xl border border-gray-200">
-            <div className="bg-[#4a9bc7] px-4 py-3">
-              <h4 className="text-center tracking-wide text-white" style={{ fontSize: '0.95rem' }}>
+            <div className="bg-[#4a9bc7] px-3 py-2.5">
+              <h4 className="text-center tracking-wide text-white" style={{ fontSize: '0.9rem', lineHeight: 1.1 }}>
                 Áudio e Vídeo / Indicadores — {MONTHS[currentMonth]} {currentYear}
               </h4>
             </div>
-            <table className="w-full" style={{ fontSize: '0.82rem' }}>
+            <table className="w-full table-fixed" style={{ fontSize: '0.74rem', lineHeight: 1.05 }}>
               <thead>
                 <tr className="bg-[#5badd4] text-white">
-                  <th className="px-3 py-2.5 text-left" style={{ width: '14%' }}>Data</th>
-                  <th className="px-3 py-2.5 text-left" style={{ width: '14%' }}>Som</th>
-                  <th className="px-3 py-2.5 text-left" style={{ width: '14%' }}>Imagem</th>
-                  <th className="px-3 py-2.5 text-left" style={{ width: '14%' }}>Palco</th>
-                  <th className="px-3 py-2.5 text-left" style={{ width: '14%' }}>Mic. Volante 1</th>
-                  <th className="px-3 py-2.5 text-left" style={{ width: '14%' }}>Mic. Volante 2</th>
-                  <th className="px-3 py-2.5 text-left" style={{ width: '16%' }}>Entradas / Auditório</th>
+                  <th className="px-2 py-1.5 text-center whitespace-nowrap" style={{ width: '8%' }}>Data</th>
+                  <th className="px-2 py-1.5 text-center whitespace-nowrap" style={{ width: '15%' }}>Som</th>
+                  <th className="px-2 py-1.5 text-center whitespace-nowrap" style={{ width: '15%' }}>Imagem</th>
+                  <th className="px-2 py-1.5 text-center whitespace-nowrap" style={{ width: '15%' }}>Palco</th>
+                  <th className="px-2 py-1.5 text-center whitespace-nowrap" style={{ width: '15%' }}>Mic. Volante 1</th>
+                  <th className="px-2 py-1.5 text-center whitespace-nowrap" style={{ width: '15%' }}>Mic. Volante 2</th>
+                  <th className="px-2 py-1.5 text-center whitespace-nowrap" style={{ width: '17%' }}>Entradas / Auditório</th>
                 </tr>
               </thead>
               <tbody>
@@ -641,18 +873,18 @@ export function AudioVideoAssignments({
                       key={`export-${row.date}`}
                       className={`${index % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'} border-b border-gray-200`}
                     >
-                      <td className="px-3 py-2.5 text-gray-700">
+                      <td className="px-2 py-1.5 text-center text-gray-700 whitespace-nowrap">
                         <div className="font-medium">{formatDate(row.date)}</div>
-                        <div className="text-gray-400" style={{ fontSize: '0.74rem' }}>
-                          {row.weekday} {row.assignment ? '' : '• não gerada'}
+                        <div className="text-gray-400" style={{ fontSize: '0.64rem', lineHeight: 1 }}>
+                          {row.weekday.toUpperCase()}
                         </div>
                       </td>
-                      <td className="px-3 py-2.5 text-gray-700">{row.assignment ? getRoleValue(row.assignment, 'sound') : 'A definir'}</td>
-                      <td className="px-3 py-2.5 text-gray-700">{row.assignment ? getRoleValue(row.assignment, 'image') : 'A definir'}</td>
-                      <td className="px-3 py-2.5 text-gray-700">{row.assignment ? getRoleValue(row.assignment, 'stage') : 'A definir'}</td>
-                      <td className="px-3 py-2.5 text-gray-700">{row.assignment ? getRoleValue(row.assignment, 'rovingMic1') : 'A definir'}</td>
-                      <td className="px-3 py-2.5 text-gray-700">{row.assignment ? getRoleValue(row.assignment, 'rovingMic2') : 'A definir'}</td>
-                      <td className="px-3 py-2.5 text-gray-700">
+                      <td className="px-2 py-1.5 text-center text-gray-700">{row.assignment ? getRoleValue(row.assignment, 'sound') : 'A definir'}</td>
+                      <td className="px-2 py-1.5 text-center text-gray-700">{row.assignment ? getRoleValue(row.assignment, 'image') : 'A definir'}</td>
+                      <td className="px-2 py-1.5 text-center text-gray-700">{row.assignment ? getRoleValue(row.assignment, 'stage') : 'A definir'}</td>
+                      <td className="px-2 py-1.5 text-center text-gray-700">{row.assignment ? getRoleValue(row.assignment, 'rovingMic1') : 'A definir'}</td>
+                      <td className="px-2 py-1.5 text-center text-gray-700">{row.assignment ? getRoleValue(row.assignment, 'rovingMic2') : 'A definir'}</td>
+                      <td className="px-2 py-1.5 text-center text-gray-700">
                         {row.assignment && row.assignment.attendants.length > 0
                           ? row.assignment.attendants.join(' / ')
                           : 'A definir'}

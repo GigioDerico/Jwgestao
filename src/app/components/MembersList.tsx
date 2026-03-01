@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { type Member, type FieldServiceGroup } from '../types';
-import { getStatusLabel, getStatusColor, getRoleLabel } from '../helpers';
+import { getStatusLabel, getStatusColor, getRoleLabel, formatPhoneDisplay } from '../helpers';
 import { api, type CreateMemberInput } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
@@ -33,6 +33,7 @@ export function MembersList() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [groupFilter, setGroupFilter] = useState('all');
+  const [genderFilter, setGenderFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
@@ -44,6 +45,9 @@ export function MembersList() {
   const [savingMember, setSavingMember] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [editForm, setEditForm] = useState<Partial<CreateMemberInput>>({});
+  const memberCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const memberButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const pendingEditFocusMemberIdRef = useRef<string | null>(null);
 
   const { user: authUser, isAdmin } = useAuth();
   const { can } = usePermissions();
@@ -51,12 +55,6 @@ export function MembersList() {
   const canCreate = can('create_members');
   const canEdit = can('edit_members');
   const canView = can('view_members');
-
-  const formatPhoneMask = (digits: string): string => {
-    if (digits.length <= 2) return digits;
-    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
-  };
 
   const formatZipMask = (digits: string): string => {
     if (digits.length <= 5) return digits;
@@ -139,6 +137,59 @@ export function MembersList() {
   useEffect(() => {
     fetchMembers();
   }, []);
+
+  useEffect(() => {
+    if (!expandedId) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      const card = memberCardRefs.current[expandedId];
+      const button = memberButtonRefs.current[expandedId];
+
+      if (card) {
+        card.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'nearest',
+        });
+      }
+
+      button?.focus({ preventScroll: true });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [expandedId]);
+
+  useEffect(() => {
+    if (editingMember || !pendingEditFocusMemberIdRef.current) {
+      return;
+    }
+
+    const memberId = pendingEditFocusMemberIdRef.current;
+    pendingEditFocusMemberIdRef.current = null;
+
+    const frameId = window.requestAnimationFrame(() => {
+      const card = memberCardRefs.current[memberId];
+      const button = memberButtonRefs.current[memberId];
+
+      if (card) {
+        card.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'nearest',
+        });
+      }
+
+      button?.focus({ preventScroll: true });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [editingMember]);
 
   const resetNewMemberForm = () => {
     setNewMemberForm({
@@ -241,8 +292,14 @@ export function MembersList() {
     });
   };
 
+  const closeEditModal = (memberId?: string | null) => {
+    pendingEditFocusMemberIdRef.current = memberId || null;
+    setEditingMember(null);
+  };
+
   const handleSaveEdit = async () => {
     if (!editingMember) return;
+    const editedMemberId = editingMember.id;
     if (!editForm.full_name?.trim()) {
       toast.error('O nome completo é obrigatório.');
       return;
@@ -255,8 +312,8 @@ export function MembersList() {
         family_head_id: editForm.family_head_id || undefined,
       });
       toast.success(`Membro "${editForm.full_name}" atualizado com sucesso!`);
-      setEditingMember(null);
       await fetchMembers();
+      closeEditModal(editedMemberId);
     } catch (err: any) {
       toast.error(err.message || 'Erro ao atualizar membro.');
     } finally {
@@ -272,7 +329,8 @@ export function MembersList() {
       (m.email || '').toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === 'all' || m.spiritual_status === statusFilter;
     const matchesGroup = groupFilter === 'all' || m.groupId === groupFilter;
-    return matchesSearch && matchesStatus && matchesGroup;
+    const matchesGender = genderFilter === 'all' || m.gender === genderFilter;
+    return matchesSearch && matchesStatus && matchesGroup && matchesGender;
   });
 
   const statuses = [
@@ -282,6 +340,11 @@ export function MembersList() {
     'publicador_batizado',
     'servo_ministerial',
     'anciao',
+  ];
+  const genders = [
+    { value: 'all', label: 'Todos' },
+    { value: 'M', label: 'Masculino' },
+    { value: 'F', label: 'Feminino' },
   ];
 
   const getGroupName = (groupId?: string) => {
@@ -350,8 +413,16 @@ export function MembersList() {
   };
 
   const MemberCard = ({ member, isNested = false }: { member: Member; isNested?: boolean }) => (
-    <div className={`group ${isNested ? '' : ''}`}>
+    <div
+      ref={(node) => {
+        memberCardRefs.current[member.id] = node;
+      }}
+      className={`group ${isNested ? '' : ''}`}
+    >
       <button
+        ref={(node) => {
+          memberButtonRefs.current[member.id] = node;
+        }}
         onClick={() => setExpandedId(expandedId === member.id ? null : member.id)}
         className={`w-full px-4 py-3.5 flex items-center gap-3 hover:bg-muted/30 transition-colors text-left ${isNested ? 'pl-10 bg-muted/5' : ''}`}
       >
@@ -451,7 +522,7 @@ export function MembersList() {
               <div className="w-7 h-7 rounded-full bg-muted/50 flex items-center justify-center shrink-0">
                 <Phone size={14} className="text-muted-foreground" />
               </div>
-              {member.phone}
+              {formatPhoneDisplay(member.phone)}
             </div>
             <div className="flex items-center gap-2 text-foreground/80" style={{ fontSize: '0.85rem' }}>
               <div className="w-7 h-7 rounded-full bg-muted/50 flex items-center justify-center shrink-0">
@@ -465,7 +536,7 @@ export function MembersList() {
                   Contato de Emergência
                 </p>
                 <p className="text-foreground/90 mt-0.5" style={{ fontSize: '0.85rem' }}>
-                  {member.emergency_contact_name} — {member.emergency_contact_phone}
+                  {member.emergency_contact_name} — {formatPhoneDisplay(member.emergency_contact_phone)}
                 </p>
               </div>
             )}
@@ -733,7 +804,7 @@ export function MembersList() {
           </div>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-colors ${showFilters || statusFilter !== 'all' || groupFilter !== 'all'
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border transition-colors ${showFilters || statusFilter !== 'all' || groupFilter !== 'all' || genderFilter !== 'all'
               ? 'bg-primary/10 border-primary/20 text-primary'
               : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50'
               }`}
@@ -801,11 +872,34 @@ export function MembersList() {
               ))}
             </div>
 
-            {(statusFilter !== 'all' || groupFilter !== 'all') && (
+            <div className="flex flex-wrap gap-2 pt-2 border-t border-border/50">
+              <span
+                className="w-full text-muted-foreground font-medium mb-1"
+                style={{ fontSize: '0.75rem' }}
+              >
+                Sexo
+              </span>
+              {genders.map(g => (
+                <button
+                  key={g.value}
+                  onClick={() => setGenderFilter(g.value)}
+                  className={`px-3 py-1.5 rounded-full transition-all ${genderFilter === g.value
+                    ? 'bg-primary text-primary-foreground font-medium shadow-sm'
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted/80'
+                    }`}
+                  style={{ fontSize: '0.8rem' }}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+
+            {(statusFilter !== 'all' || groupFilter !== 'all' || genderFilter !== 'all') && (
               <button
                 onClick={() => {
                   setStatusFilter('all');
                   setGroupFilter('all');
+                  setGenderFilter('all');
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-red-500 hover:text-red-600 transition-colors font-medium"
                 style={{ fontSize: '0.8rem' }}
@@ -1078,7 +1172,7 @@ export function MembersList() {
                 <input
                   type="tel"
                   inputMode="numeric"
-                  value={formatPhoneMask(newMemberForm.phone || '')}
+                  value={formatPhoneDisplay(newMemberForm.phone || '')}
                   onChange={e => setNewMemberForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0, 11) }))}
                   placeholder="(11) 99999-0000"
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
@@ -1192,7 +1286,7 @@ export function MembersList() {
                 <input
                   type="tel"
                   inputMode="numeric"
-                  value={formatPhoneMask(newMemberForm.emergency_contact_phone || '')}
+                  value={formatPhoneDisplay(newMemberForm.emergency_contact_phone || '')}
                   onChange={e => setNewMemberForm(f => ({ ...f, emergency_contact_phone: e.target.value.replace(/\D/g, '').slice(0, 11) }))}
                   placeholder="(11) 88888-0000"
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground"
@@ -1350,7 +1444,7 @@ export function MembersList() {
                 <Edit2 size={16} />
                 Editar Membro
               </h3>
-              <button onClick={() => setEditingMember(null)} disabled={savingMember} className="text-muted-foreground hover:text-foreground p-1 transition-colors">
+              <button onClick={() => closeEditModal(editingMember.id)} disabled={savingMember} className="text-muted-foreground hover:text-foreground p-1 transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -1361,7 +1455,7 @@ export function MembersList() {
               </div>
               <div>
                 <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Telefone</label>
-                <input type="tel" inputMode="numeric" value={formatPhoneMask((editForm.phone || '').replace(/\D/g, ''))} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0, 11) }))} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground" style={{ fontSize: '0.9rem' }} />
+                <input type="tel" inputMode="numeric" value={formatPhoneDisplay(editForm.phone || '')} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0, 11) }))} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground" style={{ fontSize: '0.9rem' }} />
               </div>
               <div>
                 <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>E-mail</label>
@@ -1407,7 +1501,7 @@ export function MembersList() {
               </div>
               <div>
                 <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Tel. Emergência</label>
-                <input type="tel" inputMode="numeric" value={formatPhoneMask((editForm.emergency_contact_phone || '').replace(/\D/g, ''))} onChange={e => setEditForm(f => ({ ...f, emergency_contact_phone: e.target.value.replace(/\D/g, '').slice(0, 11) }))} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground" style={{ fontSize: '0.9rem' }} />
+                <input type="tel" inputMode="numeric" value={formatPhoneDisplay(editForm.emergency_contact_phone || '')} onChange={e => setEditForm(f => ({ ...f, emergency_contact_phone: e.target.value.replace(/\D/g, '').slice(0, 11) }))} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground" style={{ fontSize: '0.9rem' }} />
               </div>
               <div>
                 <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Situação Espiritual</label>
@@ -1487,7 +1581,7 @@ export function MembersList() {
 
             </div>
             <div className="p-5 border-t border-border flex gap-3 justify-end sticky bottom-0 bg-white">
-              <button onClick={() => setEditingMember(null)} disabled={savingMember} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium disabled:opacity-50" style={{ fontSize: '0.9rem' }}>Cancelar</button>
+              <button onClick={() => closeEditModal(editingMember.id)} disabled={savingMember} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors font-medium disabled:opacity-50" style={{ fontSize: '0.9rem' }}>Cancelar</button>
               <button onClick={handleSaveEdit} disabled={savingMember} className="px-6 py-2 bg-[#35bdf8] text-[#082c45] font-bold rounded-lg hover:opacity-90 transition-colors shadow-md shadow-[#35bdf8]/10 disabled:opacity-50 flex items-center gap-2" style={{ fontSize: '0.9rem' }}>
                 {savingMember ? (<><Loader2 size={16} className="animate-spin" />Salvando...</>) : 'Salvar Alterações'}
               </button>

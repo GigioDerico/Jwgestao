@@ -73,8 +73,7 @@ export function SetupPasswordPage() {
             if (error) throw error;
 
             toast.success('Senha atualizada com sucesso! Bem-vindo(a).');
-            // Usamos href ao ínves de navigate para que o roteador instancie as sessões autenticadas apropriadamente no private-route.
-            window.location.href = '/dashboard';
+            navigate('/dashboard', { replace: true });
         } catch (err: any) {
             toast.error(err.message || 'Erro ao salvar nova senha.');
             setSaving(false);

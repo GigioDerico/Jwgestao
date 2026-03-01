@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationsContext';
 import { api } from '../lib/api';
+import { formatPhoneDisplay } from '../helpers';
 import { toast } from 'sonner';
 import {
   Users,
@@ -507,7 +508,7 @@ export function Dashboard() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-foreground truncate font-medium" style={{ fontSize: '0.9rem' }}>{member.full_name}</p>
-                  <p className="text-muted-foreground truncate" style={{ fontSize: '0.75rem' }}>{member.phone || 'Sem telefone'}</p>
+                  <p className="text-muted-foreground truncate" style={{ fontSize: '0.75rem' }}>{formatPhoneDisplay(member.phone) || 'Sem telefone'}</p>
                 </div>
                 <span className="px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-700" style={{ fontSize: '0.7rem' }}>
                   {member.spiritual_status === 'publicador_batizado' ? 'Pub. Batizado' :
