@@ -13,6 +13,7 @@ const MONTHS = [
 ];
 
 type FieldServiceCategory =
+  | 'Segunda-feira'
   | 'Terça-feira'
   | 'Quarta-feira'
   | 'Sexta-feira'
@@ -32,6 +33,7 @@ interface FieldServiceTemplateRow {
 }
 
 const CATEGORY_COLORS: Record<FieldServiceCategory, { bg: string; header: string; border: string }> = {
+  'Segunda-feira': { bg: 'bg-emerald-50/40', header: 'bg-emerald-500', border: 'border-emerald-200' },
   'Terça-feira': { bg: 'bg-emerald-50/50', header: 'bg-emerald-600', border: 'border-emerald-200' },
   'Quarta-feira': { bg: 'bg-teal-50/50', header: 'bg-teal-600', border: 'border-teal-200' },
   'Sexta-feira': { bg: 'bg-cyan-50/50', header: 'bg-cyan-600', border: 'border-cyan-200' },
@@ -40,17 +42,23 @@ const CATEGORY_COLORS: Record<FieldServiceCategory, { bg: string; header: string
   'Domingo': { bg: 'bg-emerald-50/50', header: 'bg-emerald-700', border: 'border-emerald-200' },
 };
 
-const FIXED_DEFAULTS: Record<'Terça-feira' | 'Quarta-feira' | 'Sexta-feira', { time: string; location: string }> = {
+const FIXED_DEFAULTS: Record<'Segunda-feira' | 'Terça-feira' | 'Quarta-feira' | 'Sexta-feira', { time: string; location: string }> = {
+  'Segunda-feira': { time: '08:45', location: 'Salão do Reino' },
   'Terça-feira': { time: '16:30', location: 'Salão do Reino' },
   'Quarta-feira': { time: '08:45', location: 'Salão do Reino' },
   'Sexta-feira': { time: '08:45', location: 'Salão do Reino' },
 };
 
-const FIXED_CATEGORIES: Array<'Terça-feira' | 'Quarta-feira' | 'Sexta-feira'> = [
+const FIXED_CATEGORIES: Array<'Segunda-feira' | 'Terça-feira' | 'Quarta-feira' | 'Sexta-feira'> = [
+  'Segunda-feira',
   'Terça-feira',
   'Quarta-feira',
   'Sexta-feira',
 ];
+
+const FIXED_RESPONSIBLE_OPTIONS = ['Irmãs Pioneiras'] as const;
+const FIELD_SERVICE_FONT_FAMILY = 'Calibri, Arial, sans-serif';
+const MIN_FONT_SIZE = '0.875rem';
 
 export function FieldServiceAssignments({
   canCreate = true,
@@ -483,11 +491,17 @@ export function FieldServiceAssignments({
     field: 'time' | 'location',
     label: string,
     value: string,
-    emptyFallback: string
+    emptyFallback: string,
+    textAlign: 'left' | 'center' = 'left'
   ) => {
+    const alignmentClass =
+      textAlign === 'center'
+        ? 'flex w-full items-center justify-center'
+        : 'w-full text-left';
+
     if (!canEdit) {
       return (
-        <div className={`w-full rounded-lg px-3 py-2 text-left ${row.assignment ? 'text-gray-700' : 'text-gray-400'}`}>
+        <div className={`${alignmentClass} rounded-lg px-3 py-2 ${row.assignment ? 'text-gray-700' : 'text-gray-400'}`}>
           <span className={value ? '' : 'italic'}>{value || emptyFallback}</span>
         </div>
       );
@@ -498,7 +512,7 @@ export function FieldServiceAssignments({
         type="button"
         onClick={() => handleEditText(row.assignment, field, label)}
         disabled={loading || generating || saving}
-        className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${row.assignment ? 'text-gray-700 hover:bg-green-100/70' : 'text-gray-400 hover:bg-gray-50'} disabled:cursor-not-allowed disabled:opacity-60`}
+        className={`${alignmentClass} rounded-lg px-3 py-1.5 transition-colors ${row.assignment ? 'text-gray-700 hover:bg-green-100/70' : 'text-gray-400 hover:bg-gray-50'} disabled:cursor-not-allowed disabled:opacity-60`}
       >
         <span className={value ? '' : 'italic'}>{value || emptyFallback}</span>
       </button>
@@ -519,7 +533,7 @@ export function FieldServiceAssignments({
         type="button"
         onClick={() => handleEditResponsible(row.assignment)}
         disabled={loading || generating || saving}
-        className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${row.assignment ? 'text-gray-700 hover:bg-green-100/70' : 'text-gray-400 hover:bg-gray-50'} disabled:cursor-not-allowed disabled:opacity-60`}
+        className={`w-full rounded-lg px-3 py-1.5 text-left transition-colors ${row.assignment ? 'text-gray-700 hover:bg-green-100/70' : 'text-gray-400 hover:bg-gray-50'} disabled:cursor-not-allowed disabled:opacity-60`}
       >
         <span className={row.displayResponsible === 'A definir' ? 'italic' : ''}>{row.displayResponsible}</span>
       </button>
@@ -551,7 +565,7 @@ export function FieldServiceAssignments({
   };
 
   return (
-    <div className="relative space-y-4">
+    <div className="relative space-y-4" style={{ fontFamily: FIELD_SERVICE_FONT_FAMILY }}>
       <div className="bg-card rounded-xl border border-border p-3 flex items-center justify-between shadow-sm">
         <button onClick={prevMonth} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
           <ChevronLeft size={18} className="text-gray-600" />
@@ -570,7 +584,7 @@ export function FieldServiceAssignments({
             <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>
               Exportação do mês visível
             </p>
-            <p className="text-muted-foreground" style={{ fontSize: '0.82rem' }}>
+            <p className="text-muted-foreground" style={{ fontSize: MIN_FONT_SIZE }}>
               Exporta todas as seções da saída de campo do mês atualmente selecionado.
             </p>
           </div>
@@ -590,8 +604,8 @@ export function FieldServiceAssignments({
           <div className="border-b border-border px-4 py-3 md:flex md:items-center md:justify-between">
             <div>
               <h4 className="text-foreground" style={{ fontSize: '0.95rem' }}>Gerar saídas do mês</h4>
-              <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>
-                Terça, quarta e sexta são fixos. Sábado segue o calendário real e domingo cria uma linha por grupo.
+              <p className="text-muted-foreground" style={{ fontSize: MIN_FONT_SIZE }}>
+                Segunda, terça, quarta e sexta são fixos. Sábado segue o calendário real e domingo cria uma linha por grupo.
               </p>
             </div>
             <button
@@ -599,13 +613,13 @@ export function FieldServiceAssignments({
               onClick={handleGenerateMonth}
               disabled={loading || generating || saving}
               className="mt-3 inline-flex items-center rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60 md:mt-0"
-              style={{ fontSize: '0.85rem' }}
+              style={{ fontSize: MIN_FONT_SIZE }}
             >
               {generating ? 'Gerando...' : 'Gerar mês'}
             </button>
           </div>
           <div className="px-4 py-3">
-            <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>
+            <p className="text-muted-foreground" style={{ fontSize: MIN_FONT_SIZE }}>
               {loading
                 ? 'Carregando saídas salvas deste mês...'
                 : 'Antes da geração, a tela já mostra a estrutura esperada. Clique em uma linha não gerada para ver a orientação.'}
@@ -628,7 +642,7 @@ export function FieldServiceAssignments({
           Carregando saídas de campo...
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {renderedGroups.map(group => {
             const colors = CATEGORY_COLORS[group.category];
             const isSunday = group.category === 'Domingo';
@@ -636,8 +650,8 @@ export function FieldServiceAssignments({
 
             return (
               <div key={group.category} className={`bg-white rounded-xl border ${colors.border} overflow-hidden`}>
-                <div className={`${colors.header} relative px-4 py-2.5`}>
-                  <h4 className="text-center text-white tracking-wide" style={{ fontSize: '0.85rem' }}>
+                <div className={`${colors.header} relative px-4 py-2`}>
+                  <h4 className="text-center text-white tracking-wide" style={{ fontSize: MIN_FONT_SIZE }}>
                     {group.category}
                   </h4>
                   {canCreate && (isSunday || isRural) && (
@@ -662,7 +676,7 @@ export function FieldServiceAssignments({
                         }}
                         disabled={saving || generating}
                         className="inline-flex items-center gap-1 rounded-lg bg-white/15 px-2.5 py-1 text-white transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-60"
-                        style={{ fontSize: '0.75rem' }}
+                        style={{ fontSize: MIN_FONT_SIZE }}
                       >
                         <Plus size={12} />
                         {isSunday ? 'Adicionar grupo' : 'Adicionar linha'}
@@ -672,30 +686,42 @@ export function FieldServiceAssignments({
                 </div>
 
                 {group.emptyMessage && group.rows.length === 0 ? (
-                  <div className="px-4 py-4 text-gray-500" style={{ fontSize: '0.82rem' }}>
+                  <div className="px-4 py-4 text-gray-500" style={{ fontSize: MIN_FONT_SIZE }}>
                     {group.emptyMessage}
                   </div>
                 ) : (
                   <>
                     <div className="hidden sm:block">
-                      <table className="w-full" style={{ fontSize: '0.82rem' }}>
+                      <table className="w-full" style={{ fontSize: MIN_FONT_SIZE }}>
                         <thead>
-                          <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
-                            <th className="px-4 py-2 text-left" style={{ width: isSunday ? '34%' : '28%' }}>
-                              {isSunday ? 'Grupo' : 'Dia'}
-                            </th>
-                            <th className="px-3 py-2 text-left" style={{ width: isSunday ? '28%' : '20%' }}>
-                              Horário
-                            </th>
-                            {!isSunday && (
-                              <th className="px-3 py-2 text-left" style={{ width: '28%' }}>
+                          {isSunday ? (
+                            <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
+                              <th className="px-4 py-1.5 text-left" style={{ width: '33.33%' }}>
+                                Grupo
+                              </th>
+                              <th className="px-3 py-1.5 text-center" style={{ width: '33.33%' }}>
+                                Horário
+                              </th>
+                              <th className="px-3 py-1.5 text-center" style={{ width: '33.33%' }}>
+                                Local
+                              </th>
+                            </tr>
+                          ) : (
+                            <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
+                              <th className="px-4 py-1.5 text-left" style={{ width: '25%' }}>
+                                Dia
+                              </th>
+                              <th className="px-3 py-1.5 text-center" style={{ width: '25%' }}>
+                                Horário
+                              </th>
+                              <th className="px-3 py-1.5 text-left" style={{ width: '25%' }}>
                                 Responsável
                               </th>
-                            )}
-                            <th className="px-3 py-2 text-left" style={{ width: isSunday ? '38%' : '24%' }}>
-                              Local
-                            </th>
-                          </tr>
+                              <th className="px-3 py-1.5 text-left" style={{ width: '25%' }}>
+                                Local
+                              </th>
+                            </tr>
+                          )}
                         </thead>
                         <tbody>
                           {group.rows.map((row, index) => (
@@ -703,25 +729,44 @@ export function FieldServiceAssignments({
                               key={row.key}
                               className={`border-b border-gray-200 ${index % 2 === 0 ? colors.bg : 'bg-white'} transition-colors hover:bg-green-50/60`}
                             >
-                              <td className="px-4 py-2.5 text-gray-700">
-                                {isSunday ? row.groupName : row.dayLabel}
-                                {!row.assignment && (
-                                  <span className="ml-2 text-gray-400" style={{ fontSize: '0.72rem' }}>
-                                    • não gerada
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-3 py-2.5">
-                                {renderTextButton(row, 'time', 'Horário', row.displayTime, 'A definir')}
-                              </td>
-                              {!isSunday && (
-                                <td className="px-3 py-2.5">
-                                  {renderResponsibleButton(row)}
-                                </td>
+                              {isSunday ? (
+                                <>
+                                  <td className="px-4 py-1.5 text-gray-700">
+                                    {row.groupName}
+                                    {!row.assignment && (
+                                      <span className="ml-2 text-gray-400" style={{ fontSize: MIN_FONT_SIZE }}>
+                                        • não gerada
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-1.5 text-center">
+                                    {renderTextButton(row, 'time', 'Horário', row.displayTime, 'A definir', 'center')}
+                                  </td>
+                                  <td className="px-3 py-1.5 text-center">
+                                    {renderTextButton(row, 'location', 'Local', row.displayLocation, 'Sem local', 'center')}
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  <td className="px-4 py-1.5 text-gray-700">
+                                    {row.dayLabel}
+                                    {!row.assignment && (
+                                      <span className="ml-2 text-gray-400" style={{ fontSize: MIN_FONT_SIZE }}>
+                                        • não gerada
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-1.5 text-center">
+                                    {renderTextButton(row, 'time', 'Horário', row.displayTime, 'A definir', 'center')}
+                                  </td>
+                                  <td className="px-3 py-1.5">
+                                    {renderResponsibleButton(row)}
+                                  </td>
+                                  <td className="px-3 py-1.5">
+                                    {renderTextButton(row, 'location', 'Local', row.displayLocation, 'Sem local')}
+                                  </td>
+                                </>
                               )}
-                              <td className="px-3 py-2.5">
-                                {renderTextButton(row, 'location', 'Local', row.displayLocation, 'Sem local')}
-                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -730,34 +775,34 @@ export function FieldServiceAssignments({
 
                     <div className="sm:hidden divide-y divide-gray-50">
                       {group.rows.map(row => (
-                        <div key={row.key} className="p-3">
-                          <div className="mb-2 flex items-center justify-between">
-                            <span className="text-gray-800" style={{ fontSize: '0.84rem' }}>
+                        <div key={row.key} className="p-2.5">
+                          <div className="mb-1.5 flex items-center justify-between">
+                            <span className="text-gray-800" style={{ fontSize: MIN_FONT_SIZE }}>
                               {isSunday ? row.groupName : row.dayLabel}
                             </span>
                             {!row.assignment && (
-                              <span className="text-gray-400" style={{ fontSize: '0.72rem' }}>
+                              <span className="text-gray-400" style={{ fontSize: MIN_FONT_SIZE }}>
                                 não gerada
                               </span>
                             )}
                           </div>
-                          <div className="space-y-2">
+                          <div className="space-y-1.5">
                             <div className="flex items-center gap-2">
-                              <span className="w-20 shrink-0 text-gray-500" style={{ fontSize: '0.75rem' }}>Horário</span>
+                              <span className="w-20 shrink-0 text-gray-500" style={{ fontSize: MIN_FONT_SIZE }}>Horário</span>
                               <div className="flex-1">
-                                {renderTextButton(row, 'time', 'Horário', row.displayTime, 'A definir')}
+                                {renderTextButton(row, 'time', 'Horário', row.displayTime, 'A definir', 'center')}
                               </div>
                             </div>
                             {!isSunday && (
                               <div className="flex items-center gap-2">
-                                <span className="w-20 shrink-0 text-gray-500" style={{ fontSize: '0.75rem' }}>Responsável</span>
+                                <span className="w-20 shrink-0 text-gray-500" style={{ fontSize: MIN_FONT_SIZE }}>Responsável</span>
                                 <div className="flex-1">
                                   {renderResponsibleButton(row)}
                                 </div>
                               </div>
                             )}
                             <div className="flex items-center gap-2">
-                              <span className="w-20 shrink-0 text-gray-500" style={{ fontSize: '0.75rem' }}>Local</span>
+                              <span className="w-20 shrink-0 text-gray-500" style={{ fontSize: MIN_FONT_SIZE }}>Local</span>
                               <div className="flex-1">
                                 {renderTextButton(row, 'location', 'Local', row.displayLocation, 'Sem local')}
                               </div>
@@ -775,10 +820,10 @@ export function FieldServiceAssignments({
       )}
 
       <div className="bg-gradient-to-r from-emerald-600 to-green-600 rounded-xl p-4 text-center">
-        <p className="text-white/90 italic" style={{ fontSize: '0.82rem' }}>
+        <p className="text-white/90 italic" style={{ fontSize: MIN_FONT_SIZE }}>
           "Portanto, vão e façam discípulos de pessoas de todas as nações... ensinando-as a obedecer a todas as coisas que lhes ordenei."
         </p>
-        <p className="text-white/70 mt-1" style={{ fontSize: '0.75rem' }}>— Mateus 28:19,20</p>
+        <p className="text-white/70 mt-1" style={{ fontSize: MIN_FONT_SIZE }}>— Mateus 28:19,20</p>
       </div>
 
       {canEdit && memberEditModal && (
@@ -825,7 +870,7 @@ export function FieldServiceAssignments({
           ref={exportRef}
           data-export-pdf-mode="single-page"
           className="w-[900px] bg-white px-4 py-4 text-[#141414]"
-          style={{ fontFamily: 'Calibri, Arial, sans-serif' }}
+          style={{ fontFamily: FIELD_SERVICE_FONT_FAMILY }}
         >
           <div className="overflow-hidden rounded-xl border border-green-700 bg-white">
             <div className="px-4 py-3 text-center" style={{ backgroundColor: '#047857' }}>
@@ -838,14 +883,14 @@ export function FieldServiceAssignments({
             </div>
           </div>
 
-          <div className="mt-3 space-y-3">
+          <div className="mt-3 space-y-2.5">
             {renderedGroups.map(group => {
               const colors = CATEGORY_COLORS[group.category];
               const isSunday = group.category === 'Domingo';
 
               return (
                 <div key={`export-${group.category}`} className={`overflow-hidden rounded-xl border ${colors.border} bg-white`}>
-                  <div className={`${colors.header} px-4 py-2`}>
+                  <div className={`${colors.header} px-4 py-1.5`}>
                     <h4 className="text-center text-white tracking-wide" style={{ fontSize: '0.8rem', lineHeight: 1.05 }}>
                       {group.category}
                     </h4>
@@ -858,22 +903,34 @@ export function FieldServiceAssignments({
                   ) : (
                     <table className="w-full" style={{ fontSize: '0.76rem' }}>
                       <thead>
-                        <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
-                          <th className="px-3 py-1.5 text-left" style={{ width: isSunday ? '34%' : '28%' }}>
-                            {isSunday ? 'Grupo' : 'Dia'}
-                          </th>
-                          <th className="px-2.5 py-1.5 text-left" style={{ width: isSunday ? '28%' : '20%' }}>
-                            Horário
-                          </th>
-                          {!isSunday && (
-                            <th className="px-2.5 py-1.5 text-left" style={{ width: '28%' }}>
+                        {isSunday ? (
+                          <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
+                            <th className="px-3 py-1 text-left" style={{ width: '33.33%' }}>
+                              Grupo
+                            </th>
+                            <th className="px-2.5 py-1 text-center" style={{ width: '33.33%' }}>
+                              Horário
+                            </th>
+                            <th className="px-2.5 py-1 text-center" style={{ width: '33.33%' }}>
+                              Local
+                            </th>
+                          </tr>
+                        ) : (
+                          <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
+                            <th className="px-3 py-1 text-left" style={{ width: '25%' }}>
+                              Dia
+                            </th>
+                            <th className="px-2.5 py-1 text-center" style={{ width: '25%' }}>
+                              Horário
+                            </th>
+                            <th className="px-2.5 py-1 text-left" style={{ width: '25%' }}>
                               Responsável
                             </th>
-                          )}
-                          <th className="px-2.5 py-1.5 text-left" style={{ width: isSunday ? '38%' : '24%' }}>
-                            Local
-                          </th>
-                        </tr>
+                            <th className="px-2.5 py-1 text-left" style={{ width: '25%' }}>
+                              Local
+                            </th>
+                          </tr>
+                        )}
                       </thead>
                       <tbody>
                         {group.rows.map((row, index) => (
@@ -881,19 +938,34 @@ export function FieldServiceAssignments({
                             key={`export-row-${row.key}`}
                             className={`${index % 2 === 0 ? colors.bg : 'bg-white'} border-b border-gray-200`}
                           >
-                            <td className="px-3 py-1.5 text-gray-700" style={{ lineHeight: 1.05 }}>
-                              {isSunday ? row.groupName : row.dayLabel}
-                              {!row.assignment && (
-                                <span className="ml-1.5 text-gray-400" style={{ fontSize: '0.68rem' }}>
-                                  • não gerada
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-2.5 py-1.5 text-gray-700" style={{ lineHeight: 1.05 }}>{row.displayTime || 'A definir'}</td>
-                            {!isSunday && (
-                              <td className="px-2.5 py-1.5 text-gray-700" style={{ lineHeight: 1.05 }}>{row.displayResponsible || 'A definir'}</td>
+                            {isSunday ? (
+                              <>
+                                <td className="px-3 py-1 text-gray-700" style={{ lineHeight: 1.05 }}>
+                                  {row.groupName}
+                                  {!row.assignment && (
+                                    <span className="ml-1.5 text-gray-400" style={{ fontSize: '0.68rem' }}>
+                                      • não gerada
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-2.5 py-1 text-center text-gray-700" style={{ lineHeight: 1.05 }}>{row.displayTime || 'A definir'}</td>
+                                <td className="px-2.5 py-1 text-center text-gray-700" style={{ lineHeight: 1.05 }}>{row.displayLocation || 'Sem local'}</td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="px-3 py-1 text-gray-700" style={{ lineHeight: 1.05 }}>
+                                  {row.dayLabel}
+                                  {!row.assignment && (
+                                    <span className="ml-1.5 text-gray-400" style={{ fontSize: '0.68rem' }}>
+                                      • não gerada
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-2.5 py-1 text-center text-gray-700" style={{ lineHeight: 1.05 }}>{row.displayTime || 'A definir'}</td>
+                                <td className="px-2.5 py-1 text-gray-700" style={{ lineHeight: 1.05 }}>{row.displayResponsible || 'A definir'}</td>
+                                <td className="px-2.5 py-1 text-gray-700" style={{ lineHeight: 1.05 }}>{row.displayLocation || 'Sem local'}</td>
+                              </>
                             )}
-                            <td className="px-2.5 py-1.5 text-gray-700" style={{ lineHeight: 1.05 }}>{row.displayLocation || 'Sem local'}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -933,6 +1005,9 @@ function MemberSelectModal({
 }) {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(currentValue);
+  const filteredFixedOptions = FIXED_RESPONSIBLE_OPTIONS.filter(option =>
+    option.toLowerCase().includes(search.toLowerCase())
+  );
 
   const filtered = members.filter(member =>
     member.full_name.toLowerCase().includes(search.toLowerCase())
@@ -940,11 +1015,11 @@ function MemberSelectModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col">
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col" style={{ fontFamily: FIELD_SERVICE_FONT_FAMILY }}>
         <div className="p-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div>
             <h3 className="text-gray-900">Editar Designação</h3>
-            <p className="text-gray-500 mt-0.5" style={{ fontSize: '0.8rem' }}>{label}</p>
+            <p className="text-gray-500 mt-0.5" style={{ fontSize: MIN_FONT_SIZE }}>{label}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X size={20} />
@@ -973,6 +1048,17 @@ function MemberSelectModal({
           >
             A definir
           </button>
+          {filteredFixedOptions.map(option => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setSelected(option)}
+              className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${selected === option ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'}`}
+              style={{ fontSize: '0.9rem' }}
+            >
+              {option}
+            </button>
+          ))}
           {filtered.map(member => (
             <button
               key={member.id}
@@ -1020,11 +1106,11 @@ function TextEditModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md flex flex-col">
+      <div className="bg-white rounded-2xl w-full max-w-md flex flex-col" style={{ fontFamily: FIELD_SERVICE_FONT_FAMILY }}>
         <div className="p-4 border-b border-gray-100 flex items-center justify-between">
           <div>
             <h3 className="text-gray-900">Editar</h3>
-            <p className="text-gray-500 mt-0.5" style={{ fontSize: '0.8rem' }}>{label}</p>
+            <p className="text-gray-500 mt-0.5" style={{ fontSize: MIN_FONT_SIZE }}>{label}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X size={20} />
@@ -1076,11 +1162,11 @@ function GroupSelectModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col">
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col" style={{ fontFamily: FIELD_SERVICE_FONT_FAMILY }}>
         <div className="p-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div>
             <h3 className="text-gray-900">Adicionar Grupo</h3>
-            <p className="text-gray-500 mt-0.5" style={{ fontSize: '0.8rem' }}>
+            <p className="text-gray-500 mt-0.5" style={{ fontSize: MIN_FONT_SIZE }}>
               Selecione um grupo que ainda não tem linha de domingo neste mês.
             </p>
           </div>
@@ -1115,7 +1201,7 @@ function GroupSelectModal({
             </button>
           ))}
           {filtered.length === 0 && (
-            <p className="px-3 py-4 text-gray-500" style={{ fontSize: '0.85rem' }}>
+            <p className="px-3 py-4 text-gray-500" style={{ fontSize: MIN_FONT_SIZE }}>
               Nenhum grupo disponível.
             </p>
           )}
@@ -1162,11 +1248,11 @@ function SaturdaySelectModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col">
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col" style={{ fontFamily: FIELD_SERVICE_FONT_FAMILY }}>
         <div className="p-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div>
             <h3 className="text-gray-900">Adicionar Sábado Rural</h3>
-            <p className="text-gray-500 mt-0.5" style={{ fontSize: '0.8rem' }}>
+            <p className="text-gray-500 mt-0.5" style={{ fontSize: MIN_FONT_SIZE }}>
               Selecione um sábado ainda não usado neste mês.
             </p>
           </div>
@@ -1201,7 +1287,7 @@ function SaturdaySelectModal({
             </button>
           ))}
           {filtered.length === 0 && (
-            <p className="px-3 py-4 text-gray-500" style={{ fontSize: '0.85rem' }}>
+            <p className="px-3 py-4 text-gray-500" style={{ fontSize: MIN_FONT_SIZE }}>
               Nenhum sábado disponível.
             </p>
           )}
