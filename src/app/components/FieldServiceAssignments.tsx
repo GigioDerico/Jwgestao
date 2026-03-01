@@ -865,19 +865,19 @@ export function FieldServiceAssignments({
         />
       )}
 
-      <div className="pointer-events-none absolute -left-[10000px] top-0 w-[900px]" aria-hidden="true">
+      <div className="pointer-events-none absolute -left-[10000px] top-0 w-[840px]" aria-hidden="true">
         <div
           ref={exportRef}
           data-export-pdf-mode="single-page"
-          className="w-[900px] bg-white px-4 py-4 text-[#141414]"
+          className="w-[840px] bg-white px-4 py-4 text-[#141414]"
           style={{ fontFamily: FIELD_SERVICE_FONT_FAMILY }}
         >
           <div className="overflow-hidden rounded-xl border border-green-700 bg-white">
             <div className="px-4 py-3 text-center" style={{ backgroundColor: '#047857' }}>
-              <h2 className="font-semibold uppercase text-white" style={{ fontSize: '1.25rem', lineHeight: 1.1 }}>
+              <h2 className="font-semibold uppercase text-white" style={{ fontSize: '1.35rem', lineHeight: 1.1 }}>
                 Saída de Campo
               </h2>
-              <p className="mt-1 font-semibold text-white/90" style={{ fontSize: '0.9rem', lineHeight: 1.05 }}>
+              <p className="mt-1 font-semibold text-white/90" style={{ fontSize: '0.98rem', lineHeight: 1.05 }}>
                 {MONTHS[currentMonth]} {currentYear}
               </p>
             </div>
@@ -891,17 +891,17 @@ export function FieldServiceAssignments({
               return (
                 <div key={`export-${group.category}`} className={`overflow-hidden rounded-xl border ${colors.border} bg-white`}>
                   <div className={`${colors.header} px-4 py-1.5`}>
-                    <h4 className="text-center text-white tracking-wide" style={{ fontSize: '0.8rem', lineHeight: 1.05 }}>
+                    <h4 className="text-center text-white tracking-wide" style={{ fontSize: '0.88rem', lineHeight: 1.1 }}>
                       {group.category}
                     </h4>
                   </div>
 
                   {group.emptyMessage && group.rows.length === 0 ? (
-                    <div className="px-4 py-3 text-gray-500" style={{ fontSize: '0.78rem', lineHeight: 1.1 }}>
+                    <div className="px-4 py-3 text-gray-500" style={{ fontSize: '0.84rem', lineHeight: 1.15 }}>
                       {group.emptyMessage}
                     </div>
                   ) : (
-                    <table className="w-full" style={{ fontSize: '0.76rem' }}>
+                    <table className="w-full" style={{ fontSize: '0.82rem' }}>
                       <thead>
                         {isSunday ? (
                           <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
@@ -943,7 +943,7 @@ export function FieldServiceAssignments({
                                 <td className="px-3 py-1 text-gray-700" style={{ lineHeight: 1.05 }}>
                                   {row.groupName}
                                   {!row.assignment && (
-                                    <span className="ml-1.5 text-gray-400" style={{ fontSize: '0.68rem' }}>
+                                    <span className="ml-1.5 text-gray-400" style={{ fontSize: '0.74rem' }}>
                                       • não gerada
                                     </span>
                                   )}
@@ -956,7 +956,7 @@ export function FieldServiceAssignments({
                                 <td className="px-3 py-1 text-gray-700" style={{ lineHeight: 1.05 }}>
                                   {row.dayLabel}
                                   {!row.assignment && (
-                                    <span className="ml-1.5 text-gray-400" style={{ fontSize: '0.68rem' }}>
+                                    <span className="ml-1.5 text-gray-400" style={{ fontSize: '0.74rem' }}>
                                       • não gerada
                                     </span>
                                   )}
@@ -977,10 +977,10 @@ export function FieldServiceAssignments({
           </div>
 
           <div className="mt-3 rounded-xl px-4 py-3 text-center" style={{ backgroundColor: '#047857' }}>
-            <p className="text-white/90 italic" style={{ fontSize: '0.76rem', lineHeight: 1.15 }}>
+            <p className="text-white/90 italic" style={{ fontSize: '0.84rem', lineHeight: 1.2 }}>
               "Portanto, vão e façam discípulos de pessoas de todas as nações... ensinando-as a obedecer a todas as coisas que lhes ordenei."
             </p>
-            <p className="mt-0.5 text-white/70" style={{ fontSize: '0.7rem', lineHeight: 1.05 }}>— Mateus 28:19,20</p>
+            <p className="mt-0.5 text-white/70" style={{ fontSize: '0.76rem', lineHeight: 1.05 }}>— Mateus 28:19,20</p>
           </div>
         </div>
       </div>

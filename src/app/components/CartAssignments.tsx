@@ -528,16 +528,17 @@ export function CartAssignments({
         />
       )}
 
-      <div className="pointer-events-none absolute -left-[10000px] top-0 w-[1200px]" aria-hidden="true">
+      <div className="pointer-events-none absolute -left-[10000px] top-0 w-[1000px]" aria-hidden="true">
         <div
           ref={exportRef}
+          data-export-pdf-page="a4-landscape"
           data-export-pdf-mode="single-page"
-          className="w-[1200px] bg-white px-3 py-3 text-[#141414]"
+          className="w-[1000px] bg-white px-4 py-4 text-[#141414]"
           style={{ fontFamily: 'Calibri, Arial, sans-serif' }}
         >
           <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-            <div className="px-3 py-2.5" style={{ backgroundColor: '#d97706' }}>
-              <h4 className="text-center tracking-wide text-white" style={{ fontSize: '0.9rem', lineHeight: 1.1 }}>
+            <div className="px-4 py-3" style={{ backgroundColor: '#d97706' }}>
+              <h4 className="text-center tracking-wide text-white" style={{ fontSize: '1rem', lineHeight: 1.15 }}>
                 Arranjo de Trabalho com Carrinho — {MONTHS[currentMonth]} {currentYear}
               </h4>
             </div>
@@ -546,15 +547,15 @@ export function CartAssignments({
               grouped.map((group, gIdx) => {
                 const colors = WEEK_COLORS[gIdx % WEEK_COLORS.length];
                 return (
-                  <table key={`export-week-${group.week}`} className="w-full table-fixed" style={{ fontSize: '0.74rem', lineHeight: 1.05 }}>
+                  <table key={`export-week-${group.week}`} className="w-full table-fixed" style={{ fontSize: '0.82rem', lineHeight: 1.15 }}>
                     <thead>
                       <tr className={`${colors.header} text-white`}>
-                        <th className="px-2 py-1.5 text-center whitespace-nowrap" style={{ width: '6%' }}>Dia</th>
-                        <th className="px-2 py-1.5 text-center whitespace-nowrap" style={{ width: '10%' }}>Dia da Semana</th>
-                        <th className="px-2 py-1.5 text-center whitespace-nowrap" style={{ width: '13%' }}>Hora</th>
-                        <th className="px-2 py-1.5 text-center whitespace-nowrap" style={{ width: '31%' }}>Local</th>
-                        <th className="px-2 py-1.5 text-center whitespace-nowrap" style={{ width: '20%' }}>Publicador 1</th>
-                        <th className="px-2 py-1.5 text-center whitespace-nowrap" style={{ width: '20%' }}>Publicador 2</th>
+                        <th className="px-2.5 py-2 text-center" style={{ width: '6%' }}>Dia</th>
+                        <th className="px-2.5 py-2 text-center" style={{ width: '12%' }}>Dia da Semana</th>
+                        <th className="px-2.5 py-2 text-center" style={{ width: '12%' }}>Hora</th>
+                        <th className="px-2.5 py-2 text-center" style={{ width: '28%' }}>Local</th>
+                        <th className="px-2.5 py-2 text-center" style={{ width: '21%' }}>Publicador 1</th>
+                        <th className="px-2.5 py-2 text-center" style={{ width: '21%' }}>Publicador 2</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -563,16 +564,16 @@ export function CartAssignments({
                           key={`export-item-${item.id}`}
                           className={`${index % 2 === 0 ? colors.row : 'bg-white'} border-b border-gray-200`}
                         >
-                          <td className="px-2 py-1.5 text-center text-gray-800 whitespace-nowrap">{item.day}</td>
-                          <td className="px-2 py-1.5 text-center whitespace-nowrap">
-                            <span className={`inline-block rounded-full px-1.5 py-0.5 ${WEEKDAY_COLORS[item.weekday] || 'bg-gray-100 text-gray-600'}`} style={{ fontSize: '0.64rem', lineHeight: 1 }}>
+                          <td className="px-2.5 py-2 text-center text-gray-800 whitespace-nowrap">{item.day}</td>
+                          <td className="px-2.5 py-2 text-center whitespace-nowrap">
+                            <span className={`inline-block rounded-full px-1.5 py-0.5 ${WEEKDAY_COLORS[item.weekday] || 'bg-gray-100 text-gray-600'}`} style={{ fontSize: '0.72rem', lineHeight: 1.05 }}>
                               {item.weekday.toUpperCase()}
                             </span>
                           </td>
-                          <td className="px-2 py-1.5 text-center text-gray-600 whitespace-nowrap">{item.time}</td>
-                          <td className="px-2 py-1.5 text-center text-gray-600 whitespace-nowrap">{item.location}</td>
-                          <td className="px-2 py-1.5 text-center text-gray-800 whitespace-nowrap">{item.publisher1}</td>
-                          <td className="px-2 py-1.5 text-center text-gray-800 whitespace-nowrap">{item.publisher2}</td>
+                          <td className="px-2.5 py-2 text-center text-gray-600 whitespace-nowrap">{item.time}</td>
+                          <td className="px-2.5 py-2 text-center text-gray-600">{item.location}</td>
+                          <td className="px-2.5 py-2 text-center text-gray-800">{item.publisher1}</td>
+                          <td className="px-2.5 py-2 text-center text-gray-800">{item.publisher2}</td>
                         </tr>
                       ))}
                     </tbody>

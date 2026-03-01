@@ -217,7 +217,7 @@ function WeekendExportDocument({ meetings }: { meetings: WeekendMeeting[] }) {
 
   return (
     <div
-      className="mx-auto flex min-h-[1697px] w-full max-w-[860px] flex-col bg-white px-5 py-4 text-[#141414]"
+      className="mx-auto flex min-h-[1218px] w-full max-w-[860px] flex-col bg-white px-5 py-4 text-[#141414]"
       style={{ fontFamily: 'Calibri, Arial, sans-serif' }}
     >
       <div className="overflow-hidden rounded-xl border border-[#0f2f53] bg-white">
@@ -517,12 +517,12 @@ export function MeetingsPage() {
         </div>
       </div>
 
-      <div className="pointer-events-none absolute -left-[10000px] top-0 w-[1200px]" aria-hidden="true">
+      <div className="pointer-events-none absolute -left-[10000px] top-0 w-[860px]" aria-hidden="true">
         <div
           ref={weekendExportRef}
           data-export-pdf-mode="single-page"
           data-export-pdf-page="a4-portrait"
-          className="w-[1200px] min-h-[1697px] bg-white"
+          className="w-[860px] min-h-[1218px] bg-white"
         >
           <WeekendExportDocument meetings={weekendMeetings} />
         </div>

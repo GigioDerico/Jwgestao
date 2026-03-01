@@ -40,6 +40,36 @@ function mmToPx(mm: number) {
   return (mm * 96) / 25.4;
 }
 
+type FixedPdfPage = 'a4-portrait' | 'a4-landscape';
+
+function getFixedPdfPage(value: string | undefined): FixedPdfPage | null {
+  if (value === 'a4-portrait' || value === 'a4-landscape') {
+    return value;
+  }
+
+  return null;
+}
+
+function getFixedPdfPageSize(page: FixedPdfPage) {
+  if (page === 'a4-landscape') {
+    return {
+      pageWidth: 842,
+      pageHeight: 595,
+      pageWidthPx: mmToPx(297),
+      pageHeightPx: mmToPx(210),
+      printSize: 'A4 landscape',
+    };
+  }
+
+  return {
+    pageWidth: 595,
+    pageHeight: 842,
+    pageWidthPx: mmToPx(210),
+    pageHeightPx: mmToPx(297),
+    printSize: 'A4 portrait',
+  };
+}
+
 function cloneElementForExport(element: HTMLElement) {
   const rect = element.getBoundingClientRect();
   const width = Math.max(1, Math.ceil(rect.width));
@@ -477,10 +507,10 @@ function buildPrintDocumentMarkup(element: HTMLElement, filename: string) {
   const clonedNode = cloneNodeWithInlineStyles(element) as HTMLElement;
   const documentTitle = filename.replace(/\.pdf$/i, '');
   const forceSinglePage = element.dataset.exportPdfMode === 'single-page';
+  const fixedPdfPage = getFixedPdfPage(element.dataset.exportPdfPage) || 'a4-portrait';
+  const { pageWidthPx, pageHeightPx, printSize } = getFixedPdfPageSize(fixedPdfPage);
   const pageMarginMm = forceSinglePage ? 4 : 12;
   const bodyPaddingPx = forceSinglePage ? 0 : 16;
-  const pageWidthPx = mmToPx(210);
-  const pageHeightPx = mmToPx(297);
   const printableWidthPx = pageWidthPx - mmToPx(pageMarginMm * 2) - bodyPaddingPx * 2;
   const printableHeightPx = pageHeightPx - mmToPx(pageMarginMm * 2) - bodyPaddingPx * 2;
   const scale = forceSinglePage
@@ -512,7 +542,7 @@ function buildPrintDocumentMarkup(element: HTMLElement, filename: string) {
       }
 
       @page {
-        size: A4 portrait;
+        size: ${printSize};
         margin: ${pageMarginMm}mm;
       }
 
@@ -625,21 +655,22 @@ function createPdfFromJpegBytes(options: {
   jpegBytes: Uint8Array;
   imageWidth: number;
   imageHeight: number;
-  forceA4Portrait?: boolean;
+  fixedPage?: FixedPdfPage | null;
 }) {
-  const { jpegBytes, imageWidth, imageHeight, forceA4Portrait = false } = options;
+  const { jpegBytes, imageWidth, imageHeight, fixedPage = null } = options;
   const encoder = new TextEncoder();
-  const pageWidth = 595;
-  const pageHeight = forceA4Portrait
-    ? 842
+  const fixedPageSize = fixedPage ? getFixedPdfPageSize(fixedPage) : null;
+  const pageWidth = fixedPageSize?.pageWidth || 595;
+  const pageHeight = fixedPageSize
+    ? fixedPageSize.pageHeight
     : Math.max(1, Math.round((pageWidth * imageHeight) / imageWidth));
-  const imageScale = forceA4Portrait
+  const imageScale = fixedPageSize
     ? Math.min(pageWidth / Math.max(1, imageWidth), pageHeight / Math.max(1, imageHeight))
     : pageWidth / Math.max(1, imageWidth);
   const drawWidth = Math.max(1, Math.round(imageWidth * imageScale));
   const drawHeight = Math.max(1, Math.round(imageHeight * imageScale));
   const offsetX = Math.max(0, Math.round((pageWidth - drawWidth) / 2));
-  const offsetY = forceA4Portrait
+  const offsetY = fixedPageSize
     ? Math.max(0, Math.round((pageHeight - drawHeight) / 2))
     : 0;
   const contentStream = `q\n${drawWidth} 0 0 ${drawHeight} ${offsetX} ${offsetY} cm\n/Im0 Do\nQ`;
@@ -722,12 +753,12 @@ export async function downloadElementAsPdf(element: HTMLElement, filename: strin
   try {
     const { canvas, width, height } = await renderElementToCanvas(element);
     const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.95);
-    const forceA4Portrait = element.dataset.exportPdfPage === 'a4-portrait';
+    const fixedPage = getFixedPdfPage(element.dataset.exportPdfPage);
     const pdfBlob = createPdfFromJpegBytes({
       jpegBytes: dataUrlToBytes(jpegDataUrl),
       imageWidth: canvas.width,
       imageHeight: canvas.height,
-      forceA4Portrait,
+      fixedPage,
     });
 
     if (!pdfBlob || width <= 0 || height <= 0) {

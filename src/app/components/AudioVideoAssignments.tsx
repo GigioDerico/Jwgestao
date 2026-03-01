@@ -844,29 +844,30 @@ export function AudioVideoAssignments({
         />
       )}
 
-      <div className="pointer-events-none absolute -left-[10000px] top-0 w-[1200px]" aria-hidden="true">
+      <div className="pointer-events-none absolute -left-[10000px] top-0 w-[760px]" aria-hidden="true">
         <div
           ref={exportRef}
+          data-export-pdf-page="a4-portrait"
           data-export-pdf-mode="single-page"
-          className="w-[1200px] bg-white px-3 py-3 text-[#141414]"
+          className="w-[760px] bg-white px-3 py-4 text-[#141414]"
           style={{ fontFamily: 'Calibri, Arial, sans-serif' }}
         >
           <div className="overflow-hidden rounded-xl border border-gray-200">
-            <div className="bg-[#4a9bc7] px-3 py-2.5">
-              <h4 className="text-center tracking-wide text-white" style={{ fontSize: '14px', lineHeight: 1.1 }}>
+            <div className="bg-[#4a9bc7] px-4 py-3">
+              <h4 className="text-center tracking-wide text-white" style={{ fontSize: '14px', lineHeight: 1.15 }}>
                 Áudio e Vídeo / Indicadores — {MONTHS[currentMonth]} {currentYear}
               </h4>
             </div>
-            <table className="w-full table-fixed" style={{ fontSize: '14px', lineHeight: 1.05 }}>
+            <table className="w-full table-fixed" style={{ fontSize: '13px', lineHeight: 1.15 }}>
               <thead>
                 <tr className="bg-[#5badd4] text-white">
-                  <th className="px-2 py-1.5 text-center whitespace-nowrap" style={{ width: '8%' }}>Data</th>
-                  <th className="px-2 py-1.5 text-center whitespace-nowrap" style={{ width: '15%' }}>Som</th>
-                  <th className="px-2 py-1.5 text-center whitespace-nowrap" style={{ width: '15%' }}>Imagem</th>
-                  <th className="px-2 py-1.5 text-center whitespace-nowrap" style={{ width: '15%' }}>Palco</th>
-                  <th className="px-2 py-1.5 text-center whitespace-nowrap" style={{ width: '15%' }}>Mic. Volante 1</th>
-                  <th className="px-2 py-1.5 text-center whitespace-nowrap" style={{ width: '15%' }}>Mic. Volante 2</th>
-                  <th className="px-2 py-1.5 text-center whitespace-nowrap" style={{ width: '17%' }}>Entradas / Auditório</th>
+                  <th className="px-1.5 py-2 text-center" style={{ width: '10%' }}>Data</th>
+                  <th className="px-1.5 py-2 text-center" style={{ width: '12%' }}>Som</th>
+                  <th className="px-1.5 py-2 text-center" style={{ width: '12%' }}>Imagem</th>
+                  <th className="px-1.5 py-2 text-center" style={{ width: '12%' }}>Palco</th>
+                  <th className="px-1.5 py-2 text-center" style={{ width: '16%' }}>Mic. Volante 1</th>
+                  <th className="px-1.5 py-2 text-center" style={{ width: '16%' }}>Mic. Volante 2</th>
+                  <th className="px-1.5 py-2 text-center" style={{ width: '22%' }}>Entradas / Auditório</th>
                 </tr>
               </thead>
               <tbody>
@@ -876,18 +877,18 @@ export function AudioVideoAssignments({
                       key={`export-${row.date}`}
                       className={`${index % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'} border-b border-gray-200`}
                     >
-                      <td className="px-2 py-1.5 text-center text-gray-700 whitespace-nowrap">
+                      <td className="px-1.5 py-2 text-center text-gray-700">
                         <div className="font-medium">{formatDate(row.date)}</div>
-                        <div className="text-gray-400" style={{ fontSize: '14px', lineHeight: 1 }}>
+                        <div className="text-gray-400" style={{ fontSize: '11px', lineHeight: 1.05 }}>
                           {row.weekday.toUpperCase()}
                         </div>
                       </td>
-                      <td className="px-2 py-1.5 text-center text-gray-700">{row.assignment ? getRoleValue(row.assignment, 'sound') : 'A definir'}</td>
-                      <td className="px-2 py-1.5 text-center text-gray-700">{row.assignment ? getRoleValue(row.assignment, 'image') : 'A definir'}</td>
-                      <td className="px-2 py-1.5 text-center text-gray-700">{row.assignment ? getRoleValue(row.assignment, 'stage') : 'A definir'}</td>
-                      <td className="px-2 py-1.5 text-center text-gray-700">{row.assignment ? getRoleValue(row.assignment, 'rovingMic1') : 'A definir'}</td>
-                      <td className="px-2 py-1.5 text-center text-gray-700">{row.assignment ? getRoleValue(row.assignment, 'rovingMic2') : 'A definir'}</td>
-                      <td className="px-2 py-1.5 text-center text-gray-700">
+                      <td className="px-1.5 py-2 text-center text-gray-700 break-words">{row.assignment ? getRoleValue(row.assignment, 'sound') : 'A definir'}</td>
+                      <td className="px-1.5 py-2 text-center text-gray-700 break-words">{row.assignment ? getRoleValue(row.assignment, 'image') : 'A definir'}</td>
+                      <td className="px-1.5 py-2 text-center text-gray-700 break-words">{row.assignment ? getRoleValue(row.assignment, 'stage') : 'A definir'}</td>
+                      <td className="px-1.5 py-2 text-center text-gray-700 break-words">{row.assignment ? getRoleValue(row.assignment, 'rovingMic1') : 'A definir'}</td>
+                      <td className="px-1.5 py-2 text-center text-gray-700 break-words">{row.assignment ? getRoleValue(row.assignment, 'rovingMic2') : 'A definir'}</td>
+                      <td className="px-1.5 py-2 text-center text-gray-700 break-words">
                         {row.assignment && row.assignment.attendants.length > 0
                           ? row.assignment.attendants.join(' / ')
                           : 'A definir'}
