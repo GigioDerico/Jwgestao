@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ministryApi, type LocalTerritoryLog, type TerritoryType } from '../../lib/ministry-api';
+import { getCurrentLocationAsAddress } from '../../lib/geolocation';
 import { toast } from 'sonner';
 import { Plus, Trash2, Edit2, MapPin } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -30,25 +31,7 @@ const TERRITORY_TYPES: { value: TerritoryType; label: string }[] = [
   { value: 'publico', label: 'Público' },
 ];
 
-async function getCurrentLocation(): Promise<{ lat: number; lng: number } | null> {
-  try {
-    const { Geolocation } = await import('@capacitor/geolocation');
-    const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true });
-    const lat = pos.coords.latitude;
-    const lng = pos.coords.longitude;
-    return { lat, lng };
-  } catch {
-    if (navigator.geolocation) {
-      return new Promise((resolve) => {
-        navigator.geolocation.getCurrentPosition(
-          (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
-          () => resolve(null)
-        );
-      });
-    }
-    return null;
-  }
-}
+import { getCurrentLocation } from '../../lib/geolocation';
 
 export function TerritoryPage() {
   const { user } = useAuth();
@@ -109,13 +92,32 @@ export function TerritoryPage() {
     try {
       const pos = await getCurrentLocation();
       if (pos) {
+        const addr = await getCurrentLocationAsAddress();
         setForm((f) => ({
           ...f,
           lat: pos.lat,
           lng: pos.lng,
           approximate_address: `Lat: ${pos.lat.toFixed(5)}, Lng: ${pos.lng.toFixed(5)}`,
+          street_area: addr || f.street_area,
         }));
         toast.success('Localização capturada');
+      } else {
+        toast.error('Não foi possível obter a localização');
+      }
+    } catch {
+      toast.error('Erro ao obter localização');
+    } finally {
+      setGettingLocation(false);
+    }
+  };
+
+  const handleUseLocationForStreet = async () => {
+    setGettingLocation(true);
+    try {
+      const addr = await getCurrentLocationAsAddress();
+      if (addr) {
+        setForm((f) => ({ ...f, street_area: addr }));
+        toast.success('Endereço capturado');
       } else {
         toast.error('Não foi possível obter a localização');
       }
@@ -249,12 +251,25 @@ export function TerritoryPage() {
             </div>
             <div>
               <Label>Rua / Bairro</Label>
-              <Input
-                value={form.street_area}
-                onChange={(e) => setForm((f) => ({ ...f, street_area: e.target.value }))}
-                placeholder="Ex: Rua das Flores, Centro"
-                className="mt-1"
-              />
+              <div className="flex gap-2 mt-1">
+                <Input
+                  value={form.street_area}
+                  onChange={(e) => setForm((f) => ({ ...f, street_area: e.target.value }))}
+                  placeholder="Ex: Rua das Flores, Centro"
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={handleUseLocationForStreet}
+                  disabled={gettingLocation}
+                  title="Usar localização atual"
+                  className="shrink-0 border-border"
+                >
+                  <MapPin size={18} />
+                </Button>
+              </div>
             </div>
             <div>
               <Button
