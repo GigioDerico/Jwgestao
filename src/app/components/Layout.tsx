@@ -198,23 +198,32 @@ export function Layout() {
           } flex flex-col`}
       >
         <div className="p-5 border-b border-white/10">
-          <div className="flex items-center justify-between">
+          <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
             <div className={`min-w-0 ${sidebarCollapsed ? 'hidden lg:block lg:text-center lg:w-full' : ''}`}>
               {sidebarCollapsed ? (
-                <div
-                  className="hidden lg:flex h-10 w-10 items-center justify-center rounded-2xl bg-white/8 text-white mx-auto"
+                <button
+                  type="button"
+                  onClick={toggleSidebarCollapsed}
+                  className="hidden lg:flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-white/8 text-white mx-auto transition-colors hover:bg-white/12"
                   title="Expandir menu lateral"
                 >
-                  <span className="font-bold" style={{ fontSize: '0.9rem' }}>SR</span>
-                </div>
+                  <img src="/app-icon.svg" alt="CVN" className="h-8 w-8" />
+                </button>
               ) : (
-                <>
-                  <h2 className="text-white tracking-wide" style={{ fontSize: '1.1rem' }}>Salão do Reino</h2>
-                  <p className="text-white/50 mt-0.5" style={{ fontSize: '0.75rem' }}>Congregação Vicente Nunes</p>
-                </>
+                <div className="flex items-center gap-3">
+                  <img
+                    src="/app-icon.svg"
+                    alt="Congregação Vicente Nunes"
+                    className="h-12 w-12 shrink-0 rounded-2xl bg-white/8 p-1"
+                  />
+                  <div className="min-w-0">
+                    <h2 className="truncate text-white tracking-wide" style={{ fontSize: '1rem' }}>Congregação</h2>
+                    <p className="truncate text-white/50 mt-0.5" style={{ fontSize: '0.75rem' }}>Vicente Nunes</p>
+                  </div>
+                </div>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className={`flex items-center gap-2 ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
               <button
                 onClick={toggleSidebarCollapsed}
                 className="hidden lg:inline-flex h-9 w-9 items-center justify-center rounded-xl text-white/70 transition-colors hover:bg-white/8 hover:text-white"
@@ -368,7 +377,14 @@ export function Layout() {
           >
             <Menu size={22} />
           </button>
-          <div className="flex-1" />
+          <div className="flex min-w-0 flex-1 items-center gap-2 lg:hidden">
+            <img src="/app-icon.svg" alt="Congregação Vicente Nunes" className="h-9 w-9 shrink-0 rounded-xl" />
+            <div className="min-w-0">
+              <p className="truncate text-foreground font-medium" style={{ fontSize: '0.82rem' }}>Congregação Vicente Nunes</p>
+              <p className="truncate text-muted-foreground" style={{ fontSize: '0.7rem' }}>Gestão da congregação</p>
+            </div>
+          </div>
+          <div className="hidden lg:block flex-1" />
           {/* Top-bar user pill — also clickable */}
           <button
             onClick={() => setProfileOpen(true)}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { getStatusLabel } from '../helpers';
 import {
   X,
   User,
@@ -520,14 +521,7 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
             </div>
             <div className="flex flex-wrap gap-2">
               <span className="px-3 py-1.5 rounded-full font-medium bg-gray-100 text-gray-700" style={{ fontSize: '0.8rem' }}>
-                {user.spiritual_status === 'publicador_batizado' ? 'Publicador Batizado' :
-                  user.spiritual_status === 'publicador' ? 'Publicador Não Batizado' :
-                    user.spiritual_status === 'pioneiro_auxiliar' ? 'Pioneiro Auxiliar' :
-                      user.spiritual_status === 'pioneiro_regular' ? 'Pioneiro Regular' :
-                        user.spiritual_status === 'estudante' ? 'Estudante' :
-                          user.spiritual_status === 'anciao' ? 'Ancão' :
-                            user.spiritual_status === 'servo_ministerial' ? 'Servo Ministerial' :
-                              'Não informado'}
+                {user.spiritual_status ? getStatusLabel(user.spiritual_status) : 'Não informado'}
               </span>
             </div>
           </div>

@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Congregação Vicente Nunes</title>
+  <desc id="desc">Ícone em formato de escudo azul com as letras CVN.</desc>
+  <defs>
+    <linearGradient id="shield" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#4f86f7" />
+      <stop offset="52%" stop-color="#295bc8" />
+      <stop offset="100%" stop-color="#163b97" />
+    </linearGradient>
+    <linearGradient id="shine" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.34" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#102d73" flood-opacity="0.28" />
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <path
+      d="M256 40 96 84v182c0 116 85 173 160 206 75-33 160-90 160-206V84L256 40Z"
+      fill="url(#shield)"
+      stroke="#e8f1ff"
+      stroke-width="14"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M256 69 119 105v158c0 96 67 145 137 177 70-32 137-81 137-177V105L256 69Z"
+      fill="none"
+      stroke="#cfe0ff"
+      stroke-width="6"
+      stroke-linejoin="round"
+      opacity="0.9"
+    />
+    <path
+      d="M153 141c66-30 147-42 240-26v116c-29 15-78 30-128 27-63-4-106-27-138-53Z"
+      fill="url(#shine)"
+      opacity="0.55"
+    />
+  </g>
+  <text
+    x="256"
+    y="285"
+    text-anchor="middle"
+    font-size="116"
+    font-weight="800"
+    font-family="Arial, Helvetica, sans-serif"
+    fill="#ffffff"
+    letter-spacing="-6"
+  >
+    CVN
+  </text>
+</svg>

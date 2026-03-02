@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 900" role="img" aria-labelledby="title desc">
+  <title id="title">Congregação Vicente Nunes</title>
+  <desc id="desc">Logo da congregação em escudo azul com o texto Congregação Vicente Nunes.</desc>
+  <defs>
+    <linearGradient id="shield" x1="8%" x2="88%" y1="2%" y2="100%">
+      <stop offset="0%" stop-color="#5f94ff" />
+      <stop offset="45%" stop-color="#2d63d5" />
+      <stop offset="100%" stop-color="#193d9e" />
+    </linearGradient>
+    <linearGradient id="highlight" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+    </linearGradient>
+    <filter id="shadow" x="-12%" y="-12%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="20" stdDeviation="18" flood-color="#0d245e" flood-opacity="0.28" />
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <path
+      d="M450 80 190 145v290c0 190 138 285 260 340 122-55 260-150 260-340V145L450 80Z"
+      fill="url(#shield)"
+      stroke="#eef5ff"
+      stroke-width="18"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M450 112 215 171v252c0 157 108 239 235 296 127-57 235-139 235-296V171L450 112Z"
+      fill="none"
+      stroke="#d8e7ff"
+      stroke-width="8"
+      stroke-linejoin="round"
+      opacity="0.9"
+    />
+    <path
+      d="M258 210c106-46 244-66 395-39v171c-39 22-114 45-197 41-98-4-158-35-214-83Z"
+      fill="url(#highlight)"
+      opacity="0.48"
+    />
+  </g>
+  <text
+    x="450"
+    y="335"
+    text-anchor="middle"
+    font-size="82"
+    font-weight="700"
+    font-family="Arial, Helvetica, sans-serif"
+    fill="#ffffff"
+    letter-spacing="-2"
+  >
+    Congregação
+  </text>
+  <text
+    x="450"
+    y="470"
+    text-anchor="middle"
+    font-size="132"
+    font-weight="800"
+    font-family="Arial, Helvetica, sans-serif"
+    fill="#ffffff"
+    letter-spacing="-5"
+  >
+    Vicente
+  </text>
+  <text
+    x="450"
+    y="610"
+    text-anchor="middle"
+    font-size="132"
+    font-weight="800"
+    font-family="Arial, Helvetica, sans-serif"
+    fill="#ffffff"
+    letter-spacing="-5"
+  >
+    Nunes
+  </text>
+  <g fill="#ffffff" opacity="0.95">
+    <circle cx="272" cy="692" r="6" />
+    <circle cx="296" cy="692" r="6" />
+    <circle cx="320" cy="692" r="6" />
+    <circle cx="344" cy="692" r="6" />
+    <circle cx="368" cy="692" r="6" />
+    <circle cx="392" cy="692" r="6" />
+    <circle cx="416" cy="692" r="6" />
+    <circle cx="440" cy="692" r="6" />
+    <circle cx="464" cy="692" r="6" />
+    <circle cx="488" cy="692" r="6" />
+    <circle cx="512" cy="692" r="6" />
+    <circle cx="536" cy="692" r="6" />
+    <circle cx="560" cy="692" r="6" />
+    <circle cx="584" cy="692" r="6" />
+    <circle cx="608" cy="692" r="6" />
+  </g>
+</svg>

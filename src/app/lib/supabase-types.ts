@@ -796,6 +796,8 @@ export type Database = {
         | "pioneiro_auxiliar"
         | "pioneiro_regular"
         | "estudante"
+        | "desassociado"
+        | "inativo"
       system_role_enum:
         | "coordenador"
         | "secretario"
@@ -936,6 +938,8 @@ export const Constants = {
         "pioneiro_auxiliar",
         "pioneiro_regular",
         "estudante",
+        "desassociado",
+        "inativo",
       ],
       system_role_enum: [
         "coordenador",

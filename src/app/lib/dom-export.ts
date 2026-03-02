@@ -100,12 +100,15 @@ function buildSvgBlobForExport(element: HTMLElement) {
   };
 }
 
-function buildSvgFallbackFilename(filename: string) {
-  if (/\.[a-z0-9]+$/i.test(filename)) {
-    return filename.replace(/\.[a-z0-9]+$/i, '.svg');
-  }
+function loadImageElement(src: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
 
-  return `${filename}.svg`;
+    image.decoding = 'async';
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Nao foi possivel preparar a exportacao da imagem.'));
+    image.src = src;
+  });
 }
 
 function parsePixelValue(value: string) {
@@ -470,6 +473,55 @@ async function renderElementToCanvas(element: HTMLElement, scale = 2) {
   return { canvas, width, height };
 }
 
+async function renderElementToCanvasFromSvg(element: HTMLElement, scale = 2) {
+  if ('fonts' in document) {
+    await (document as Document & { fonts: FontFaceSet }).fonts.ready;
+  }
+
+  const { svgBlob, width, height } = buildSvgBlobForExport(element);
+  const objectUrl = URL.createObjectURL(svgBlob);
+
+  try {
+    const image = await loadImageElement(objectUrl);
+
+    if ('decode' in image) {
+      try {
+        await image.decode();
+      } catch {
+        // Browsers may reject decode() even after onload; onload is enough here.
+      }
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      throw new Error('Nao foi possivel preparar a exportacao da imagem.');
+    }
+
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.scale(scale, scale);
+    context.drawImage(image, 0, 0, width, height);
+
+    return { canvas, width, height };
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+function canvasToJpegBlob(canvas: HTMLCanvasElement, quality = 0.92) {
+  return new Promise<Blob | null>((resolve, reject) => {
+    try {
+      canvas.toBlob(resolve, 'image/jpeg', quality);
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
 function downloadBlob(blob: Blob, filename: string) {
   const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
@@ -506,11 +558,13 @@ function buildPrintDocumentMarkup(element: HTMLElement, filename: string) {
   const rect = element.getBoundingClientRect();
   const clonedNode = cloneNodeWithInlineStyles(element) as HTMLElement;
   const documentTitle = filename.replace(/\.pdf$/i, '');
-  const forceSinglePage = element.dataset.exportPdfMode === 'single-page';
+  const exportPdfMode = element.dataset.exportPdfMode;
+  const forceSinglePage = exportPdfMode === 'single-page';
+  const pagedMode = exportPdfMode === 'paged';
   const fixedPdfPage = getFixedPdfPage(element.dataset.exportPdfPage) || 'a4-portrait';
   const { pageWidthPx, pageHeightPx, printSize } = getFixedPdfPageSize(fixedPdfPage);
-  const pageMarginMm = forceSinglePage ? 4 : 12;
-  const bodyPaddingPx = forceSinglePage ? 0 : 16;
+  const pageMarginMm = forceSinglePage ? 4 : (pagedMode ? 0 : 12);
+  const bodyPaddingPx = forceSinglePage ? 0 : (pagedMode ? 0 : 16);
   const printableWidthPx = pageWidthPx - mmToPx(pageMarginMm * 2) - bodyPaddingPx * 2;
   const printableHeightPx = pageHeightPx - mmToPx(pageMarginMm * 2) - bodyPaddingPx * 2;
   const scale = forceSinglePage
@@ -519,11 +573,17 @@ function buildPrintDocumentMarkup(element: HTMLElement, filename: string) {
         printableWidthPx / Math.max(1, rect.width),
         printableHeightPx / Math.max(1, rect.height)
       )
-    : 1;
+    : Math.min(1, printableWidthPx / Math.max(1, rect.width));
   const scaledHeight = Math.max(1, Math.ceil(rect.height * scale));
 
-  clonedNode.style.width = `${Math.max(1, Math.ceil(rect.width))}px`;
+  clonedNode.style.width = `${Math.max(1, Math.ceil(pagedMode ? printableWidthPx : rect.width))}px`;
   clonedNode.style.maxWidth = '100%';
+
+  const printContentMarkup = pagedMode
+    ? clonedNode.outerHTML
+    : `<div class="print-scale-shell">
+        <div class="print-scale-content">${clonedNode.outerHTML}</div>
+      </div>`;
 
   return `<!doctype html>
 <html lang="pt-BR">
@@ -563,23 +623,34 @@ function buildPrintDocumentMarkup(element: HTMLElement, filename: string) {
         page-break-inside: avoid;
       }
 
+      .print-pdf-page {
+        width: 100%;
+        break-inside: avoid-page;
+        page-break-inside: avoid;
+      }
+
+      .print-pdf-page + .print-pdf-page {
+        break-before: page;
+        page-break-before: always;
+      }
+
       .print-scale-shell {
         height: ${scaledHeight}px;
         overflow: hidden;
+        ${pagedMode ? 'height: auto; overflow: visible;' : ''}
       }
 
       .print-scale-content {
         width: ${Math.max(1, Math.ceil(rect.width))}px;
         transform-origin: top left;
         transform: scale(${scale});
+        ${pagedMode ? 'width: 100%; transform: none;' : ''}
       }
     </style>
   </head>
   <body>
     <div class="print-frame">
-      <div class="print-scale-shell">
-        <div class="print-scale-content">${clonedNode.outerHTML}</div>
-      </div>
+      ${printContentMarkup}
     </div>
   </body>
 </html>`;
@@ -728,24 +799,38 @@ function createPdfFromJpegBytes(options: {
 }
 
 export async function downloadElementAsImage(element: HTMLElement, filename: string) {
-  const { canvas } = await renderElementToCanvas(element);
-  const blob = await new Promise<Blob | null>((resolve, reject) => {
-    try {
-      canvas.toBlob(resolve, 'image/jpeg', 0.92);
-    } catch (error) {
-      reject(error);
-    }
-  });
+  const prefersSvgRender = element.dataset.exportPdfMode === 'paged';
+  const primaryCanvas = prefersSvgRender
+    ? await renderElementToCanvasFromSvg(element).catch(() => renderElementToCanvas(element))
+    : await renderElementToCanvas(element);
 
-  if (!blob) {
+  try {
+    const blob = await canvasToJpegBlob(primaryCanvas.canvas, 0.92);
+
+    if (!blob) {
+      throw new Error('Nao foi possivel gerar a imagem.');
+    }
+
+    downloadBlob(blob, filename);
+    return;
+  } catch (primaryError) {
+    if (!prefersSvgRender) {
+      throw primaryError;
+    }
+  }
+
+  const fallbackCanvas = await renderElementToCanvas(element);
+  const fallbackBlob = await canvasToJpegBlob(fallbackCanvas.canvas, 0.92);
+
+  if (!fallbackBlob) {
     throw new Error('Nao foi possivel gerar a imagem.');
   }
 
-  downloadBlob(blob, filename);
+  downloadBlob(fallbackBlob, filename);
 }
 
 export async function downloadElementAsPdf(element: HTMLElement, filename: string) {
-  if (shouldUsePrintFallbackForPdf()) {
+  if (shouldUsePrintFallbackForPdf() || element.dataset.exportPdfMode === 'paged') {
     await printElementAsPdf(element, filename);
     return;
   }

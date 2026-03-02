@@ -29,6 +29,8 @@ import { usePermissions } from '../hooks/usePermissions';
 
 type ViewMode = 'list' | 'service_group' | 'family';
 
+const RESTRICTED_MEMBER_STATUSES = ['desassociado', 'inativo'] as const;
+
 export function MembersList() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -327,19 +329,26 @@ export function MembersList() {
     const matchesSearch =
       m.full_name.toLowerCase().includes(search.toLowerCase()) ||
       (m.email || '').toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || m.spiritual_status === statusFilter;
+    const isRestrictedStatus = RESTRICTED_MEMBER_STATUSES.includes(m.spiritual_status as (typeof RESTRICTED_MEMBER_STATUSES)[number]);
+    const matchesStatus =
+      statusFilter === 'all'
+        ? !isRestrictedStatus
+        : statusFilter === 'restricted'
+          ? isRestrictedStatus
+          : m.spiritual_status === statusFilter;
     const matchesGroup = groupFilter === 'all' || m.groupId === groupFilter;
     const matchesGender = genderFilter === 'all' || m.gender === genderFilter;
     return matchesSearch && matchesStatus && matchesGroup && matchesGender;
   });
 
   const statuses = [
-    'all',
-    'estudante',
-    'publicador',
-    'publicador_batizado',
-    'servo_ministerial',
-    'anciao',
+    { value: 'all', label: 'Padrão' },
+    { value: 'restricted', label: 'Inativos/Desass.' },
+    { value: 'estudante', label: getStatusLabel('estudante') },
+    { value: 'publicador', label: getStatusLabel('publicador') },
+    { value: 'publicador_batizado', label: getStatusLabel('publicador_batizado') },
+    { value: 'servo_ministerial', label: getStatusLabel('servo_ministerial') },
+    { value: 'anciao', label: getStatusLabel('anciao') },
   ];
   const genders = [
     { value: 'all', label: 'Todos' },
@@ -827,15 +836,15 @@ export function MembersList() {
               </span>
               {statuses.map(s => (
                 <button
-                  key={s}
-                  onClick={() => setStatusFilter(s)}
-                  className={`px-3 py-1.5 rounded-full transition-all ${statusFilter === s
+                  key={s.value}
+                  onClick={() => setStatusFilter(s.value)}
+                  className={`px-3 py-1.5 rounded-full transition-all ${statusFilter === s.value
                     ? 'bg-primary text-primary-foreground font-medium shadow-sm'
                     : 'bg-muted/50 text-muted-foreground hover:bg-muted/80'
                     }`}
                   style={{ fontSize: '0.8rem' }}
                 >
-                  {s === 'all' ? 'Todos' : getStatusLabel(s)}
+                  {s.label}
                 </button>
               ))}
             </div>
@@ -1308,6 +1317,8 @@ export function MembersList() {
                   <option value="publicador_batizado">Publicador Batizado</option>
                   <option value="servo_ministerial">Servo Ministerial</option>
                   <option value="anciao">Ancião</option>
+                  <option value="inativo">Inativo</option>
+                  <option value="desassociado">Desassociado</option>
                 </select>
               </div>
 
@@ -1511,6 +1522,8 @@ export function MembersList() {
                   <option value="publicador_batizado">Publicador Batizado</option>
                   <option value="servo_ministerial">Servo Ministerial</option>
                   <option value="anciao">Ancião</option>
+                  <option value="inativo">Inativo</option>
+                  <option value="desassociado">Desassociado</option>
                 </select>
               </div>
               <div>

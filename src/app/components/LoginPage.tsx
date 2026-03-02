@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, Navigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { formatPhoneDisplay } from '../helpers';
-import { BookOpen, Eye, EyeOff, Phone, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Phone, Loader2 } from 'lucide-react';
 
 const REMEMBER_LOGIN_KEY = 'jwgestao-remember-login';
 const REMEMBERED_PHONE_KEY = 'jwgestao-remembered-phone';
@@ -95,11 +95,13 @@ export function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo area */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-[#35bdf8]/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-[#35bdf8]/20 shadow-sm">
-            <BookOpen size={32} className="text-[#35bdf8]" />
-          </div>
-          <h1 className="text-[#082c45]" style={{ fontSize: '1.5rem' }}>Salão do Reino</h1>
-          <p className="text-gray-400 mt-1" style={{ fontSize: '0.9rem' }}>Congregação Vicente Nunes</p>
+          <img
+            src="/app-logo.svg"
+            alt="Congregação Vicente Nunes"
+            className="mx-auto mb-4 h-32 w-32 drop-shadow-sm sm:h-36 sm:w-36"
+          />
+          <h1 className="text-[#082c45]" style={{ fontSize: '1.5rem' }}>Congregação Vicente Nunes</h1>
+          <p className="text-gray-400 mt-1" style={{ fontSize: '0.9rem' }}>Aplicativo da congregação</p>
         </div>
 
         {/* Login form */}

@@ -22,6 +22,8 @@ export function getStatusLabel(status: string): string {
         pioneiro_regular: 'Pioneiro Regular',
         servo_ministerial: 'Servo Ministerial',
         anciao: 'Ancião',
+        desassociado: 'Desassociado',
+        inativo: 'Inativo',
     };
     return labels[status] || status;
 }
@@ -35,6 +37,8 @@ export function getStatusColor(status: string): string {
         pioneiro_regular: 'bg-amber-100 text-amber-800',
         servo_ministerial: 'bg-teal-100 text-teal-800',
         anciao: 'bg-sky-100 text-sky-800',
+        desassociado: 'bg-red-100 text-red-800',
+        inativo: 'bg-stone-200 text-stone-800',
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
 }

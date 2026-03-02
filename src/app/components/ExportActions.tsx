@@ -9,7 +9,7 @@ export function ExportActions({
   imageDisabled = false,
   pdfDisabled = false,
 }: {
-  onExportImage: () => Promise<void> | void;
+  onExportImage?: () => Promise<void> | void;
   onExportPdf: () => Promise<void> | void;
   exporting: 'image' | 'pdf' | null;
   disabled?: boolean;
@@ -21,16 +21,18 @@ export function ExportActions({
 
   return (
     <div className="flex flex-wrap gap-2">
-      <button
-        type="button"
-        onClick={() => onExportImage()}
-        disabled={imageIsDisabled}
-        className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-70"
-        style={{ fontSize: '0.82rem' }}
-      >
-        <Download size={14} />
-        {exporting === 'image' ? 'Gerando JPG...' : 'Baixar JPG'}
-      </button>
+      {onExportImage ? (
+        <button
+          type="button"
+          onClick={() => onExportImage()}
+          disabled={imageIsDisabled}
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-70"
+          style={{ fontSize: '0.82rem' }}
+        >
+          <Download size={14} />
+          {exporting === 'image' ? 'Gerando JPG...' : 'Baixar JPG'}
+        </button>
+      ) : null}
       <button
         type="button"
         onClick={() => onExportPdf()}

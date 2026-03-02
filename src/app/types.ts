@@ -22,7 +22,16 @@ export interface Member {
   address_zip_code: string;
   emergency_contact_name: string;
   emergency_contact_phone: string;
-  spiritual_status: 'publicador' | 'publicador_batizado' | 'pioneiro_auxiliar' | 'pioneiro_regular' | 'estudante' | 'servo_ministerial' | 'anciao';
+  spiritual_status:
+    | 'publicador'
+    | 'publicador_batizado'
+    | 'pioneiro_auxiliar'
+    | 'pioneiro_regular'
+    | 'estudante'
+    | 'servo_ministerial'
+    | 'anciao'
+    | 'desassociado'
+    | 'inativo';
   roles: string[];
   gender: 'M' | 'F';
   groupId?: string;
