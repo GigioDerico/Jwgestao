@@ -12,6 +12,16 @@ import {
 } from './components/AssignmentTypePages';
 import { SettingsPage } from './components/SettingsPage';
 import { SetupPasswordPage } from './components/SetupPassword';
+import { MinistryLayout } from './components/ministry/MinistryLayout';
+import { FieldRecordPage } from './components/ministry/FieldRecordPage';
+import { GoalsPage } from './components/ministry/GoalsPage';
+import { HistoryPage } from './components/ministry/HistoryPage';
+import { ReturnVisitsPage } from './components/ministry/ReturnVisitsPage';
+import { TerritoryPage } from './components/ministry/TerritoryPage';
+import { FieldDayPage } from './components/ministry/FieldDayPage';
+import { LibraryPage } from './components/ministry/LibraryPage';
+import { JournalPage } from './components/ministry/JournalPage';
+import { MinistrySettingsPage } from './components/ministry/MinistrySettingsPage';
 
 export const router = createBrowserRouter([
   {
@@ -38,6 +48,22 @@ export const router = createBrowserRouter([
       { path: 'assignments/audio-video', Component: AudioVideoAssignmentsPage },
       { path: 'assignments/field-service', Component: FieldServiceAssignmentsPage },
       { path: 'assignments/cart', Component: CartAssignmentsPage },
+      {
+        path: 'ministry',
+        Component: MinistryLayout,
+        children: [
+          { index: true, loader: () => redirect('/ministry/field-record') },
+          { path: 'field-record', Component: FieldRecordPage },
+          { path: 'goals', Component: GoalsPage },
+          { path: 'history', Component: HistoryPage },
+          { path: 'return-visits', Component: ReturnVisitsPage },
+          { path: 'territory', Component: TerritoryPage },
+          { path: 'field-day', Component: FieldDayPage },
+          { path: 'library', Component: LibraryPage },
+          { path: 'journal', Component: JournalPage },
+          { path: 'settings', Component: MinistrySettingsPage },
+        ],
+      },
       { path: 'settings', Component: SettingsPage },
     ],
   },

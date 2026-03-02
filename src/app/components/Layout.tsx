@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationsContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { ProfileDrawer } from './ProfileDrawer';
+import { ministryApi } from '../lib/ministry-api';
 import { toast } from 'sonner';
 import {
   LayoutDashboard,
@@ -14,6 +15,7 @@ import {
   Menu,
   X,
   BookOpen,
+  BookMarked,
   ChevronRight,
   ChevronDown,
   Bell,
@@ -45,7 +47,20 @@ export function Layout() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [assignmentsMenuOpen, setAssignmentsMenuOpen] = useState(location.pathname.startsWith('/assignments'));
+  const [ministryMenuOpen, setMinistryMenuOpen] = useState(location.pathname.startsWith('/ministry'));
   const canViewAssignments = can('view_assignments');
+
+  const ministryChildren = [
+    { path: '/ministry/field-record', label: 'Registro de Campo' },
+    { path: '/ministry/goals', label: 'Metas Mensais' },
+    { path: '/ministry/history', label: 'Histórico e Relatórios' },
+    { path: '/ministry/return-visits', label: 'Revisitas' },
+    { path: '/ministry/territory', label: 'Território' },
+    { path: '/ministry/field-day', label: 'Dia de Campo' },
+    { path: '/ministry/library', label: 'Biblioteca' },
+    { path: '/ministry/journal', label: 'Diário Espiritual' },
+    { path: '/ministry/settings', label: 'Configurações' },
+  ];
 
   const canManageAssignments = user?.role === 'coordenador' || user?.role === 'designador';
   const assignmentChildren = canManageAssignments
@@ -75,6 +90,13 @@ export function Layout() {
         children: assignmentChildren,
       }]
       : []),
+    {
+      path: '/ministry',
+      label: 'Ministério',
+      icon: BookMarked,
+      roles: ['coordenador', 'secretario', 'designador', 'publicador'],
+      children: ministryChildren,
+    },
     { path: '/settings', label: 'Configurações', icon: Settings, roles: ['coordenador'] },
   ];
 
@@ -91,6 +113,23 @@ export function Layout() {
       setAssignmentsMenuOpen(true);
     }
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (location.pathname.startsWith('/ministry')) {
+      setMinistryMenuOpen(true);
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const unsubscribe = ministryApi.subscribeToOnline(() => {
+      ministryApi.syncIfOnline(user.id).then(({ synced, errors }) => {
+        if (synced > 0) toast.success(`${synced} registro(s) sincronizado(s)`);
+        if (errors.length > 0) toast.error(`Erros na sincronização: ${errors[0]}`);
+      });
+    });
+    return unsubscribe;
+  }, [user?.id]);
 
   const filteredNav = user
     ? navItems
@@ -111,6 +150,7 @@ export function Layout() {
 
   const toggleSidebarCollapsed = () => {
     setAssignmentsMenuOpen(false);
+    setMinistryMenuOpen(false);
     setSidebarCollapsed(current => {
       const next = !current;
 
@@ -200,12 +240,20 @@ export function Layout() {
             const hasChildren = Boolean(item.children?.length);
 
             if (hasChildren) {
-              const isExpanded = assignmentsMenuOpen || isActive;
+              const isAssignments = item.path === '/assignments';
+              const isMinistry = item.path === '/ministry';
+              const menuOpen = isAssignments ? assignmentsMenuOpen : (isMinistry ? ministryMenuOpen : false);
+              const toggleMenu = isAssignments
+                ? () => setAssignmentsMenuOpen(v => !v)
+                : isMinistry
+                  ? () => setMinistryMenuOpen(v => !v)
+                  : () => {};
+              const isExpanded = menuOpen || isActive;
 
               return (
                 <div key={item.path} className={`space-y-1 ${sidebarCollapsed ? 'relative group' : ''}`}>
                   <button
-                    onClick={() => setAssignmentsMenuOpen(value => !value)}
+                    onClick={toggleMenu}
                     title={item.label}
                     className={`w-full flex items-center gap-3 rounded-lg transition-colors ${sidebarCollapsed ? 'lg:justify-center lg:px-0' : 'px-3'} py-2.5 ${isActive
                       ? 'bg-primary text-primary-foreground'
@@ -243,6 +291,7 @@ export function Layout() {
                             navigate(child.path);
                             setSidebarOpen(false);
                             setAssignmentsMenuOpen(false);
+                            setMinistryMenuOpen(false);
                           }}
                           className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${isChildActive
                             ? 'bg-white/12 text-white'
