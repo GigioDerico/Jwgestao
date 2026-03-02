@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useMinistry } from '../../context/MinistryContext';
 import { ministryApi, type LocalFieldRecord, type CreateFieldRecordInput } from '../../lib/ministry-api';
 import { toast } from 'sonner';
 import { Plus, Trash2, Edit2, Play, Square, Clock } from 'lucide-react';
@@ -16,7 +17,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Textarea } from '../ui/textarea';
 
-function formatHours(seconds: number): string {
+function formatTimer(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
@@ -26,14 +27,12 @@ function formatHours(seconds: number): string {
 export function FieldRecordPage() {
   const { user } = useAuth();
   const userId = user?.id ?? '';
+  const { timerSeconds, isTimerRunning, startTimer, stopTimer } = useMinistry();
 
   const [records, setRecords] = useState<LocalFieldRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<LocalFieldRecord | null>(null);
-  const [timerRunning, setTimerRunning] = useState(false);
-  const [timerSeconds, setTimerSeconds] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [form, setForm] = useState<CreateFieldRecordInput>({
     date: new Date().toISOString().slice(0, 10),
@@ -62,26 +61,14 @@ export function FieldRecordPage() {
     loadRecords();
   }, [userId]);
 
-  useEffect(() => {
-    if (timerRunning) {
-      timerRef.current = setInterval(() => {
-        setTimerSeconds((s) => s + 1);
-      }, 1000);
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [timerRunning]);
-
   const handleStartTimer = () => {
-    setTimerSeconds(0);
-    setTimerRunning(true);
+    startTimer();
   };
 
   const handleStopTimer = async () => {
-    setTimerRunning(false);
-    const hours = timerSeconds / 3600;
-    setForm((f) => ({ ...f, hours: Math.round(hours * 100) / 100 }));
+    const hours = stopTimer();
+    setForm((f) => ({ ...f, hours }));
+    setEditRecord(null);
     setDialogOpen(true);
   };
 
@@ -152,37 +139,52 @@ export function FieldRecordPage() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-medium text-foreground">Registro de Serviço de Campo</h2>
-        <Button onClick={handleOpenNew} className="gap-2 bg-primary text-primary-foreground">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Serviço de Campo</h2>
+          <p className="text-sm text-muted-foreground">Registre seu tempo e atividades</p>
+        </div>
+        <Button onClick={handleOpenNew} className="hidden sm:flex gap-2 bg-primary text-primary-foreground rounded-full px-6">
           <Plus size={18} />
           Novo registro
         </Button>
       </div>
 
+      {/* Floating Action Button (Mobile Only) */}
+      <button
+        onClick={handleOpenNew}
+        className="sm:hidden fixed bottom-24 right-6 z-40 flex items-center justify-center w-14 h-14 bg-primary text-primary-foreground rounded-full shadow-2xl active:scale-90 transition-transform"
+        aria-label="Novo registro"
+      >
+        <Plus size={28} />
+      </button>
+
       {/* Cronômetro */}
-      <Card className="border border-border rounded-xl shadow-sm bg-card">
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Clock size={18} />
-            Cronômetro
+      <Card className="border-none shadow-md bg-gradient-to-br from-card to-muted/30 overflow-hidden relative">
+        <div className="absolute top-0 right-0 p-8 opacity-5">
+          <Clock size={120} />
+        </div>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-muted-foreground uppercase tracking-wider">
+            <Clock size={14} />
+            Sessão Atual
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="text-3xl font-bold text-foreground tabular-nums">
-            {formatHours(timerSeconds)}
+        <CardContent className="space-y-4 relative z-10">
+          <div className="text-5xl font-black text-foreground tabular-nums tracking-tighter">
+            {formatTimer(timerSeconds)}
           </div>
-          <div className="flex gap-2">
-            {!timerRunning ? (
-              <Button onClick={handleStartTimer} className="gap-2 bg-primary text-primary-foreground">
-                <Play size={16} />
+          <div className="flex gap-3">
+            {!isTimerRunning ? (
+              <Button onClick={handleStartTimer} className="flex-1 gap-2 bg-primary text-primary-foreground rounded-xl py-6 text-base font-semibold shadow-lg shadow-primary/20">
+                <Play size={20} fill="currentColor" />
                 Iniciar Serviço
               </Button>
             ) : (
-              <Button onClick={handleStopTimer} variant="outline" className="gap-2 border-border">
-                <Square size={16} />
-                Encerrar Serviço
+              <Button onClick={handleStopTimer} variant="secondary" className="flex-1 gap-2 rounded-xl py-6 text-base font-semibold border-border shadow-inner">
+                <Square size={20} fill="currentColor" />
+                Encerrar e Salvar
               </Button>
             )}
           </div>

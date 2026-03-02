@@ -524,11 +524,11 @@ export function SettingsPage() {
       {/* Modal Novo Grupo */}
       {showNewGroupModal && (
         <div
-          className="fixed inset-0 bg-[#082c45]/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 bg-[#082c45]/40 backdrop-blur-sm z-50 flex items-center justify-center p-5 animate-in fade-in duration-200"
           onClick={() => { if (!savingGroup) { setShowNewGroupModal(false); setNewGroupOverseerId(''); } }}
         >
           <div
-            className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200"
+            className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
             <div className="p-5 border-b border-border flex items-center justify-between">
@@ -594,7 +594,7 @@ export function SettingsPage() {
         ];
         return (
           <div
-            className="fixed inset-0 bg-[#082c45]/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
+            className="fixed inset-0 bg-[#082c45]/40 backdrop-blur-sm z-50 flex items-center justify-center p-5 animate-in fade-in duration-200"
             onClick={() => { if (!savingGroup) setEditingGroup(null); }}
           >
             <div
@@ -667,8 +667,8 @@ export function SettingsPage() {
 
       {/* Modal Confirmar Exclusão */}
       {deleteConfirmGroup && (
-        <div className="fixed inset-0 bg-[#082c45]/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-5">
+        <div className="fixed inset-0 bg-[#082c45]/40 backdrop-blur-sm z-50 flex items-center justify-center p-5 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-5 animate-in zoom-in-95 duration-200">
             <h3 className="text-[#082c45] font-bold mb-2">Excluir grupo?</h3>
             <p className="text-gray-600 mb-4" style={{ fontSize: '0.9rem' }}>
               O grupo &quot;{deleteConfirmGroup.name}&quot; será excluído. Os membros vinculados ficarão sem grupo. Deseja continuar?

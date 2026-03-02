@@ -78,8 +78,11 @@ export function GoalsPage() {
   const monthName = new Date(currentYear, currentMonth - 1, 1).toLocaleDateString('pt-BR', { month: 'long' });
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-xl font-medium text-foreground">Metas Mensais</h2>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-foreground">Metas Mensais</h2>
+        <p className="text-sm text-muted-foreground">Acompanhe seu progresso espiritual</p>
+      </div>
 
       <Card className="border border-border rounded-xl shadow-sm bg-card">
         <CardHeader>

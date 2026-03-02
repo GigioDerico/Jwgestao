@@ -1141,7 +1141,7 @@ export function MembersList() {
 
       {/* Add Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-[#082c45]/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 bg-[#082c45]/40 backdrop-blur-sm z-50 flex items-center justify-center p-5 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="p-5 border-b border-border flex items-center justify-between sticky top-0 bg-white z-10">
               <h3 className="text-[#082c45] font-bold">Novo Membro</h3>
@@ -1437,8 +1437,8 @@ export function MembersList() {
 
       {/* Edit Member Modal */}
       {editingMember && (
-        <div className="fixed inset-0 bg-[#082c45]/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div className="fixed inset-0 bg-[#082c45]/40 backdrop-blur-sm z-50 flex items-center justify-center p-5">
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="p-5 border-b border-border flex items-center justify-between sticky top-0 bg-white z-10">
               <h3 className="text-[#082c45] font-bold flex items-center gap-2">
                 <Edit2 size={16} />

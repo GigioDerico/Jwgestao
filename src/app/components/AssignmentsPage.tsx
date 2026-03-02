@@ -770,7 +770,7 @@ function MeetingsAssignmentsContent({
             </button>
             <button
               onClick={() => { setMeetingType('weekend'); setSelectedMeetingIdx(0); }}
-              className={`px-3 py-1.5 rounded-md transition ${meetingType === 'weekend' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
+              className={`px-3 py-1.5 rounded-md transition ${(meetingType as string) === 'weekend' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
               style={{ fontSize: '0.85rem' }}
             >
               Fim de Semana
@@ -907,7 +907,7 @@ function MeetingsAssignmentsContent({
         <div className="flex gap-1 bg-gray-100 rounded-lg p-1 sm:w-auto">
           <button
             onClick={() => { setMeetingType('midweek'); setSelectedMeetingIdx(0); }}
-            className={`px-3 py-1.5 rounded-md transition ${meetingType === 'midweek' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
+            className={`px-3 py-1.5 rounded-md transition ${(meetingType as string) === 'midweek' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
             style={{ fontSize: '0.85rem' }}
           >
             Meio de Semana
@@ -1065,8 +1065,8 @@ function EditModal({
   );
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col">
+    <div className="fixed inset-0 bg-[#082c45]/40 backdrop-blur-sm z-50 flex items-center justify-center p-5 animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
         <div className="p-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div>
             <h3 className="text-gray-900">Editar Designação</h3>
@@ -1167,7 +1167,7 @@ function EditModal({
               secondaryValue: field.mode === 'weekend_speaker' ? secondaryValue : undefined,
               tertiaryValue: field.mode === 'weekend_speaker' ? tertiaryValue : undefined,
             })}
-            className="px-4 py-2 bg-[#1a1a2e] text-white rounded-lg hover:bg-[#16213e] transition"
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition shadow-md shadow-primary/10"
             style={{ fontSize: '0.9rem' }}
           >
             Confirmar
@@ -1360,8 +1360,8 @@ function CreateMeetingModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-card shadow-lg">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-5 animate-in fade-in duration-200">
+      <div className="max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl animate-in zoom-in-95 duration-200">
         <div className="flex items-start justify-between border-b border-border px-5 py-4">
           <div>
             <h3 className="text-foreground">{mode === 'edit' ? 'Editar Reunião' : 'Nova Reunião'}</h3>

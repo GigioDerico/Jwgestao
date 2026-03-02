@@ -1,10 +1,15 @@
-
-  <!DOCTYPE html>
+<!DOCTYPE html>
   <html lang="en">
     <head>
       <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
       <title>Aplicativo de Gestão de Salão</title>
+      <style>
+        /* Ensure inputs have at least 16px font-size to avoid iOS zoom */
+        input, select, textarea {
+          font-size: 16px;
+        }
+      </style>
     </head>
 
     <body>
@@ -12,4 +17,3 @@
       <script type="module" src="/src/main.tsx"></script>
     </body>
   </html>
-  

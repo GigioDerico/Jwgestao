@@ -138,14 +138,26 @@ export function ReturnVisitsPage() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-medium text-foreground">Revisitas</h2>
-        <Button onClick={handleOpenNew} className="gap-2 bg-primary text-primary-foreground">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Revisitas</h2>
+          <p className="text-sm text-muted-foreground">Gerencie seus contatos e revisitas</p>
+        </div>
+        <Button onClick={handleOpenNew} className="hidden sm:flex gap-2 bg-primary text-primary-foreground rounded-full px-6">
           <Plus size={18} />
           Nova revisita
         </Button>
       </div>
+
+      {/* Floating Action Button (Mobile Only) */}
+      <button
+        onClick={handleOpenNew}
+        className="sm:hidden fixed bottom-24 right-6 z-40 flex items-center justify-center w-14 h-14 bg-primary text-primary-foreground rounded-full shadow-2xl active:scale-90 transition-transform"
+        aria-label="Nova revisita"
+      >
+        <Plus size={28} />
+      </button>
 
       <div className="flex gap-2 flex-wrap">
         <Select value={filter} onValueChange={(v) => setFilter(v as ReturnVisitStatus | 'all')}>
