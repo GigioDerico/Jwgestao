@@ -17,6 +17,7 @@ import { FieldRecordPage } from './components/ministry/FieldRecordPage';
 import { GoalsPage } from './components/ministry/GoalsPage';
 import { HistoryPage } from './components/ministry/HistoryPage';
 import { ReturnVisitsPage } from './components/ministry/ReturnVisitsPage';
+import { StudiesPage } from './components/ministry/StudiesPage';
 import { TerritoryPage } from './components/ministry/TerritoryPage';
 import { FieldDayPage } from './components/ministry/FieldDayPage';
 import { LibraryPage } from './components/ministry/LibraryPage';
@@ -57,6 +58,7 @@ export const router = createBrowserRouter([
           { path: 'goals', Component: GoalsPage },
           { path: 'history', Component: HistoryPage },
           { path: 'return-visits', Component: ReturnVisitsPage },
+          { path: 'studies', Component: StudiesPage },
           { path: 'territory', Component: TerritoryPage },
           { path: 'field-day', Component: FieldDayPage },
           { path: 'library', Component: LibraryPage },

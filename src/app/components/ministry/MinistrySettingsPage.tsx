@@ -32,6 +32,8 @@ export function MinistrySettingsPage() {
       const tables = [
         'personal_field_records',
         'personal_monthly_goals',
+        'personal_goal_planner_template',
+        'personal_goal_planner_month_items',
         'personal_return_visits',
         'personal_territory_logs',
         'personal_spiritual_journal',
@@ -73,8 +75,8 @@ export function MinistrySettingsPage() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground mb-4">
-            Esta ação remove permanentemente todos os seus registros de campo, metas, revisitas, 
-            territórios e diário espiritual (dados locais e na nuvem). Não é possível desfazer.
+            Esta ação remove permanentemente todos os seus registros de campo, metas, planejamentos,
+            revisitas, territórios e diário espiritual (dados locais e na nuvem). Não é possível desfazer.
           </p>
           <AlertDialog>
             <AlertDialogTrigger asChild>

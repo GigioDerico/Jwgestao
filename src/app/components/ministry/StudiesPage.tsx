@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { ministryApi, type LocalReturnVisit, type ReturnVisitStatus } from '../../lib/ministry-api';
+import { ministryApi, type LocalReturnVisit } from '../../lib/ministry-api';
 import { getCurrentLocationAsAddress } from '../../lib/geolocation';
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit2, MapPin } from 'lucide-react';
+import { Plus, Trash2, Edit2, MapPin, BookOpen } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -16,29 +16,16 @@ import {
   DialogFooter,
 } from '../ui/dialog';
 import { Card, CardContent } from '../ui/card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select';
 import { formatPhoneDisplay } from '../../helpers';
 
-const STATUS_OPTIONS: { value: ReturnVisitStatus; label: string }[] = [
-  { value: 'ativa', label: 'Revisita' },
-  { value: 'estudo_iniciado', label: 'Estudo' },
-];
-
-export function ReturnVisitsPage() {
+export function StudiesPage() {
   const { user } = useAuth();
   const userId = user?.id ?? '';
 
-  const [visits, setVisits] = useState<LocalReturnVisit[]>([]);
-  const [filter, setFilter] = useState<ReturnVisitStatus | 'all'>('ativa');
+  const [studies, setStudies] = useState<LocalReturnVisit[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editVisit, setEditVisit] = useState<LocalReturnVisit | null>(null);
+  const [editStudy, setEditStudy] = useState<LocalReturnVisit | null>(null);
   const [gettingAddress, setGettingAddress] = useState(false);
   const [deactivationReason, setDeactivationReason] = useState('');
   const [form, setForm] = useState({
@@ -49,32 +36,27 @@ export function ReturnVisitsPage() {
     bible_text: '',
     next_step: '',
     return_date: '',
-    status: 'ativa' as ReturnVisitStatus,
   });
 
-  const loadVisits = async () => {
+  const loadStudies = async () => {
     if (!userId) return;
     try {
       setLoading(true);
-      const data = await ministryApi.getReturnVisits(userId);
-      setVisits(data);
+      const data = await ministryApi.getReturnVisits(userId, 'estudo_iniciado');
+      setStudies(data);
     } catch {
-      toast.error('Erro ao carregar revisitas');
+      toast.error('Erro ao carregar estudos');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadVisits();
+    loadStudies();
   }, [userId]);
 
-  const filtered = filter === 'all'
-    ? visits
-    : visits.filter((v) => v.status === filter);
-
   const handleOpenNew = () => {
-    setEditVisit(null);
+    setEditStudy(null);
     setDeactivationReason('');
     setForm({
       name_or_initials: '',
@@ -84,7 +66,6 @@ export function ReturnVisitsPage() {
       bible_text: '',
       next_step: '',
       return_date: '',
-      status: 'ativa',
     });
     setDialogOpen(true);
   };
@@ -106,18 +87,17 @@ export function ReturnVisitsPage() {
     }
   };
 
-  const handleOpenEdit = (v: LocalReturnVisit) => {
-    setEditVisit(v);
-    setDeactivationReason(v.deactivation_reason ?? '');
+  const handleOpenEdit = (s: LocalReturnVisit) => {
+    setEditStudy(s);
+    setDeactivationReason(s.deactivation_reason ?? '');
     setForm({
-      name_or_initials: v.name_or_initials ?? '',
-      phone: v.phone ?? '',
-      address: v.address ?? '',
-      topic: v.topic ?? '',
-      bible_text: v.bible_text ?? '',
-      next_step: v.next_step ?? '',
-      return_date: v.return_date ?? '',
-      status: v.status === 'encerrada' ? 'ativa' : v.status,
+      name_or_initials: s.name_or_initials ?? '',
+      phone: s.phone ?? '',
+      address: s.address ?? '',
+      topic: s.topic ?? '',
+      bible_text: s.bible_text ?? '',
+      next_step: s.next_step ?? '',
+      return_date: s.return_date ?? '',
     });
     setDialogOpen(true);
   };
@@ -125,43 +105,38 @@ export function ReturnVisitsPage() {
   const handleSubmit = async () => {
     if (!userId) return;
     try {
-      if (editVisit) {
-        const id = editVisit.supabase_id ?? editVisit.local_id;
-        await ministryApi.updateReturnVisit(id, userId, form);
-        toast.success('Revisita atualizada');
+      const payload = { ...form, status: 'estudo_iniciado' as const };
+      if (editStudy) {
+        const id = editStudy.supabase_id ?? editStudy.local_id;
+        await ministryApi.updateReturnVisit(id, userId, payload);
+        toast.success('Estudo atualizado');
       } else {
-        await ministryApi.createReturnVisit(userId, form);
-        toast.success('Revisita adicionada');
+        await ministryApi.createReturnVisit(userId, payload);
+        toast.success('Estudo adicionado');
       }
       setDialogOpen(false);
-      loadVisits();
+      loadStudies();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro ao salvar');
     }
   };
 
-  const handleDelete = async (v: LocalReturnVisit) => {
-    if (!userId || !confirm('Excluir esta revisita?')) return;
+  const handleDelete = async (s: LocalReturnVisit) => {
+    if (!userId || !confirm('Excluir este estudo?')) return;
     try {
-      const id = v.supabase_id ?? v.local_id;
+      const id = s.supabase_id ?? s.local_id;
       await ministryApi.deleteReturnVisit(id, userId);
-      toast.success('Revisita excluída');
-      loadVisits();
+      toast.success('Estudo excluído');
+      loadStudies();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro ao excluir');
     }
   };
 
-  const isVisitActive = (visit: LocalReturnVisit) => visit.is_active ?? visit.status !== 'encerrada';
+  const isStudyActive = (study: LocalReturnVisit) => study.is_active ?? study.status !== 'encerrada';
 
-  const getVisitTypeLabel = (visit: LocalReturnVisit) => {
-    if (visit.status === 'estudo_iniciado') return 'Estudo';
-    if (visit.status === 'ativa') return 'Revisita';
-    return 'Encerrada';
-  };
-
-  const handleDeactivateVisit = async () => {
-    if (!userId || !editVisit) return;
+  const handleDeactivateStudy = async () => {
+    if (!userId || !editStudy) return;
 
     const reason = deactivationReason.trim();
     if (!reason) {
@@ -170,35 +145,35 @@ export function ReturnVisitsPage() {
     }
 
     try {
-      const id = editVisit.supabase_id ?? editVisit.local_id;
+      const id = editStudy.supabase_id ?? editStudy.local_id;
       await ministryApi.updateReturnVisit(id, userId, {
         is_active: false,
         deactivation_reason: reason,
         deactivated_at: new Date().toISOString(),
-        status: form.status,
+        status: 'estudo_iniciado',
       });
-      toast.success('Registro desativado');
+      toast.success('Estudo desativado');
       setDialogOpen(false);
-      loadVisits();
+      loadStudies();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro ao desativar');
     }
   };
 
-  const handleReactivateVisit = async () => {
-    if (!userId || !editVisit) return;
+  const handleReactivateStudy = async () => {
+    if (!userId || !editStudy) return;
 
     try {
-      const id = editVisit.supabase_id ?? editVisit.local_id;
+      const id = editStudy.supabase_id ?? editStudy.local_id;
       await ministryApi.updateReturnVisit(id, userId, {
         is_active: true,
         deactivation_reason: undefined,
         deactivated_at: undefined,
-        status: form.status,
+        status: 'estudo_iniciado',
       });
-      toast.success('Registro reativado');
+      toast.success('Estudo reativado');
       setDialogOpen(false);
-      loadVisits();
+      loadStudies();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro ao reativar');
     }
@@ -224,87 +199,68 @@ export function ReturnVisitsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Revisitas</h2>
-          <p className="text-sm text-muted-foreground">Gerencie seus contatos e revisitas</p>
+          <h2 className="text-2xl font-bold text-foreground">Estudos</h2>
+          <p className="text-sm text-muted-foreground">Controle seus estudos bíblicos em andamento</p>
         </div>
         <Button onClick={handleOpenNew} className="hidden sm:flex gap-2 bg-primary text-primary-foreground rounded-full px-6">
           <Plus size={18} />
-          Nova revisita
+          Novo estudo
         </Button>
       </div>
 
-      {/* Floating Action Button (Mobile Only) */}
       <button
         onClick={handleOpenNew}
         className="sm:hidden fixed bottom-24 right-6 z-40 flex items-center justify-center w-14 h-14 bg-primary text-primary-foreground rounded-full shadow-2xl active:scale-90 transition-transform"
-        aria-label="Nova revisita"
+        aria-label="Novo estudo"
       >
         <Plus size={28} />
       </button>
-
-      <div className="flex gap-2 flex-wrap">
-        <Select value={filter} onValueChange={(v) => setFilter(v as ReturnVisitStatus | 'all')}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Filtrar" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas</SelectItem>
-            {STATUS_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
 
       <Card className="border border-border rounded-xl shadow-sm bg-card">
         <CardContent className="pt-4">
           {loading ? (
             <p className="text-muted-foreground text-sm">Carregando...</p>
-          ) : filtered.length === 0 ? (
-            <p className="text-muted-foreground text-sm">Nenhuma revisita.</p>
+          ) : studies.length === 0 ? (
+            <p className="text-muted-foreground text-sm">Nenhum estudo em andamento.</p>
           ) : (
             <ul className="divide-y divide-border space-y-0">
-              {filtered.map((v) => {
-                const active = isVisitActive(v);
+              {studies.map((s) => {
+                const active = isStudyActive(s);
 
                 return (
-                  <li key={v.local_id} className={`py-3 first:pt-0 last:pb-0 flex items-start justify-between gap-3 ${active ? '' : 'opacity-75'}`}>
+                  <li key={s.local_id} className={`py-3 first:pt-0 last:pb-0 flex items-start justify-between gap-3 ${active ? '' : 'opacity-75'}`}>
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-foreground">{v.name_or_initials || 'Sem nome'}</p>
-                      <p className="text-sm text-muted-foreground truncate">{v.topic || v.address}</p>
-                      {v.return_date && (
-                        <p className="text-xs text-amber-600 mt-0.5">
-                          Retorno: {formatDate(v.return_date)}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium text-foreground">{s.name_or_initials || 'Sem nome'}</p>
+                        {!active && (
+                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700">
+                            Desativado
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground truncate">{s.topic || 'Sem lição'}</p>
+                      {s.return_date && (
+                        <p className="text-xs text-amber-600 mt-0.5 flex items-center gap-1">
+                          <BookOpen size={12} />
+                          Próxima visita: {formatDate(s.return_date)}
                         </p>
                       )}
                       {!active && (
                         <div className="mt-1 space-y-0.5">
-                          {v.deactivation_reason && (
-                            <p className="text-xs text-muted-foreground">Motivo: {v.deactivation_reason}</p>
+                          {s.deactivation_reason && (
+                            <p className="text-xs text-muted-foreground">Motivo: {s.deactivation_reason}</p>
                           )}
-                          {v.deactivated_at && (
-                            <p className="text-xs text-muted-foreground">Desativado em {formatFullDate(v.deactivated_at)}</p>
+                          {s.deactivated_at && (
+                            <p className="text-xs text-muted-foreground">Desativado em {formatFullDate(s.deactivated_at)}</p>
                           )}
                         </div>
                       )}
                     </div>
-                    <div className="flex flex-col items-end gap-1 shrink-0">
-                      <span className="text-xs rounded-full px-2 py-0.5 bg-accent text-accent-foreground">
-                        {getVisitTypeLabel(v)}
-                      </span>
-                      {!active && (
-                        <span className="text-xs rounded-full px-2 py-0.5 bg-red-100 text-red-700">
-                          Desativada
-                        </span>
-                      )}
-                    </div>
                     <div className="flex gap-1 shrink-0">
-                      <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(v)}>
+                      <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(s)}>
                         <Edit2 size={14} />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(v)} className="text-red-500">
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(s)} className="text-red-500">
                         <Trash2 size={14} />
                       </Button>
                     </div>
@@ -319,11 +275,11 @@ export function ReturnVisitsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editVisit ? 'Editar revisita' : 'Nova revisita'}</DialogTitle>
+            <DialogTitle>{editStudy ? 'Editar estudo' : 'Novo estudo'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
-              <Label>Nome ou iniciais</Label>
+              <Label>Nome do estudante (ou iniciais)</Label>
               <Input
                 value={form.name_or_initials}
                 onChange={(e) => setForm((f) => ({ ...f, name_or_initials: e.target.value }))}
@@ -364,31 +320,34 @@ export function ReturnVisitsPage() {
               {gettingAddress && <p className="text-xs text-muted-foreground mt-1">Obtendo...</p>}
             </div>
             <div>
-              <Label>Assunto conversado</Label>
+              <Label>Lição atual</Label>
               <Input
                 value={form.topic}
                 onChange={(e) => setForm((f) => ({ ...f, topic: e.target.value }))}
+                placeholder="Ex: Capítulo 1"
                 className="mt-1"
               />
             </div>
             <div>
-              <Label>Texto bíblico usado</Label>
-              <Input
+              <Label>Observações</Label>
+              <Textarea
                 value={form.bible_text}
                 onChange={(e) => setForm((f) => ({ ...f, bible_text: e.target.value }))}
-                className="mt-1"
+                placeholder="Anote detalhes importantes para a próxima visita"
+                className="mt-1 min-h-24"
               />
             </div>
             <div>
-              <Label>Próximo passo</Label>
+              <Label>Próxima visita</Label>
               <Input
                 value={form.next_step}
                 onChange={(e) => setForm((f) => ({ ...f, next_step: e.target.value }))}
+                placeholder="Ex: retomar a conversa sobre oração"
                 className="mt-1"
               />
             </div>
             <div>
-              <Label>Data de retorno</Label>
+              <Label>Data da próxima visita</Label>
               <Input
                 type="date"
                 value={form.return_date}
@@ -396,34 +355,19 @@ export function ReturnVisitsPage() {
                 className="mt-1"
               />
             </div>
-            <div>
-              <Label>Tipo</Label>
-              <Select value={form.status} onValueChange={(v) => setForm((f) => ({ ...f, status: v as ReturnVisitStatus }))}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {editVisit && (
+            {editStudy && (
               <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3">
                 <div>
                   <p className="text-sm font-medium text-foreground">
-                    {isVisitActive(editVisit) ? 'Desativar registro' : 'Registro desativado'}
+                    {isStudyActive(editStudy) ? 'Desativar estudo' : 'Estudo desativado'}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {isVisitActive(editVisit)
-                      ? 'Informe o motivo para remover esta revisita da lista ativa.'
+                    {isStudyActive(editStudy)
+                      ? 'Informe o motivo para remover este estudo da lista ativa.'
                       : 'O motivo e a data ficam salvos no registro.'}
                   </p>
                 </div>
-                {isVisitActive(editVisit) ? (
+                {isStudyActive(editStudy) ? (
                   <Textarea
                     value={deactivationReason}
                     onChange={(e) => setDeactivationReason(e.target.value)}
@@ -432,25 +376,25 @@ export function ReturnVisitsPage() {
                   />
                 ) : (
                   <div className="space-y-1 text-sm text-muted-foreground">
-                    <p>Motivo: {editVisit.deactivation_reason || 'Não informado'}</p>
-                    <p>Data: {formatFullDate(editVisit.deactivated_at) || 'Não informada'}</p>
+                    <p>Motivo: {editStudy.deactivation_reason || 'Não informado'}</p>
+                    <p>Data: {formatFullDate(editStudy.deactivated_at) || 'Não informada'}</p>
                   </div>
                 )}
               </div>
             )}
           </div>
           <DialogFooter>
-            {editVisit && (
-              isVisitActive(editVisit) ? (
+            {editStudy && (
+              isStudyActive(editStudy) ? (
                 <Button
                   variant="outline"
-                  onClick={handleDeactivateVisit}
+                  onClick={handleDeactivateStudy}
                   className="mr-auto border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
                 >
                   Desativar
                 </Button>
               ) : (
-                <Button variant="outline" onClick={handleReactivateVisit} className="mr-auto">
+                <Button variant="outline" onClick={handleReactivateStudy} className="mr-auto">
                   Reativar
                 </Button>
               )

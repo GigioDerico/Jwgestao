@@ -32,6 +32,53 @@ export interface LocalMonthlyGoal {
   updated_at: string;
 }
 
+export type GoalPlannerActivityType =
+  | 'dia_de_campo'
+  | 'revisita'
+  | 'estudo'
+  | 'testemunho_informal'
+  | 'cartas_mensagens';
+
+export type GoalPlannerSourceType = 'template' | 'manual';
+
+export interface LocalGoalPlannerTemplateItem {
+  id?: number;
+  local_id: string;
+  supabase_id?: string;
+  user_id: string;
+  weekday: number;
+  start_time: string;
+  duration_minutes: number;
+  activity_type: GoalPlannerActivityType;
+  note?: string;
+  position: number;
+  is_active: boolean;
+  sync_status: SyncStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LocalGoalPlannerMonthItem {
+  id?: number;
+  local_id: string;
+  supabase_id?: string;
+  user_id: string;
+  year: number;
+  month: number;
+  planned_date: string;
+  start_time: string;
+  duration_minutes: number;
+  activity_type: GoalPlannerActivityType;
+  note?: string;
+  source_type: GoalPlannerSourceType;
+  template_origin_local_id?: string;
+  position: number;
+  is_active: boolean;
+  sync_status: SyncStatus;
+  created_at: string;
+  updated_at: string;
+}
+
 export type ReturnVisitStatus = 'ativa' | 'estudo_iniciado' | 'encerrada';
 
 export interface LocalReturnVisit {
@@ -47,6 +94,9 @@ export interface LocalReturnVisit {
   next_step?: string;
   return_date?: string;
   status: ReturnVisitStatus;
+  is_active?: boolean;
+  deactivation_reason?: string;
+  deactivated_at?: string;
   sync_status: SyncStatus;
   created_at: string;
   updated_at: string;
@@ -88,6 +138,8 @@ export interface LocalSpiritualJournal {
 class MinistryDatabase extends Dexie {
   field_records!: EntityTable<LocalFieldRecord, 'id'>;
   monthly_goals!: EntityTable<LocalMonthlyGoal, 'id'>;
+  goal_planner_template!: EntityTable<LocalGoalPlannerTemplateItem, 'id'>;
+  goal_planner_month_items!: EntityTable<LocalGoalPlannerMonthItem, 'id'>;
   return_visits!: EntityTable<LocalReturnVisit, 'id'>;
   territory_logs!: EntityTable<LocalTerritoryLog, 'id'>;
   spiritual_journal!: EntityTable<LocalSpiritualJournal, 'id'>;
@@ -97,6 +149,15 @@ class MinistryDatabase extends Dexie {
     this.version(1).stores({
       field_records: '++id, local_id, supabase_id, user_id, date, sync_status',
       monthly_goals: '++id, local_id, supabase_id, [user_id+year+month], sync_status',
+      return_visits: '++id, local_id, supabase_id, user_id, status, sync_status',
+      territory_logs: '++id, local_id, supabase_id, user_id, date_worked, sync_status',
+      spiritual_journal: '++id, local_id, supabase_id, user_id, created_at, sync_status',
+    });
+    this.version(2).stores({
+      field_records: '++id, local_id, supabase_id, user_id, date, sync_status',
+      monthly_goals: '++id, local_id, supabase_id, [user_id+year+month], sync_status',
+      goal_planner_template: '++id, local_id, supabase_id, user_id, [user_id+weekday], is_active, sync_status',
+      goal_planner_month_items: '++id, local_id, supabase_id, user_id, [user_id+year+month], planned_date, is_active, sync_status',
       return_visits: '++id, local_id, supabase_id, user_id, status, sync_status',
       territory_logs: '++id, local_id, supabase_id, user_id, date_worked, sync_status',
       spiritual_journal: '++id, local_id, supabase_id, user_id, created_at, sync_status',
@@ -225,6 +286,104 @@ export const ministryStore = {
 
   async setMonthlyGoalSynced(localId: string, supabaseId: string): Promise<void> {
     await ministryDb.monthly_goals.where('local_id').equals(localId).modify({
+      supabase_id: supabaseId,
+      sync_status: 'synced',
+      updated_at: nowISO(),
+    });
+  },
+
+  // Goal planner template
+  async addGoalPlannerTemplateItem(userId: string, item: Omit<LocalGoalPlannerTemplateItem, 'local_id' | 'user_id' | 'sync_status' | 'created_at' | 'updated_at'>): Promise<LocalGoalPlannerTemplateItem> {
+    const local: LocalGoalPlannerTemplateItem = {
+      ...item,
+      local_id: generateLocalId(),
+      user_id: userId,
+      sync_status: 'pending',
+      created_at: nowISO(),
+      updated_at: nowISO(),
+    };
+    await ministryDb.goal_planner_template.add(local);
+    return local;
+  },
+
+  async updateGoalPlannerTemplateItem(localId: string, userId: string, updates: Partial<Omit<LocalGoalPlannerTemplateItem, 'local_id' | 'user_id' | 'created_at'>>): Promise<void> {
+    await ministryDb.goal_planner_template.where({ local_id: localId, user_id: userId }).modify({
+      ...updates,
+      updated_at: nowISO(),
+      sync_status: 'pending',
+    });
+  },
+
+  async getGoalPlannerTemplate(userId: string): Promise<LocalGoalPlannerTemplateItem[]> {
+    const all = await ministryDb.goal_planner_template.where('user_id').equals(userId).toArray();
+    return all.sort((a, b) => {
+      if (a.weekday !== b.weekday) return a.weekday - b.weekday;
+      if (a.start_time !== b.start_time) return a.start_time.localeCompare(b.start_time);
+      return a.position - b.position;
+    });
+  },
+
+  async getGoalPlannerTemplateItemById(id: string, userId: string): Promise<LocalGoalPlannerTemplateItem | undefined> {
+    const byLocal = await ministryDb.goal_planner_template.where({ local_id: id, user_id: userId }).first();
+    if (byLocal) return byLocal;
+    return ministryDb.goal_planner_template.where({ supabase_id: id, user_id: userId }).first();
+  },
+
+  async getPendingGoalPlannerTemplateItems(userId: string): Promise<LocalGoalPlannerTemplateItem[]> {
+    return ministryDb.goal_planner_template.where({ user_id: userId, sync_status: 'pending' }).toArray();
+  },
+
+  async setGoalPlannerTemplateItemSynced(localId: string, supabaseId: string): Promise<void> {
+    await ministryDb.goal_planner_template.where('local_id').equals(localId).modify({
+      supabase_id: supabaseId,
+      sync_status: 'synced',
+      updated_at: nowISO(),
+    });
+  },
+
+  // Goal planner month items
+  async addGoalPlannerMonthItem(userId: string, item: Omit<LocalGoalPlannerMonthItem, 'local_id' | 'user_id' | 'sync_status' | 'created_at' | 'updated_at'>): Promise<LocalGoalPlannerMonthItem> {
+    const local: LocalGoalPlannerMonthItem = {
+      ...item,
+      local_id: generateLocalId(),
+      user_id: userId,
+      sync_status: 'pending',
+      created_at: nowISO(),
+      updated_at: nowISO(),
+    };
+    await ministryDb.goal_planner_month_items.add(local);
+    return local;
+  },
+
+  async updateGoalPlannerMonthItem(localId: string, userId: string, updates: Partial<Omit<LocalGoalPlannerMonthItem, 'local_id' | 'user_id' | 'created_at'>>): Promise<void> {
+    await ministryDb.goal_planner_month_items.where({ local_id: localId, user_id: userId }).modify({
+      ...updates,
+      updated_at: nowISO(),
+      sync_status: 'pending',
+    });
+  },
+
+  async getGoalPlannerMonthItems(userId: string, year: number, month: number): Promise<LocalGoalPlannerMonthItem[]> {
+    const all = await ministryDb.goal_planner_month_items.where({ user_id: userId, year, month }).toArray();
+    return all.sort((a, b) => {
+      if (a.planned_date !== b.planned_date) return a.planned_date.localeCompare(b.planned_date);
+      if (a.start_time !== b.start_time) return a.start_time.localeCompare(b.start_time);
+      return a.position - b.position;
+    });
+  },
+
+  async getGoalPlannerMonthItemById(id: string, userId: string): Promise<LocalGoalPlannerMonthItem | undefined> {
+    const byLocal = await ministryDb.goal_planner_month_items.where({ local_id: id, user_id: userId }).first();
+    if (byLocal) return byLocal;
+    return ministryDb.goal_planner_month_items.where({ supabase_id: id, user_id: userId }).first();
+  },
+
+  async getPendingGoalPlannerMonthItems(userId: string): Promise<LocalGoalPlannerMonthItem[]> {
+    return ministryDb.goal_planner_month_items.where({ user_id: userId, sync_status: 'pending' }).toArray();
+  },
+
+  async setGoalPlannerMonthItemSynced(localId: string, supabaseId: string): Promise<void> {
+    await ministryDb.goal_planner_month_items.where('local_id').equals(localId).modify({
       supabase_id: supabaseId,
       sync_status: 'synced',
       updated_at: nowISO(),
@@ -390,6 +549,8 @@ export const ministryStore = {
   async clearAllForUser(userId: string): Promise<void> {
     await ministryDb.field_records.where('user_id').equals(userId).delete();
     await ministryDb.monthly_goals.where('user_id').equals(userId).delete();
+    await ministryDb.goal_planner_template.where('user_id').equals(userId).delete();
+    await ministryDb.goal_planner_month_items.where('user_id').equals(userId).delete();
     await ministryDb.return_visits.where('user_id').equals(userId).delete();
     await ministryDb.territory_logs.where('user_id').equals(userId).delete();
     await ministryDb.spiritual_journal.where('user_id').equals(userId).delete();

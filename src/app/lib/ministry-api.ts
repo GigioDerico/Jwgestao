@@ -1,7 +1,39 @@
-import { ministryStore, type LocalFieldRecord, type LocalMonthlyGoal, type LocalReturnVisit, type LocalTerritoryLog, type LocalSpiritualJournal, type ReturnVisitStatus, type TerritoryType } from './ministry-store';
+import {
+  ministryStore,
+  type GoalPlannerActivityType,
+  type GoalPlannerSourceType,
+  type LocalFieldRecord,
+  type LocalGoalPlannerMonthItem,
+  type LocalGoalPlannerTemplateItem,
+  type LocalMonthlyGoal,
+  type LocalReturnVisit,
+  type LocalTerritoryLog,
+  type LocalSpiritualJournal,
+  type ReturnVisitStatus,
+  type TerritoryType,
+} from './ministry-store';
+import {
+  comparePlannerItems,
+  getDatesForMonth,
+  getGoalPlannerWeekdayFromDate,
+  hasPlannerConflict,
+  validatePlannerItemInput,
+} from './goal-planner';
 import { syncIfOnline as doSync, subscribeToOnline, type SyncResult } from './ministry-sync';
 
-export type { LocalFieldRecord, LocalMonthlyGoal, LocalReturnVisit, LocalTerritoryLog, LocalSpiritualJournal, ReturnVisitStatus, TerritoryType };
+export type {
+  GoalPlannerActivityType,
+  GoalPlannerSourceType,
+  LocalFieldRecord,
+  LocalGoalPlannerMonthItem,
+  LocalGoalPlannerTemplateItem,
+  LocalMonthlyGoal,
+  LocalReturnVisit,
+  LocalTerritoryLog,
+  LocalSpiritualJournal,
+  ReturnVisitStatus,
+  TerritoryType,
+};
 
 export interface CreateFieldRecordInput {
   date: string;
@@ -19,6 +51,30 @@ export interface CreateMonthlyGoalInput {
   hours_goal: number;
 }
 
+export interface CreateGoalPlannerTemplateItemInput {
+  weekday: number;
+  start_time: string;
+  duration_minutes: number;
+  activity_type: GoalPlannerActivityType;
+  note?: string;
+  position?: number;
+  is_active?: boolean;
+}
+
+export interface CreateGoalPlannerMonthItemInput {
+  year: number;
+  month: number;
+  planned_date: string;
+  start_time: string;
+  duration_minutes: number;
+  activity_type: GoalPlannerActivityType;
+  note?: string;
+  source_type?: GoalPlannerSourceType;
+  template_origin_local_id?: string;
+  position?: number;
+  is_active?: boolean;
+}
+
 export interface CreateReturnVisitInput {
   name_or_initials?: string;
   phone?: string;
@@ -28,6 +84,9 @@ export interface CreateReturnVisitInput {
   next_step?: string;
   return_date?: string;
   status?: ReturnVisitStatus;
+  is_active?: boolean;
+  deactivation_reason?: string;
+  deactivated_at?: string;
 }
 
 export interface CreateTerritoryLogInput {
@@ -45,6 +104,57 @@ export interface CreateTerritoryLogInput {
 export interface CreateJournalEntryInput {
   entry_type: string;
   content: string;
+}
+
+function getNextPlannerPosition(items: Array<{ position: number }>): number {
+  if (items.length === 0) return 0;
+  return Math.max(...items.map((item) => item.position)) + 1;
+}
+
+async function assertValidTemplateItem(
+  userId: string,
+  input: Pick<CreateGoalPlannerTemplateItemInput, 'weekday' | 'start_time' | 'duration_minutes'>,
+  existingLocalId?: string,
+): Promise<void> {
+  if (input.weekday < 1 || input.weekday > 7) {
+    throw new Error('Informe um dia da semana válido.');
+  }
+
+  const validationError = validatePlannerItemInput(input);
+  if (validationError) throw new Error(validationError);
+
+  const items = await ministryStore.getGoalPlannerTemplate(userId);
+  const sameDayItems = items.filter((item) => item.is_active && item.weekday === input.weekday && item.local_id !== existingLocalId);
+  if (hasPlannerConflict({ ...input, is_active: true }, sameDayItems)) {
+    throw new Error('Este horário conflita com outra atividade planejada.');
+  }
+}
+
+async function assertValidMonthItem(
+  userId: string,
+  input: Pick<CreateGoalPlannerMonthItemInput, 'year' | 'month' | 'planned_date' | 'start_time' | 'duration_minutes'>,
+  existingLocalId?: string,
+): Promise<void> {
+  const validationError = validatePlannerItemInput(input);
+  if (validationError) throw new Error(validationError);
+
+  const items = await ministryStore.getGoalPlannerMonthItems(userId, input.year, input.month);
+  const sameDateItems = items.filter((item) => item.is_active && item.planned_date === input.planned_date && item.local_id !== existingLocalId);
+  if (hasPlannerConflict({ ...input, is_active: true }, sameDateItems)) {
+    throw new Error('Este horário conflita com outra atividade planejada.');
+  }
+}
+
+function templateItemWasEdited(record: LocalGoalPlannerMonthItem, input: Partial<CreateGoalPlannerMonthItemInput>): boolean {
+  if (record.source_type !== 'template') return false;
+
+  return (
+    (input.planned_date !== undefined && input.planned_date !== record.planned_date) ||
+    (input.start_time !== undefined && input.start_time !== record.start_time) ||
+    (input.duration_minutes !== undefined && input.duration_minutes !== record.duration_minutes) ||
+    (input.activity_type !== undefined && input.activity_type !== record.activity_type) ||
+    (input.note !== undefined && input.note !== (record.note ?? undefined))
+  );
 }
 
 export const ministryApi = {
@@ -100,6 +210,179 @@ export const ministryApi = {
     return ministryStore.getMonthlyGoals(userId, year);
   },
 
+  async getGoalPlannerTemplate(userId: string): Promise<LocalGoalPlannerTemplateItem[]> {
+    return ministryStore.getGoalPlannerTemplate(userId);
+  },
+
+  async createGoalPlannerTemplateItem(userId: string, input: CreateGoalPlannerTemplateItemInput): Promise<LocalGoalPlannerTemplateItem> {
+    await assertValidTemplateItem(userId, input);
+
+    const existing = await ministryStore.getGoalPlannerTemplate(userId);
+    const sameWeekdayItems = existing.filter((item) => item.weekday === input.weekday);
+    const item = await ministryStore.addGoalPlannerTemplateItem(userId, {
+      weekday: input.weekday,
+      start_time: input.start_time,
+      duration_minutes: input.duration_minutes,
+      activity_type: input.activity_type,
+      note: input.note,
+      position: input.position ?? getNextPlannerPosition(sameWeekdayItems),
+      is_active: input.is_active ?? true,
+    });
+    await doSync(userId);
+    return item;
+  },
+
+  async updateGoalPlannerTemplateItem(id: string, userId: string, input: Partial<CreateGoalPlannerTemplateItemInput>): Promise<void> {
+    const record = await ministryStore.getGoalPlannerTemplateItemById(id, userId);
+    if (!record) throw new Error('Atividade da semana base não encontrada');
+
+    const merged = {
+      weekday: input.weekday ?? record.weekday,
+      start_time: input.start_time ?? record.start_time,
+      duration_minutes: input.duration_minutes ?? record.duration_minutes,
+      activity_type: input.activity_type ?? record.activity_type,
+      note: input.note !== undefined ? input.note : record.note,
+      position: input.position ?? record.position,
+      is_active: input.is_active ?? record.is_active,
+    };
+
+    await assertValidTemplateItem(userId, merged, record.local_id);
+    await ministryStore.updateGoalPlannerTemplateItem(record.local_id, userId, merged);
+    await doSync(userId);
+  },
+
+  async archiveGoalPlannerTemplateItem(id: string, userId: string): Promise<void> {
+    const record = await ministryStore.getGoalPlannerTemplateItemById(id, userId);
+    if (!record) throw new Error('Atividade da semana base não encontrada');
+    await ministryStore.updateGoalPlannerTemplateItem(record.local_id, userId, { is_active: false });
+    await doSync(userId);
+  },
+
+  async getGoalPlannerMonthItems(userId: string, year: number, month: number): Promise<LocalGoalPlannerMonthItem[]> {
+    return ministryStore.getGoalPlannerMonthItems(userId, year, month);
+  },
+
+  async createGoalPlannerMonthItem(userId: string, input: CreateGoalPlannerMonthItemInput): Promise<LocalGoalPlannerMonthItem> {
+    await assertValidMonthItem(userId, input);
+
+    const existing = await ministryStore.getGoalPlannerMonthItems(userId, input.year, input.month);
+    const sameDateItems = existing.filter((item) => item.planned_date === input.planned_date);
+    const item = await ministryStore.addGoalPlannerMonthItem(userId, {
+      year: input.year,
+      month: input.month,
+      planned_date: input.planned_date,
+      start_time: input.start_time,
+      duration_minutes: input.duration_minutes,
+      activity_type: input.activity_type,
+      note: input.note,
+      source_type: input.source_type ?? 'manual',
+      template_origin_local_id: input.template_origin_local_id,
+      position: input.position ?? getNextPlannerPosition(sameDateItems),
+      is_active: input.is_active ?? true,
+    });
+    await doSync(userId);
+    return item;
+  },
+
+  async updateGoalPlannerMonthItem(id: string, userId: string, input: Partial<CreateGoalPlannerMonthItemInput>): Promise<void> {
+    const record = await ministryStore.getGoalPlannerMonthItemById(id, userId);
+    if (!record) throw new Error('Atividade do mês não encontrada');
+
+    const merged = {
+      year: input.year ?? record.year,
+      month: input.month ?? record.month,
+      planned_date: input.planned_date ?? record.planned_date,
+      start_time: input.start_time ?? record.start_time,
+      duration_minutes: input.duration_minutes ?? record.duration_minutes,
+      activity_type: input.activity_type ?? record.activity_type,
+      note: input.note !== undefined ? input.note : record.note,
+      source_type: input.source_type
+        ?? (templateItemWasEdited(record, input) ? 'manual' : record.source_type),
+      template_origin_local_id: input.template_origin_local_id !== undefined
+        ? input.template_origin_local_id
+        : record.template_origin_local_id,
+      position: input.position ?? record.position,
+      is_active: input.is_active ?? record.is_active,
+    } satisfies Omit<LocalGoalPlannerMonthItem, 'id' | 'local_id' | 'supabase_id' | 'user_id' | 'sync_status' | 'created_at' | 'updated_at'>;
+
+    await assertValidMonthItem(userId, merged, record.local_id);
+    await ministryStore.updateGoalPlannerMonthItem(record.local_id, userId, merged);
+    await doSync(userId);
+  },
+
+  async archiveGoalPlannerMonthItem(id: string, userId: string): Promise<void> {
+    const record = await ministryStore.getGoalPlannerMonthItemById(id, userId);
+    if (!record) throw new Error('Atividade do mês não encontrada');
+    await ministryStore.updateGoalPlannerMonthItem(record.local_id, userId, { is_active: false });
+    await doSync(userId);
+  },
+
+  async applyWeeklyTemplateToMonth(userId: string, year: number, month: number): Promise<void> {
+    const templateItems = (await ministryStore.getGoalPlannerTemplate(userId))
+      .filter((item) => item.is_active)
+      .sort(comparePlannerItems);
+    const monthItems = await ministryStore.getGoalPlannerMonthItems(userId, year, month);
+    const activeManualItems = monthItems.filter((item) => item.is_active && item.source_type === 'manual');
+    const monthTemplateByKey = new Map<string, LocalGoalPlannerMonthItem>();
+
+    for (const item of monthItems.filter((entry) => entry.source_type === 'template')) {
+      const key = `${item.planned_date}|${item.template_origin_local_id ?? ''}`;
+      const existing = monthTemplateByKey.get(key);
+      if (!existing || (!existing.is_active && item.is_active)) {
+        monthTemplateByKey.set(key, item);
+      }
+    }
+
+    const keptTemplateLocalIds = new Set<string>();
+
+    for (const date of getDatesForMonth(year, month)) {
+      const weekday = getGoalPlannerWeekdayFromDate(date);
+      const itemsForWeekday = templateItems.filter((item) => item.weekday === weekday);
+
+      for (const template of itemsForWeekday) {
+        const key = `${date}|${template.local_id}`;
+        const manualItemsForDay = activeManualItems.filter((item) => item.planned_date === date);
+        const takenOverByManual = manualItemsForDay.some((item) => item.template_origin_local_id === template.local_id);
+        const overlapsManual = hasPlannerConflict(template, manualItemsForDay);
+
+        if (takenOverByManual || overlapsManual) {
+          continue;
+        }
+
+        const payload = {
+          year,
+          month,
+          planned_date: date,
+          start_time: template.start_time,
+          duration_minutes: template.duration_minutes,
+          activity_type: template.activity_type,
+          note: template.note,
+          source_type: 'template' as const,
+          template_origin_local_id: template.local_id,
+          position: template.position,
+          is_active: true,
+        };
+        const existing = monthTemplateByKey.get(key);
+
+        if (existing) {
+          await ministryStore.updateGoalPlannerMonthItem(existing.local_id, userId, payload);
+          keptTemplateLocalIds.add(existing.local_id);
+        } else {
+          const created = await ministryStore.addGoalPlannerMonthItem(userId, payload);
+          keptTemplateLocalIds.add(created.local_id);
+        }
+      }
+    }
+
+    for (const item of monthItems.filter((entry) => entry.is_active && entry.source_type === 'template')) {
+      if (!keptTemplateLocalIds.has(item.local_id)) {
+        await ministryStore.updateGoalPlannerMonthItem(item.local_id, userId, { is_active: false });
+      }
+    }
+
+    await doSync(userId);
+  },
+
   async getReturnVisits(userId: string, status?: ReturnVisitStatus): Promise<LocalReturnVisit[]> {
     return ministryStore.getReturnVisits(userId, status);
   },
@@ -114,6 +397,9 @@ export const ministryApi = {
       next_step: input.next_step,
       return_date: input.return_date,
       status: input.status ?? 'ativa',
+      is_active: input.is_active ?? true,
+      deactivation_reason: input.deactivation_reason,
+      deactivated_at: input.deactivated_at,
     });
     await doSync(userId);
     return visit;

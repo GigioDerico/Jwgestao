@@ -1,5 +1,12 @@
 import { supabase } from './supabase';
-import { ministryStore, type LocalFieldRecord, type LocalMonthlyGoal, type LocalReturnVisit, type LocalTerritoryLog, type LocalSpiritualJournal } from './ministry-store';
+import {
+  ministryStore,
+  type LocalFieldRecord,
+  type LocalMonthlyGoal,
+  type LocalReturnVisit,
+  type LocalTerritoryLog,
+  type LocalSpiritualJournal,
+} from './ministry-store';
 
 export interface SyncResult {
   synced: number;
@@ -82,22 +89,98 @@ export async function syncIfOnline(userId: string): Promise<SyncResult> {
       }
     }
 
+    const pendingTemplateItems = await ministryStore.getPendingGoalPlannerTemplateItems(userId);
+    for (const item of pendingTemplateItems) {
+      try {
+        const payload = {
+          ...(item.supabase_id ? { id: item.supabase_id } : {}),
+          user_id: userId,
+          client_id: item.local_id,
+          weekday: item.weekday,
+          start_time: item.start_time,
+          duration_minutes: item.duration_minutes,
+          activity_type: item.activity_type,
+          note: item.note || null,
+          position: item.position,
+          is_active: item.is_active,
+          updated_at: new Date().toISOString(),
+        };
+        const { data, error } = await supabase
+          .from('personal_goal_planner_template')
+          .upsert(payload, { onConflict: 'client_id' })
+          .select('id')
+          .single();
+
+        if (error) throw error;
+        if (data?.id) {
+          await ministryStore.setGoalPlannerTemplateItemSynced(item.local_id, data.id);
+          synced += 1;
+        }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        errors.push(`Semana base: ${msg}`);
+      }
+    }
+
+    const pendingMonthItems = await ministryStore.getPendingGoalPlannerMonthItems(userId);
+    for (const item of pendingMonthItems) {
+      try {
+        const payload = {
+          ...(item.supabase_id ? { id: item.supabase_id } : {}),
+          user_id: userId,
+          client_id: item.local_id,
+          year: item.year,
+          month: item.month,
+          planned_date: item.planned_date,
+          start_time: item.start_time,
+          duration_minutes: item.duration_minutes,
+          activity_type: item.activity_type,
+          note: item.note || null,
+          source_type: item.source_type,
+          template_origin_client_id: item.template_origin_local_id || null,
+          position: item.position,
+          is_active: item.is_active,
+          updated_at: new Date().toISOString(),
+        };
+        const { data, error } = await supabase
+          .from('personal_goal_planner_month_items')
+          .upsert(payload, { onConflict: 'client_id' })
+          .select('id')
+          .single();
+
+        if (error) throw error;
+        if (data?.id) {
+          await ministryStore.setGoalPlannerMonthItemSynced(item.local_id, data.id);
+          synced += 1;
+        }
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        errors.push(`Plano do mês: ${msg}`);
+      }
+    }
+
     const pendingVisits = await ministryStore.getPendingReturnVisits(userId);
     for (const v of pendingVisits) {
       try {
+        const payload = {
+          ...(v.supabase_id ? { id: v.supabase_id } : {}),
+          user_id: userId,
+          name_or_initials: v.name_or_initials || null,
+          phone: v.phone || null,
+          address: v.address || null,
+          topic: v.topic || null,
+          bible_text: v.bible_text || null,
+          next_step: v.next_step || null,
+          return_date: v.return_date || null,
+          status: v.status,
+          is_active: v.is_active ?? true,
+          deactivation_reason: v.deactivation_reason || null,
+          deactivated_at: v.deactivated_at || null,
+          updated_at: new Date().toISOString(),
+        };
         const { data, error } = await supabase
           .from('personal_return_visits')
-          .insert({
-            user_id: userId,
-            name_or_initials: v.name_or_initials || null,
-            phone: v.phone || null,
-            address: v.address || null,
-            topic: v.topic || null,
-            bible_text: v.bible_text || null,
-            next_step: v.next_step || null,
-            return_date: v.return_date || null,
-            status: v.status,
-          })
+          .upsert(payload, { onConflict: 'id' })
           .select('id')
           .single();
 

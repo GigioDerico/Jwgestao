@@ -52,12 +52,7 @@ export function Layout() {
 
   const ministryChildren = [
     { path: '/ministry/field-record', label: 'Registro de Campo' },
-    { path: '/ministry/goals', label: 'Metas Mensais' },
-    { path: '/ministry/history', label: 'Histórico e Relatórios' },
-    { path: '/ministry/return-visits', label: 'Revisitas' },
-    { path: '/ministry/territory', label: 'Território' },
     { path: '/ministry/field-day', label: 'Dia de Campo' },
-    { path: '/ministry/library', label: 'Biblioteca' },
     { path: '/ministry/journal', label: 'Diário Espiritual' },
     { path: '/ministry/settings', label: 'Configurações' },
   ];
