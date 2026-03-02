@@ -106,6 +106,13 @@ function formatMeetingTimeLabel(time: string | null | undefined) {
   return time;
 }
 
+function getAssignmentDesignationLabel(message: string) {
+  return message
+    .replace(/^Você foi designado para\s+/i, '')
+    .replace(/\s+em \d{2}\/\d{2}(?:\/\d{4})?\.$/i, '')
+    .replace(/\.$/, '');
+}
+
 export function Dashboard() {
   const { user, isAdmin } = useAuth();
   const { notifications, confirm } = useNotifications();
@@ -376,13 +383,15 @@ export function Dashboard() {
                     className={`font-medium ${notification.status === 'pending_confirmation' ? 'text-red-100' : 'text-emerald-100'}`}
                     style={{ fontSize: '0.8rem' }}
                   >
-                    {notification.title}
+                    {getAssignmentDesignationLabel(notification.message)}
                   </p>
                   <p
                     className={notification.status === 'pending_confirmation' ? 'text-red-100/90' : 'text-emerald-100/90'}
                     style={{ fontSize: '0.74rem' }}
                   >
-                    {notification.status === 'pending_confirmation' ? 'Aguardando sua confirmação' : 'Designação já confirmada'}
+                    {notification.status === 'pending_confirmation'
+                      ? 'Aguardando sua confirmação'
+                      : 'Designação já confirmada'}
                   </p>
                   {notification.status === 'pending_confirmation' && (
                     <button
@@ -450,13 +459,15 @@ export function Dashboard() {
                     className={`font-medium ${notification.status === 'pending_confirmation' ? 'text-red-700' : 'text-emerald-700'}`}
                     style={{ fontSize: '0.8rem' }}
                   >
-                    {notification.title}
+                    {getAssignmentDesignationLabel(notification.message)}
                   </p>
                   <p
                     className={notification.status === 'pending_confirmation' ? 'text-red-700/80' : 'text-emerald-700/80'}
                     style={{ fontSize: '0.74rem' }}
                   >
-                    {notification.status === 'pending_confirmation' ? 'Aguardando sua confirmação' : 'Designação já confirmada'}
+                    {notification.status === 'pending_confirmation'
+                      ? 'Aguardando sua confirmação'
+                      : 'Designação já confirmada'}
                   </p>
                   {notification.status === 'pending_confirmation' && (
                     <button
