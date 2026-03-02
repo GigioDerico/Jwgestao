@@ -784,6 +784,9 @@ function MeetingsAssignmentsContent({
     // Parts processing ensuring safely array map
     const ministryParts = meeting.ministry_parts?.sort((a: any, b: any) => a.part_number - b.part_number) || [];
     const lifeParts = meeting.christian_life_parts?.sort((a: any, b: any) => a.part_number - b.part_number) || [];
+    const ministryDisplayOffset = 3;
+    const lifeDisplayOffset = ministryDisplayOffset + ministryParts.length;
+    const cbsDisplayNumber = lifeDisplayOffset + lifeParts.length + 1;
 
     return (
       <>
@@ -850,17 +853,22 @@ function MeetingsAssignmentsContent({
             {ministryParts.length === 0 && <div className="p-3 text-sm text-gray-500">Nenhuma parte cadastrada no banco.</div>}
             {ministryParts.map((part: any, idx: number) => (
               <div key={idx} className="space-y-1 relative pb-2 mb-2 border-b border-gray-50 last:border-0 last:pb-0 last:mb-0">
+                {(() => {
+                  const displayNumber = ministryDisplayOffset + idx + 1;
+
+                  return (
+                    <>
                 <AssignmentField
-                  label={`${part.part_number}. ${part.title} (${part.duration} min) — Estudante`}
+                  label={`${displayNumber}. ${part.title} (${part.duration} min) — Estudante`}
                   value={part.student?.full_name || 'Desconhecido'}
-                  onClick={() => openEdit({ label: `Parte ${part.part_number} Estudante`, mode: 'member', currentValue: part.student?.full_name || '', table: 'midweek_ministry_parts', rowId: part.id, column: 'student_id' })}
+                  onClick={() => openEdit({ label: `Parte ${displayNumber} Estudante`, mode: 'member', currentValue: part.student?.full_name || '', table: 'midweek_ministry_parts', rowId: part.id, column: 'student_id' })}
                   canEdit={canEditAssignments}
                 />
                 {part.assistant_id && (
                   <AssignmentField
-                    label={`${part.part_number}. ${part.title} — Ajudante`}
+                    label={`${displayNumber}. ${part.title} — Ajudante`}
                     value={part.assistant?.full_name || 'Desconhecido'}
-                    onClick={() => openEdit({ label: `Parte ${part.part_number} Ajudante`, mode: 'member', currentValue: part.assistant?.full_name || '', table: 'midweek_ministry_parts', rowId: part.id, column: 'assistant_id' })}
+                    onClick={() => openEdit({ label: `Parte ${displayNumber} Ajudante`, mode: 'member', currentValue: part.assistant?.full_name || '', table: 'midweek_ministry_parts', rowId: part.id, column: 'assistant_id' })}
                     indent
                     canEdit={canEditAssignments}
                   />
@@ -871,12 +879,15 @@ function MeetingsAssignmentsContent({
                         studentName: part.student.full_name,
                         assistantName: part.assistant?.full_name,
                         date: new Date(meeting.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-                        partNumber: part.part_number,
+                        partNumber: displayNumber,
                         location: part.room || MIDWEEK_PRIMARY_ROOM,
                         phone: part.student.phone,
                       }
                     : null
                 )}
+                    </>
+                  );
+                })()}
               </div>
             ))}
           </AssignmentSection>
@@ -884,22 +895,28 @@ function MeetingsAssignmentsContent({
           <AssignmentSection title="Nossa Vida Cristã" color="bg-[#5b2c2c]">
             {lifeParts.length === 0 && <div className="p-3 text-sm text-gray-500">Nenhuma parte cadastrada no banco.</div>}
             {lifeParts.map((part: any, idx: number) => (
-              <AssignmentField
-                key={idx}
-                label={`${part.part_number}. ${part.title} (${part.duration} min)`}
-                value={part.speaker?.full_name || 'Desconhecido'}
-                onClick={() => openEdit({ label: part.title, mode: 'member', currentValue: part.speaker?.full_name || '', table: 'midweek_christian_life_parts', rowId: part.id, column: 'speaker_id' })}
-                canEdit={canEditAssignments}
-              />
+              (() => {
+                const displayNumber = lifeDisplayOffset + idx + 1;
+
+                return (
+                  <AssignmentField
+                    key={idx}
+                    label={`${displayNumber}. ${part.title} (${part.duration} min)`}
+                    value={part.speaker?.full_name || 'Desconhecido'}
+                    onClick={() => openEdit({ label: `Parte ${displayNumber}`, mode: 'member', currentValue: part.speaker?.full_name || '', table: 'midweek_christian_life_parts', rowId: part.id, column: 'speaker_id' })}
+                    canEdit={canEditAssignments}
+                  />
+                );
+              })()
             ))}
             <AssignmentField
-              label="Estudo Bíblico — Dirigente"
+              label={`${cbsDisplayNumber}. Estudo Bíblico — Dirigente`}
               value={mappedCbsConductor}
               onClick={() => openEdit({ label: 'Dirigente EBC', mode: 'member', currentValue: mappedCbsConductor, table: 'midweek_meetings', rowId: meeting.id, column: 'cbs_conductor_id' })}
               canEdit={canEditAssignments}
             />
             <AssignmentField
-              label="Estudo Bíblico — Leitor"
+              label={`${cbsDisplayNumber}. Estudo Bíblico — Leitor`}
               value={mappedCbsReader}
               onClick={() => openEdit({ label: 'Leitor EBC', mode: 'member', currentValue: mappedCbsReader, table: 'midweek_meetings', rowId: meeting.id, column: 'cbs_reader_id' })}
               canEdit={canEditAssignments}
