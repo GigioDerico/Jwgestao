@@ -100,6 +100,38 @@ npm run dev
 npm run build
 ```
 
+4. Para sincronizar a build web com o projeto Android:
+
+```bash
+npm run sync:android
+```
+
+5. Para gerar um APK Android `release` assinado:
+
+```bash
+npm run apk:release
+```
+
+O comando valida o Java ativo antes de chamar o Gradle. Use um JDK entre `17` e `24`.
+
+Antes do `APK release`, configure a assinatura em `android/keystore.properties` (arquivo local, nao versionado) com:
+
+```properties
+storeFile=app/jwgestao-release.keystore
+storePassword=SEU_SEGREDO
+keyAlias=jwgestao
+keyPassword=SEU_SEGREDO
+```
+
+Como alternativa, use as variaveis de ambiente:
+
+- `ANDROID_KEYSTORE_PATH`
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+
+Se a assinatura nao estiver configurada, o Gradle interrompe qualquer tarefa `release`.
+
 ### Documentacao
 
 Documentos principais do projeto:
@@ -217,6 +249,38 @@ npm run dev
 ```bash
 npm run build
 ```
+
+4. Sync the web build into the Android project:
+
+```bash
+npm run sync:android
+```
+
+5. Generate a signed Android `release` APK:
+
+```bash
+npm run apk:release
+```
+
+The command validates the active Java runtime before invoking Gradle. Use a JDK between `17` and `24`.
+
+Before running the `release` build, configure signing in `android/keystore.properties` (local, not committed) with:
+
+```properties
+storeFile=app/jwgestao-release.keystore
+storePassword=YOUR_SECRET
+keyAlias=jwgestao
+keyPassword=YOUR_SECRET
+```
+
+You can also provide the same values through these environment variables:
+
+- `ANDROID_KEYSTORE_PATH`
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+
+If signing is missing, Gradle will fail any `release` task on purpose.
 
 ### Documentation
 

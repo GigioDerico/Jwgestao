@@ -3,9 +3,19 @@ import { supabase } from './supabase';
 import { Database } from './supabase-types';
 import { getMeetingDatesForMonth } from './audio-video-calendar';
 import { getSaturdaysForMonth } from './field-service-calendar';
+import { buildPublicAppUrl } from './public-url';
 import type { AssignmentNotification } from '../types';
 
 const PHONE_EMAIL_DOMAIN = 'jwgestao.app';
+
+function buildPasswordSetupLink(email: string, password: string) {
+  const params = new URLSearchParams({
+    e: email,
+    p: password,
+  });
+
+  return `${buildPublicAppUrl('/auth/setup-password')}?${params.toString()}`;
+}
 
 function normalizeOptionalText(value?: string) {
   const normalized = value?.trim();
@@ -912,7 +922,7 @@ export const api = {
     if (error) throw new Error(`Erro ao atualizar membro: ${error.message}`);
   },
 
-  async createMember(input: CreateMemberInput): Promise<{ member_id: string; auth_user_id: string; email_auth?: string; temp_password?: string }> {
+  async createMember(input: CreateMemberInput): Promise<{ member_id: string; auth_user_id: string; email_auth?: string; temp_password?: string; magicLink?: string }> {
     const phoneDigits = (input.phone || '').replace(/\D/g, '');
     const normalizedEmail = normalizeOptionalText(input.email);
     const normalizedEmergencyContactName = normalizeOptionalText(input.emergency_contact_name);
@@ -1037,17 +1047,20 @@ export const api = {
     // Como estamos restritos no cliente, pedimos ao servidor um link de recovery.
     try {
       await supabase.auth.resetPasswordForEmail(authEmail, {
-        redirectTo: `${window.location.origin}/auth/update-password`,
+        redirectTo: buildPublicAppUrl('/auth/update-password'),
       });
     } catch (err: any) {
       console.warn('Erro ao emitir aviso de boas vindas', err);
     }
 
+    const magicLink = buildPasswordSetupLink(authEmail, randomSecurePass);
+
     return {
       member_id: member.id,
       auth_user_id: authData.user.id,
       email_auth: authEmail,
-      temp_password: randomSecurePass
+      temp_password: randomSecurePass,
+      magicLink,
     };
   },
 
@@ -1101,7 +1114,7 @@ export const api = {
           success: true,
           email_auth: authEmail,
           temp_password: tempPassword,
-          magicLink: `${window.location.origin}/auth/setup-password?e=${encodeURIComponent(authEmail)}&p=${encodeURIComponent(tempPassword)}`
+          magicLink: buildPasswordSetupLink(authEmail, tempPassword),
         };
       } finally {
         await isolatedClient.auth.signOut();
@@ -1123,7 +1136,7 @@ export const api = {
       success: true,
       email_auth: authEmail,
       temp_password: tempPassword,
-      magicLink: `${window.location.origin}/auth/setup-password?e=${encodeURIComponent(authEmail)}&p=${encodeURIComponent(tempPassword)}`
+      magicLink: buildPasswordSetupLink(authEmail, tempPassword),
     };
   },
 

@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "vite"
+    "dev": "vite",
+    "check:android-java": "node scripts/check-android-java.mjs",
+    "sync:android": "npx cap sync android",
+    "build:android": "npm run build && npm run sync:android",
+    "apk:release": "npm run check:android-java && npm run build:android && cd android && ./gradlew assembleRelease"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",

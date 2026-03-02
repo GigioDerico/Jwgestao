@@ -10,6 +10,7 @@ import {
   buildMidweekScheduleTimes,
 } from '../lib/midweek-schedule';
 import { ExportActions } from './ExportActions';
+import { MidweekMeetingView } from './MidweekMeetingView';
 import { WeekendMeetingView } from './WeekendMeetingView';
 import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
@@ -429,6 +430,45 @@ function MidweekMeetingSheet({
   );
 }
 
+function MidweekMobileMeetingCard({
+  meeting,
+  index,
+}: {
+  meeting: MidweekMeeting;
+  index: number;
+}) {
+  const dateObj = new Date(`${meeting.date}T12:00:00`);
+  const dateFormatted = dateObj.toLocaleDateString('pt-BR', {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+  });
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+      <div className="border-b border-border bg-gradient-to-r from-amber-500/15 via-amber-400/10 to-transparent px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-foreground font-semibold" style={{ fontSize: '0.95rem' }}>
+              Reunião {index + 1}
+            </p>
+            <p className="text-muted-foreground capitalize" style={{ fontSize: '0.8rem' }}>
+              {dateFormatted}
+            </p>
+          </div>
+          <span className="rounded-full bg-amber-500/12 px-2.5 py-1 text-[0.72rem] font-medium text-amber-700">
+            Meio de semana
+          </span>
+        </div>
+      </div>
+
+      <div className="px-4 py-4">
+        <MidweekMeetingView meeting={meeting} />
+      </div>
+    </div>
+  );
+}
+
 function getWeekendExportMonthLabel(meetings: WeekendMeeting[]) {
   const timestamps = meetings
     .map(meeting => new Date(`${meeting.date}T12:00:00`).getTime())
@@ -690,14 +730,26 @@ export function MeetingsPage() {
       ) : tab === 'midweek' ? (
         midweekMeetings.length > 0 ? (
           <div className="space-y-6">
-            {midweekSheets.map((sheetMeetings, sheetIndex) => (
-              <MidweekMeetingSheet
-                key={sheetMeetings.map(meeting => meeting.id).join('-')}
-                meetings={sheetMeetings}
-                congregationName={congregationName}
-                sheetIndex={sheetIndex}
-              />
-            ))}
+            <div className="space-y-4 lg:hidden">
+              {midweekMeetings.map((meeting, index) => (
+                <MidweekMobileMeetingCard
+                  key={meeting.id}
+                  meeting={meeting}
+                  index={index}
+                />
+              ))}
+            </div>
+
+            <div className="hidden lg:block lg:space-y-6">
+              {midweekSheets.map((sheetMeetings, sheetIndex) => (
+                <MidweekMeetingSheet
+                  key={sheetMeetings.map(meeting => meeting.id).join('-')}
+                  meetings={sheetMeetings}
+                  congregationName={congregationName}
+                  sheetIndex={sheetIndex}
+                />
+              ))}
+            </div>
           </div>
         ) : (
           <div className="text-center py-12 text-muted-foreground">

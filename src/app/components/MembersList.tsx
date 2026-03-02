@@ -238,8 +238,7 @@ export function MembersList() {
         group_id: newMemberForm.group_id || undefined,
         family_head_id: newMemberForm.family_head_id || undefined,
       });
-      // Com MagicLink, o member.email_auth virá em res.email_auth caso o admin precise acionar reset para ele manualmente depois.
-      const magicLink = `${window.location.origin}/auth/setup-password?e=${encodeURIComponent(res.email_auth || '')}&p=${encodeURIComponent(res.temp_password || '')}`;
+      const magicLink = res.magicLink || '';
       toast.success(
         <div>
           <p>Membro "{newMemberForm.full_name}" criado com sucesso!</p>
