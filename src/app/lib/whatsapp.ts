@@ -8,6 +8,9 @@ export interface DesignationMessageData {
     partNumber: number | string;
     location: string;
     phone: string;
+    meetingTitle?: string;
+    assignmentLabel?: string;
+    observationText?: string;
 }
 
 export async function sendDesignationWhatsApp(data: DesignationMessageData): Promise<boolean> {
@@ -23,18 +26,28 @@ export async function sendDesignationWhatsApp(data: DesignationMessageData): Pro
             throw new Error('Número de telefone do estudante não encontrado.');
         }
 
+        const title = data.meetingTitle || 'DESIGNAÇÃO PARA A REUNIÃO NOSSA VIDA E MINISTÉRIO CRISTÃO';
+        const assignmentLabel =
+            data.assignmentLabel ||
+            (typeof data.partNumber === 'number' ? 'Número da parte' : 'Designação');
+        const observationText = data.observationText || (
+            title === 'DESIGNAÇÃO PARA A REUNIÃO NOSSA VIDA E MINISTÉRIO CRISTÃO'
+                ? 'A lição e a fonte de matéria para a sua designação estão na *Apostila da Reunião Vida e Ministério*. Veja as instruções para a parte que estão nas *Instruções para a Reunião Nossa Vida e Ministério Cristão (S-38)*.'
+                : 'Se houver algum imprevisto, informe com antecedência ao responsável pelas designações.'
+        );
+
         const messageTemplate = `Olá *${data.studentName}*, tudo bem?
 
 Segue sua designação para a reunião:
 
-*DESIGNAÇÃO PARA A REUNIÃO NOSSA VIDA E MINISTÉRIO CRISTÃO*
+*${title}*
 Nome: ${data.studentName}
 ${data.assistantName ? `Ajudante: ${data.assistantName}\n` : ''}Data: ${data.date}
-Número da parte: ${data.partNumber}
+${assignmentLabel}: ${data.partNumber}
 
 Local: ${data.location}
 
-Observação para o estudante: A lição e a fonte de matéria para a sua designação estão na *Apostila da Reunião Vida e Ministério*. Veja as instruções para a parte que estão nas *Instruções para a Reunião Nossa Vida e Ministério Cristão (S-38)*.`;
+Observação: ${observationText}`;
 
         // Format phone to ensure it has the country code (assuming +55 for Brazil if not provided)
         let formattedPhone = data.phone.replace(/\D/g, '');

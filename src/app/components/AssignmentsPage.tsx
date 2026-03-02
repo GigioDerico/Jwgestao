@@ -715,6 +715,35 @@ function MeetingsAssignmentsContent({
     member => member.spiritual_status === 'anciao' || member.spiritual_status === 'servo_ministerial',
   );
 
+  const sendWhatsAppDesignation = async (payload: Parameters<typeof sendDesignationWhatsApp>[0]) => {
+    const toastId = toast.loading('Enviando WhatsApp...');
+
+    try {
+      await sendDesignationWhatsApp(payload);
+      toast.success('Designação enviada com sucesso!', { id: toastId });
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao enviar WhatsApp.', { id: toastId });
+    }
+  };
+
+  const renderWhatsAppButton = (payload: Parameters<typeof sendDesignationWhatsApp>[0] | null) => {
+    if (!payload?.phone) {
+      return null;
+    }
+
+    return (
+      <div className="flex justify-end pr-3 pt-1">
+        <button
+          onClick={() => sendWhatsAppDesignation(payload)}
+          className="flex items-center gap-1.5 text-[0.8rem] font-medium text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors border border-green-100"
+        >
+          <MessageCircle size={15} />
+          Enviar Designação
+        </button>
+      </div>
+    );
+  };
+
   const getEditModalMembers = (field: MeetingEditField | null) => {
     if (!field || field.mode !== 'member' || field.table !== 'weekend_meetings') {
       return allMembers;
@@ -804,6 +833,17 @@ function MeetingsAssignmentsContent({
             <AssignmentField label={`1. ${mappedTreasureTitle}`} value={mappedTalkSpeaker} onClick={() => openEdit({ label: 'Discurso', mode: 'member', currentValue: mappedTalkSpeaker, table: 'midweek_meetings', rowId: meeting.id, column: 'treasure_talk_speaker_id' })} canEdit={canEditAssignments} />
             <AssignmentField label="2. Joias Espirituais" value={mappedGemsSpeaker} onClick={() => openEdit({ label: 'Joias Espirituais', mode: 'member', currentValue: mappedGemsSpeaker, table: 'midweek_meetings', rowId: meeting.id, column: 'treasure_gems_speaker_id' })} canEdit={canEditAssignments} />
             <AssignmentField label="3. Leitura da Bíblia" value={mappedReadingStudent} onClick={() => openEdit({ label: 'Leitura da Bíblia', mode: 'member', currentValue: mappedReadingStudent, table: 'midweek_meetings', rowId: meeting.id, column: 'treasure_reading_student_id' })} canEdit={canEditAssignments} />
+            {renderWhatsAppButton(
+              meeting.treasure_reading_student?.phone
+                ? {
+                    studentName: meeting.treasure_reading_student.full_name,
+                    date: new Date(meeting.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+                    partNumber: 3,
+                    location: MIDWEEK_PRIMARY_ROOM,
+                    phone: meeting.treasure_reading_student.phone,
+                  }
+                : null
+            )}
           </AssignmentSection>
 
           <AssignmentSection title="Faça Seu Melhor no Ministério" color="bg-[#c4972a]">
@@ -825,31 +865,17 @@ function MeetingsAssignmentsContent({
                     canEdit={canEditAssignments}
                   />
                 )}
-                {part.student?.phone && (
-                  <div className="flex justify-end pr-3 pt-1">
-                    <button
-                      onClick={async () => {
-                        const toastId = toast.loading('Enviando WhatsApp...');
-                        try {
-                          await sendDesignationWhatsApp({
-                            studentName: part.student.full_name,
-                            assistantName: part.assistant?.full_name,
-                            date: new Date(meeting.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-                            partNumber: part.part_number,
-                            location: part.room || 'Salão Principal',
-                            phone: part.student.phone
-                          });
-                          toast.success('Designação enviada com sucesso!', { id: toastId });
-                        } catch (err: any) {
-                          toast.error(err.message || 'Erro ao enviar WhatsApp.', { id: toastId });
-                        }
-                      }}
-                      className="flex items-center gap-1.5 text-[0.8rem] font-medium text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors border border-green-100"
-                    >
-                      <MessageCircle size={15} />
-                      Enviar Designação
-                    </button>
-                  </div>
+                {renderWhatsAppButton(
+                  part.student?.phone
+                    ? {
+                        studentName: part.student.full_name,
+                        assistantName: part.assistant?.full_name,
+                        date: new Date(meeting.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+                        partNumber: part.part_number,
+                        location: part.room || MIDWEEK_PRIMARY_ROOM,
+                        phone: part.student.phone,
+                      }
+                    : null
                 )}
               </div>
             ))}
@@ -939,6 +965,19 @@ function MeetingsAssignmentsContent({
       <div className="space-y-4">
         <AssignmentSection title="Conferência Pública" color="bg-[#1a5fb4]">
           <AssignmentField label="Presidente" value={meeting.president?.full_name || 'Desconhecido'} onClick={() => openEdit({ label: 'Presidente', mode: 'member', currentValue: meeting.president?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'president_id' })} canEdit={canEditAssignments} />
+          {renderWhatsAppButton(
+            meeting.president?.phone
+              ? {
+                  studentName: meeting.president.full_name,
+                  date: new Date(meeting.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+                  partNumber: 'Presidente',
+                  assignmentLabel: 'Designação',
+                  meetingTitle: 'DESIGNAÇÃO PARA A REUNIÃO DE FIM DE SEMANA',
+                  location: MIDWEEK_PRIMARY_ROOM,
+                  phone: meeting.president.phone,
+                }
+              : null
+          )}
           <AssignmentField label="Tema" value={meeting.talk_theme || 'Não definido'} onClick={() => openEdit({ label: 'Tema', mode: 'text', currentValue: meeting.talk_theme || '', table: 'weekend_meetings', rowId: meeting.id, column: 'talk_theme' })} canEdit={canEditAssignments} />
           <AssignmentField
             label="Orador"
@@ -963,6 +1002,19 @@ function MeetingsAssignmentsContent({
         <AssignmentSection title="Estudo de A Sentinela" color="bg-[#1a5fb4]">
           <AssignmentField label="Dirigente" value={meeting.watchtower_conductor?.full_name || 'Desconhecido'} onClick={() => openEdit({ label: 'Dirigente', mode: 'member', currentValue: meeting.watchtower_conductor?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'watchtower_conductor_id' })} canEdit={canEditAssignments} />
           <AssignmentField label="Leitor" value={meeting.watchtower_reader?.full_name || 'Desconhecido'} onClick={() => openEdit({ label: 'Leitor', mode: 'member', currentValue: meeting.watchtower_reader?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'watchtower_reader_id' })} canEdit={canEditAssignments} />
+          {renderWhatsAppButton(
+            meeting.watchtower_reader?.phone
+              ? {
+                  studentName: meeting.watchtower_reader.full_name,
+                  date: new Date(meeting.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+                  partNumber: 'Leitor da Sentinela',
+                  assignmentLabel: 'Designação',
+                  meetingTitle: 'DESIGNAÇÃO PARA A REUNIÃO DE FIM DE SEMANA',
+                  location: MIDWEEK_PRIMARY_ROOM,
+                  phone: meeting.watchtower_reader.phone,
+                }
+              : null
+          )}
         </AssignmentSection>
 
         <AssignmentSection title="Encerramento" color="bg-gray-700">

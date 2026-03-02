@@ -1519,12 +1519,12 @@ export const api = {
       .from('midweek_meetings')
       .select(`
         *,
-        president: members!midweek_meetings_president_id_fkey(full_name),
+        president: members!midweek_meetings_president_id_fkey(full_name, phone),
           opening_prayer: members!midweek_meetings_opening_prayer_id_fkey(full_name),
             closing_prayer: members!midweek_meetings_closing_prayer_id_fkey(full_name),
               treasure_talk_speaker: members!midweek_meetings_treasure_talk_speaker_id_fkey(full_name),
                 treasure_gems_speaker: members!midweek_meetings_treasure_gems_speaker_id_fkey(full_name),
-                  treasure_reading_student: members!midweek_meetings_treasure_reading_student_id_fkey(full_name),
+                  treasure_reading_student: members!midweek_meetings_treasure_reading_student_id_fkey(full_name, phone),
                     cbs_conductor: members!midweek_meetings_cbs_conductor_id_fkey(full_name),
                       cbs_reader: members!midweek_meetings_cbs_reader_id_fkey(full_name),
                         ministry_parts: midweek_ministry_parts(*, student: members!midweek_ministry_parts_student_id_fkey(full_name, phone), assistant: members!midweek_ministry_parts_assistant_id_fkey(full_name)),
@@ -1559,10 +1559,10 @@ export const api = {
       })
       .select(`
         *,
-        president: members!weekend_meetings_president_id_fkey(full_name),
+        president: members!weekend_meetings_president_id_fkey(full_name, phone),
           closing_prayer: members!weekend_meetings_closing_prayer_id_fkey(full_name),
             watchtower_conductor: members!weekend_meetings_watchtower_conductor_id_fkey(full_name),
-              watchtower_reader: members!weekend_meetings_watchtower_reader_id_fkey(full_name)
+              watchtower_reader: members!weekend_meetings_watchtower_reader_id_fkey(full_name, phone)
                 `)
       .single();
 
@@ -1686,12 +1686,12 @@ export const api = {
       .from('midweek_meetings')
       .select(`
                 *,
-                president: members!midweek_meetings_president_id_fkey(full_name),
+                president: members!midweek_meetings_president_id_fkey(full_name, phone),
                   opening_prayer: members!midweek_meetings_opening_prayer_id_fkey(full_name),
                     closing_prayer: members!midweek_meetings_closing_prayer_id_fkey(full_name),
                       treasure_talk_speaker: members!midweek_meetings_treasure_talk_speaker_id_fkey(full_name),
                         treasure_gems_speaker: members!midweek_meetings_treasure_gems_speaker_id_fkey(full_name),
-                          treasure_reading_student: members!midweek_meetings_treasure_reading_student_id_fkey(full_name),
+                          treasure_reading_student: members!midweek_meetings_treasure_reading_student_id_fkey(full_name, phone),
                             cbs_conductor: members!midweek_meetings_cbs_conductor_id_fkey(full_name),
                               cbs_reader: members!midweek_meetings_cbs_reader_id_fkey(full_name),
                                 ministry_parts: midweek_ministry_parts(*, student: members!midweek_ministry_parts_student_id_fkey(full_name, phone), assistant: members!midweek_ministry_parts_assistant_id_fkey(full_name)),
@@ -1736,10 +1736,10 @@ export const api = {
       .eq('id', meetingId)
       .select(`
         *,
-        president: members!weekend_meetings_president_id_fkey(full_name),
+        president: members!weekend_meetings_president_id_fkey(full_name, phone),
           closing_prayer: members!weekend_meetings_closing_prayer_id_fkey(full_name),
             watchtower_conductor: members!weekend_meetings_watchtower_conductor_id_fkey(full_name),
-              watchtower_reader: members!weekend_meetings_watchtower_reader_id_fkey(full_name)
+              watchtower_reader: members!weekend_meetings_watchtower_reader_id_fkey(full_name, phone)
                 `)
       .single();
 
@@ -1754,12 +1754,12 @@ export const api = {
       .from('midweek_meetings')
       .select(`
                 *,
-                president: members!midweek_meetings_president_id_fkey(full_name),
+                president: members!midweek_meetings_president_id_fkey(full_name, phone),
                   opening_prayer: members!midweek_meetings_opening_prayer_id_fkey(full_name),
                     closing_prayer: members!midweek_meetings_closing_prayer_id_fkey(full_name),
                       treasure_talk_speaker: members!midweek_meetings_treasure_talk_speaker_id_fkey(full_name),
                         treasure_gems_speaker: members!midweek_meetings_treasure_gems_speaker_id_fkey(full_name),
-                          treasure_reading_student: members!midweek_meetings_treasure_reading_student_id_fkey(full_name),
+                          treasure_reading_student: members!midweek_meetings_treasure_reading_student_id_fkey(full_name, phone),
                             cbs_conductor: members!midweek_meetings_cbs_conductor_id_fkey(full_name),
                               cbs_reader: members!midweek_meetings_cbs_reader_id_fkey(full_name),
                                 ministry_parts: midweek_ministry_parts(*, student: members!midweek_ministry_parts_student_id_fkey(full_name, phone), assistant: members!midweek_ministry_parts_assistant_id_fkey(full_name)),
@@ -1777,10 +1777,10 @@ export const api = {
       .from('weekend_meetings')
       .select(`
                                     *,
-                                    president: members!weekend_meetings_president_id_fkey(full_name),
+                                    president: members!weekend_meetings_president_id_fkey(full_name, phone),
                                       closing_prayer: members!weekend_meetings_closing_prayer_id_fkey(full_name),
                                         watchtower_conductor: members!weekend_meetings_watchtower_conductor_id_fkey(full_name),
-                                          watchtower_reader: members!weekend_meetings_watchtower_reader_id_fkey(full_name)
+                                          watchtower_reader: members!weekend_meetings_watchtower_reader_id_fkey(full_name, phone)
                                             `)
       .order('date', { ascending: true });
 
