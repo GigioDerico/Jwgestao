@@ -161,6 +161,16 @@ Esses modos ajudam a localizar pessoas com mais facilidade.
 5. Revise as informacoes.
 6. Salve o cadastro.
 
+### Primeiro acesso do membro
+
+Depois de criar um membro com telefone valido, o sistema pode gerar um link de primeiro acesso.
+
+Pontos importantes:
+
+- esse link deve ser enviado ao membro para a definicao ou renovacao da senha
+- o link abre a aplicacao publicada em `https://jwgestao.vercel.app`
+- isso tambem vale quando o administrador estiver usando o app Android
+
 ### Dados principais normalmente usados
 
 - nome completo
@@ -221,6 +231,15 @@ O sistema organiza as reunioes em dois grupos:
 - ver responsaveis e partes
 - gerar material para visualizacao e impressao
 - exportar em imagem ou PDF
+
+### Experiencia atual em celular
+
+Na aba **Meio de semana**, o comportamento agora e diferente por tamanho de tela:
+
+- no **desktop**, a visualizacao continua em folhas preparadas para impressao
+- no **celular**, cada reuniao aparece em um card proprio, com leitura mais direta e vertical
+
+Isso melhora a consulta rapida sem alterar a versao usada para impressao e revisao em telas grandes.
 
 ### Quando usar esta tela
 

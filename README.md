@@ -51,11 +51,12 @@ As areas principais do sistema sao:
 ### Principais recursos
 
 - autenticacao por telefone e senha
+- link de primeiro acesso e redefinicao com URL publica de producao
 - controle de acesso por perfil
 - notificacoes em tempo real
 - exportacao pronta para compartilhamento e impressao
 - uso responsivo no desktop e no celular
-- suporte a recursos mobile com Capacitor
+- suporte a recursos mobile com Capacitor e build Android assinada
 
 ### Status do projeto
 
@@ -67,6 +68,8 @@ O estado atual e:
 - modulos principais ja funcionando
 - documentacao base ja iniciada
 - refinamentos frequentes de interface, exportacao e fluxos de escala
+- build Android `release` ja configurada no projeto
+- app web publicado em `https://jwgestao.vercel.app`
 
 ### Roadmap atual
 
@@ -131,6 +134,18 @@ Como alternativa, use as variaveis de ambiente:
 - `ANDROID_KEY_PASSWORD`
 
 Se a assinatura nao estiver configurada, o Gradle interrompe qualquer tarefa `release`.
+
+### URL publica de producao
+
+O app web publicado atualmente usa:
+
+- `https://jwgestao.vercel.app`
+
+Essa URL e usada como base publica para:
+
+- links de primeiro acesso de membros
+- links de redefinicao de senha
+- redirecionamentos de autenticacao quando o app estiver rodando no Android via Capacitor
 
 ### Documentacao
 
@@ -201,11 +216,12 @@ The main areas of the system are:
 ### Key features
 
 - phone-and-password authentication
+- first-access and password-reset links using the public production URL
 - role-based access control
 - real-time notifications
 - export-ready materials for sharing and printing
 - responsive desktop and mobile usage
-- mobile support through Capacitor
+- mobile support through Capacitor with signed Android release builds
 
 ### Project status
 
@@ -217,6 +233,8 @@ Current status:
 - core modules already working
 - foundational documentation in place
 - ongoing refinement of UI, exports, and scheduling flows
+- Android `release` builds are already configured in the project
+- the web app is currently live at `https://jwgestao.vercel.app`
 
 ### Current roadmap
 
@@ -281,6 +299,18 @@ You can also provide the same values through these environment variables:
 - `ANDROID_KEY_PASSWORD`
 
 If signing is missing, Gradle will fail any `release` task on purpose.
+
+### Public production URL
+
+The current live web app runs at:
+
+- `https://jwgestao.vercel.app`
+
+This public URL is used as the canonical base for:
+
+- member first-access links
+- password reset links
+- auth redirects when the app is running inside the Android Capacitor shell
 
 ### Documentation
 

@@ -6,8 +6,15 @@ Atualmente, o **JW Gestão** é construído usando **React 18** (via Vite), oper
 ---
 
 ## 2. O Aplicativo Atual é "Mobile Nativo"?
-**Não.** O aplicativo hoje é *Mobile-Responsive* ou uma *Web App Responsiva*.
-Ele se adapta lindamente (com menus sanduíche, blocos espremidos e fontes adaptáveis) à tela de um celular graças ao Tailwind CSS, mas **não** pode ser compilado diretamente num arquivo `.apk` (Android) ou `.ipa` (iOS) para as lojas Google Play e App Store utilizando o código em sua conformação atual.
+**Parcialmente.** O aplicativo continua sendo uma base **web responsiva**, mas agora o projeto ja possui **Capacitor configurado** e um fluxo real de build Android.
+
+Isso significa que:
+
+- a interface continua sendo renderizada como aplicacao web dentro de um WebView
+- o projeto **ja pode ser compilado** em um arquivo `.apk` Android assinado
+- ele ainda nao e um app nativo puro reescrito em React Native
+
+Em outras palavras: hoje o JW Gestao e um app web responsivo com empacotamento nativo funcional para Android.
 
 ## 3. Caminhos Possíveis para Aplicativo nas Lojas (App Stores)
 
@@ -20,10 +27,11 @@ Para tornar a aplicação baixável por lojas, existem 3 abordagens tradicionais
 - **Veredito:** O projeto não tem os arquivos para agir como PWA oficial ainda.
 
 ### Abordagem B: WebViews Empacotadas (CapacitorJS / Cordova) - *Caminho Intermediário*
-**Prontidão do Código Atual: 🟡 70%**
+**Prontidão do Código Atual: 🟢 90%**
 - Envolve pegar 100% da compilação do React Web atual (HTML/Tailwind/React-Router) e "envelopar" dentro de um aplicativo nativo usando um navegador invisível no celular.
-- **O que falta:** O código web atende perfeitamente. Daria muito pouco trabalho técnico de reescrita. O único problema seriam transições complexas, ausência de acesso *hardcore* a biometria sofisticada ou push notifications nativos via código atual. Necessitaria somente integrar o Capacitor (`npm install @capacitor/core @capacitor/cli`) por cima do Vite.
-- **Veredito:** Sendo um app de formulários de Igreja de baixa exigência gráfica (sem games 3D complexos ou renderizações severas), a stack Web suportaria bem com o Capacitor rodando-o nas Lojas.
+- **O que já existe hoje:** O projeto ja possui Capacitor configurado, pasta `android/`, assinatura `release` preparada e geracao de APK funcionando.
+- **O que ainda falta para distribuicao completa:** Refinar o processo de publicacao, evoluir para `AAB` se necessario e validar completamente os fluxos reais em dispositivos Android.
+- **Veredito:** Este ja e o caminho ativo do projeto para Android. A base atual suporta bem esse modelo.
 
 ### Abordagem C: React Native / Expo - *O Caminho Nativo Original*
 **Prontidão do Código Atual: 🔴 10% (Incompatível diretamente)**
@@ -43,9 +51,21 @@ Se a decisão for reescrever e criar um verdadeiro nativo (Caminho C), estes ele
 
 ---
 
-## 5. Recomendação Profissional do Arquiteto (Agente)
+## 5. Situação Atual e Recomendação
+
+O projeto avancou desde a analise inicial e hoje ja adota, na pratica, a estrategia de **CapacitorJS** para Android.
+
+Estado atual confirmado:
+
+- APK Android `release` assinado pode ser gerado a partir do repositório
+- a aplicacao web publicada em `https://jwgestao.vercel.app` e usada como URL publica oficial
+- links de autenticacao e primeiro acesso foram ajustados para usar a URL publica, evitando `localhost` no app Android
+- a tela de **Reunioes > Meio de semana** ganhou uma visualizacao mobile dedicada, enquanto o desktop manteve o layout de impressao
+
+### Recomendacao profissional do arquiteto (agente)
 
 Se seu objetivo principal for aprovação rápida nas lojas gastando pouco tempo codando ou o desejo de mandar aos usuários apenas com um "Adicionar à Tela Inicial":
 
-**1. Siga a via do PWA Integrado (Transformar Site em App "Falso"):** Instalar o plugin no Vite para forçar o layout de instalação de APP direto nos telefones Chrome/Safari sem App Store.
-**2. Envelopar via CapacitorJS (Transformar Site em APP "Verdadeiro"):** O projeto atual, com todos os recursos base de Tailwind e componentes de qualidade do Radix UI já prontos para telas flexíveis, ficará brilhante envelopado no visualizador do **CapacitorJS**. Com isso, ele pode gerar saídas iOS (`.ipa`) e Android (`.aab`) compiláveis sem jogar fora NENHUMA linha do Front-End React.
+**1. Consolidar a via do CapacitorJS:** Este ja e o caminho certo para o estado atual do projeto.
+**2. Evoluir o pipeline para distribuicao:** O proximo passo natural e adicionar geracao de `AAB`, revisar assinatura para publicacao e formalizar testes em aparelhos reais.
+**3. Usar PWA como complemento, nao como substituto:** PWA ainda pode ser util como acesso alternativo, mas o Android nativo empacotado ja deixou de ser apenas uma hipotese.

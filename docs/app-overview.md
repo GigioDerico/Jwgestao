@@ -58,6 +58,7 @@ O aplicativo atual foi construido com uma stack web moderna, com suporte a uso m
 - **Componentes de interface:** combinacao de componentes proprios com Radix UI e Material UI em pontos especificos
 - **Backend/Banco/Auth:** Supabase
 - **Recursos nativos mobile:** Capacitor
+- **Deploy web atual:** Vercel (`https://jwgestao.vercel.app`)
 
 ### Integracoes em uso
 
@@ -164,6 +165,7 @@ Principais funcoes:
 - consultar detalhes das partes e responsaveis
 - gerar documentos de impressao/exportacao
 - exportar em **JPG** e **PDF**
+- usar visualizacao mobile dedicada para reunioes de meio de semana no celular, sem alterar a folha de impressao do desktop
 
 Essa tela serve como area de visualizacao e saida de material. As designacoes detalhadas ficam separadas em modulos especificos.
 
@@ -257,6 +259,28 @@ Essa area e essencial para adaptar o aplicativo a realidade local da congregacao
 ## 7. Notificacoes e confirmacoes
 
 O sistema possui uma camada de notificacoes voltada principalmente para designacoes.
+
+---
+
+## 8. Acesso inicial e links publicos
+
+O acesso continua sendo feito por **telefone + senha**, mas o fluxo operacional de criacao e recuperacao agora considera explicitamente a URL publica do sistema.
+
+### Como o primeiro acesso funciona hoje
+
+- ao criar um membro com acesso, o sistema gera um link de primeiro acesso
+- ao regenerar o acesso, o sistema revoga a senha anterior e gera um novo link
+- esses links apontam para a aplicacao publicada em `https://jwgestao.vercel.app`
+
+Isso evita que links de autenticacao apontem para `localhost` quando o sistema estiver rodando dentro do app Android com Capacitor.
+
+### Build mobile atual
+
+O projeto ja possui:
+
+- configuracao de assinatura Android para build `release`
+- fluxo de `sync` do Capacitor com a build web
+- geracao de APK assinado a partir do codigo atual
 
 Recursos atuais:
 
