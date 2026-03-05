@@ -7,6 +7,7 @@ import { getMeetingDatesForMonth, type AudioVideoMeetingDate } from '../lib/audi
 import { downloadElementAsImage, downloadElementAsPdf } from '../lib/dom-export';
 import { ExportActions } from './ExportActions';
 import type { AudioVideoAssignment } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 const MONTHS = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -66,6 +67,7 @@ export function AudioVideoAssignments({
   canExportImage?: boolean;
   canExportPdf?: boolean;
 }) {
+  const { user } = useAuth();
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
@@ -77,6 +79,7 @@ export function AudioVideoAssignments({
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState<'image' | 'pdf' | null>(null);
+  const [nameFilter, setNameFilter] = useState('');
   const exportRef = useRef<HTMLDivElement>(null);
 
   const meetingDates = getMeetingDatesForMonth(currentMonth, currentYear);
@@ -94,6 +97,31 @@ export function AudioVideoAssignments({
     ...meetingDate,
     assignment: assignmentByDate.get(meetingDate.date) || null,
   }));
+  const normalizeFilterText = (value: string) =>
+    value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+  const normalizedNameFilter = normalizeFilterText(nameFilter.trim());
+  const currentUserName = (user?.name || '').trim();
+  const filteredCalendarRows = normalizedNameFilter
+    ? calendarRows.filter(row => {
+      if (!row.assignment) {
+        return false;
+      }
+
+      const fields = [
+        row.assignment.sound,
+        row.assignment.image,
+        row.assignment.stage,
+        row.assignment.rovingMic1,
+        row.assignment.rovingMic2,
+        ...row.assignment.attendants,
+      ];
+
+      return fields.some(value => normalizeFilterText(value || '').includes(normalizedNameFilter));
+    })
+    : calendarRows;
   const isMonthGenerated = calendarRows.length > 0 && calendarRows.every(row => Boolean(row.assignment));
 
   const audioVideoMembers = members.filter(member => Boolean(member.approved_audio_video));
@@ -617,6 +645,37 @@ export function AudioVideoAssignments({
         </div>
       </div>
 
+      <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="relative flex-1">
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={nameFilter}
+              onChange={event => setNameFilter(event.target.value)}
+              placeholder="Filtrar por nome do designado..."
+              className="w-full rounded-lg border border-border bg-card py-2 pl-9 pr-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              style={{ fontSize: '14px' }}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (!currentUserName) {
+                toast.error('Não foi possível identificar seu nome de usuário.');
+                return;
+              }
+              setNameFilter(prev => prev.trim() === currentUserName ? '' : currentUserName);
+            }}
+            disabled={!currentUserName}
+            className="rounded-lg border border-border px-3 py-2 text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+            style={{ fontSize: '14px' }}
+          >
+            {nameFilter.trim() === currentUserName ? 'Limpar minhas designações' : 'Minhas designações'}
+          </button>
+        </div>
+      </div>
+
       {(canExportImage || canExportPdf) && (
         <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -687,73 +746,91 @@ export function AudioVideoAssignments({
               </tr>
             </thead>
             <tbody>
-              {calendarRows.map((row, index) => (
-                <tr
-                  key={row.date}
-                  className={`${index % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'} border-b border-gray-200 transition-colors hover:bg-blue-50/70`}
-                >
-                  <td className="px-3 py-2.5 text-gray-700">
-                    <div className="font-medium">{formatDate(row.date)}</div>
-                    <div className="text-gray-400" style={{ fontSize: '14px' }}>
-                      {row.weekday} {row.assignment ? '' : '• não gerada'}
-                    </div>
+              {filteredCalendarRows.length > 0 ? (
+                filteredCalendarRows.map((row, index) => (
+                  <tr
+                    key={row.date}
+                    className={`${index % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'} border-b border-gray-200 transition-colors hover:bg-blue-50/70`}
+                  >
+                    <td className="px-3 py-2.5 text-gray-700">
+                      <div className="font-medium">{formatDate(row.date)}</div>
+                      <div className="text-gray-400" style={{ fontSize: '14px' }}>
+                        {row.weekday} {row.assignment ? '' : '• não gerada'}
+                      </div>
+                    </td>
+                    <td className="px-2 py-2.5">{renderSingleRoleButton(row, 'sound')}</td>
+                    <td className="px-2 py-2.5">{renderSingleRoleButton(row, 'image')}</td>
+                    <td className="px-2 py-2.5">{renderSingleRoleButton(row, 'stage')}</td>
+                    <td className="px-2 py-2.5">{renderSingleRoleButton(row, 'rovingMic1')}</td>
+                    <td className="px-2 py-2.5">{renderSingleRoleButton(row, 'rovingMic2')}</td>
+                    <td className="px-2 py-2.5">{renderAttendantsButton(row)}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                    {nameFilter.trim()
+                      ? 'Nenhuma designação encontrada para este nome.'
+                      : 'Nenhuma linha disponível para este mês.'}
                   </td>
-                  <td className="px-2 py-2.5">{renderSingleRoleButton(row, 'sound')}</td>
-                  <td className="px-2 py-2.5">{renderSingleRoleButton(row, 'image')}</td>
-                  <td className="px-2 py-2.5">{renderSingleRoleButton(row, 'stage')}</td>
-                  <td className="px-2 py-2.5">{renderSingleRoleButton(row, 'rovingMic1')}</td>
-                  <td className="px-2 py-2.5">{renderSingleRoleButton(row, 'rovingMic2')}</td>
-                  <td className="px-2 py-2.5">{renderAttendantsButton(row)}</td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
       <div className="space-y-3 md:hidden">
-        {calendarRows.map(row => (
-          <div key={row.date} className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-            <div className="bg-[#4a9bc7] px-4 py-2 flex items-center justify-between">
-              <span className="text-white" style={{ fontSize: '14px' }}>
-                {formatDate(row.date)} • {row.weekday}
-              </span>
-              <span className="text-white/90" style={{ fontSize: '14px' }}>
-                {row.assignment ? 'gerada' : 'não gerada'}
-              </span>
-            </div>
-            <div className="space-y-3 p-3">
-              <section className="space-y-2">
-                <h5 className="text-gray-500" style={{ fontSize: '14px' }}>Áudio e Vídeo</h5>
-                {SINGLE_ROLE_CONFIG.filter(role => role.group === 'audioVideo').map(role => (
-                  <div key={role.key} className="flex items-center gap-3">
+        {filteredCalendarRows.length > 0 ? (
+          filteredCalendarRows.map(row => (
+            <div key={row.date} className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
+              <div className="bg-[#4a9bc7] px-4 py-2 flex items-center justify-between">
+                <span className="text-white" style={{ fontSize: '14px' }}>
+                  {formatDate(row.date)} • {row.weekday}
+                </span>
+                <span className="text-white/90" style={{ fontSize: '14px' }}>
+                  {row.assignment ? 'gerada' : 'não gerada'}
+                </span>
+              </div>
+              <div className="space-y-3 p-3">
+                <section className="space-y-2">
+                  <h5 className="text-gray-500" style={{ fontSize: '14px' }}>Áudio e Vídeo</h5>
+                  {SINGLE_ROLE_CONFIG.filter(role => role.group === 'audioVideo').map(role => (
+                    <div key={role.key} className="flex items-center gap-3">
+                      <span className="w-24 shrink-0 text-gray-500" style={{ fontSize: '14px' }}>
+                        {role.label}
+                      </span>
+                      <div className="flex-1">{renderSingleRoleButton(row, role.key)}</div>
+                    </div>
+                  ))}
+                </section>
+                <section className="space-y-2 border-t border-gray-100 pt-3">
+                  <h5 className="text-gray-500" style={{ fontSize: '14px' }}>Indicadores</h5>
+                  {SINGLE_ROLE_CONFIG.filter(role => role.group === 'indicators').map(role => (
+                    <div key={role.key} className="flex items-center gap-3">
+                      <span className="w-24 shrink-0 text-gray-500" style={{ fontSize: '14px' }}>
+                        {role.label}
+                      </span>
+                      <div className="flex-1">{renderSingleRoleButton(row, role.key)}</div>
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-3">
                     <span className="w-24 shrink-0 text-gray-500" style={{ fontSize: '14px' }}>
-                      {role.label}
+                      Entradas
                     </span>
-                    <div className="flex-1">{renderSingleRoleButton(row, role.key)}</div>
+                    <div className="flex-1">{renderAttendantsButton(row)}</div>
                   </div>
-                ))}
-              </section>
-              <section className="space-y-2 border-t border-gray-100 pt-3">
-                <h5 className="text-gray-500" style={{ fontSize: '14px' }}>Indicadores</h5>
-                {SINGLE_ROLE_CONFIG.filter(role => role.group === 'indicators').map(role => (
-                  <div key={role.key} className="flex items-center gap-3">
-                    <span className="w-24 shrink-0 text-gray-500" style={{ fontSize: '14px' }}>
-                      {role.label}
-                    </span>
-                    <div className="flex-1">{renderSingleRoleButton(row, role.key)}</div>
-                  </div>
-                ))}
-                <div className="flex items-center gap-3">
-                  <span className="w-24 shrink-0 text-gray-500" style={{ fontSize: '14px' }}>
-                    Entradas
-                  </span>
-                  <div className="flex-1">{renderAttendantsButton(row)}</div>
-                </div>
-              </section>
+                </section>
+              </div>
             </div>
+          ))
+        ) : (
+          <div className="rounded-xl border border-gray-100 bg-white px-4 py-8 text-center text-gray-500 shadow-sm">
+            {nameFilter.trim()
+              ? 'Nenhuma designação encontrada para este nome.'
+              : 'Nenhuma linha disponível para este mês.'}
           </div>
-        ))}
+        )}
       </div>
 
       {assignmentSummary.length > 0 && (

@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { downloadElementAsImage, downloadElementAsPdf } from '../lib/dom-export';
 import { ExportActions } from './ExportActions';
 import type { CartAssignment } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 const MONTHS = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -75,10 +76,13 @@ export function CartAssignments({
   canExportImage?: boolean;
   canExportPdf?: boolean;
 }) {
+  const { user } = useAuth();
+  const today = new Date();
   const readOnly = !canEdit;
-  const [currentMonth, setCurrentMonth] = useState(0); // Jan
-  const [currentYear, setCurrentYear] = useState(2026);
+  const [currentMonth, setCurrentMonth] = useState(today.getMonth());
+  const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [data, setData] = useState<CartAssignment[]>([]);
+  const [nameFilter, setNameFilter] = useState('');
   const [editModal, setEditModal] = useState<{ id: string; field: 'publisher1' | 'publisher2'; currentValue: string } | null>(null);
   const [members, setMembers] = useState<{ id: string; full_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -329,12 +333,26 @@ export function CartAssignments({
     }
   };
 
+  const normalizeFilterText = (value: string) =>
+    value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+  const normalizedNameFilter = normalizeFilterText(nameFilter.trim());
+  const currentUserName = (user?.name || '').trim();
+  const filteredData = normalizedNameFilter
+    ? data.filter(item =>
+      normalizeFilterText(item.publisher1).includes(normalizedNameFilter) ||
+      normalizeFilterText(item.publisher2).includes(normalizedNameFilter)
+    )
+    : data;
+
   // Group by week
   const weeks = [1, 2, 3, 4, 5];
   const grouped = weeks
     .map(w => ({
       week: w,
-      items: data.filter(d => d.week === w),
+      items: filteredData.filter(d => d.week === w),
     }))
     .filter(g => g.items.length > 0);
 
@@ -422,6 +440,37 @@ export function CartAssignments({
           />
         </div>
       )}
+
+      <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="relative flex-1">
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={nameFilter}
+              onChange={e => setNameFilter(e.target.value)}
+              placeholder="Filtrar por nome do publicador..."
+              className="w-full rounded-lg border border-border bg-card py-2 pl-9 pr-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              style={{ fontSize: '0.88rem' }}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (!currentUserName) {
+                toast.error('Não foi possível identificar seu nome de usuário.');
+                return;
+              }
+              setNameFilter(prev => prev.trim() === currentUserName ? '' : currentUserName);
+            }}
+            disabled={!currentUserName}
+            className="rounded-lg border border-border px-3 py-2 text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+            style={{ fontSize: '0.85rem' }}
+          >
+            {nameFilter.trim() === currentUserName ? 'Limpar minhas designações' : 'Minhas designações'}
+          </button>
+        </div>
+      </div>
 
       {canCreate && (
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
@@ -546,7 +595,9 @@ export function CartAssignments({
         </div>
       ) : grouped.length === 0 ? (
         <div className="bg-card rounded-xl border border-border p-12 text-center">
-          <p className="text-muted-foreground" style={{ fontSize: '0.9rem' }}>Nenhuma designação de carrinho para este mês.</p>
+          <p className="text-muted-foreground" style={{ fontSize: '0.9rem' }}>
+            {nameFilter.trim() ? 'Nenhuma designação encontrada para este nome.' : 'Nenhuma designação de carrinho para este mês.'}
+          </p>
         </div>
       ) : (
         <div>
