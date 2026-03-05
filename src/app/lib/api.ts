@@ -1444,6 +1444,16 @@ export const api = {
     return mapCartAssignment(data);
   },
 
+  async deleteCartAssignmentsForMonth(monthIndex: number, year: number) {
+    const { error } = await supabase
+      .from('cart_assignments')
+      .delete()
+      .eq('month', monthIndex + 1)
+      .eq('year', year);
+
+    if (error) throw new Error(formatDatabaseWriteError('Erro ao limpar designações de carrinho do mês', error));
+  },
+
   async createMidweekMeeting(input: CreateMidweekMeetingInput) {
     const { data: createdMeeting, error } = await supabase
       .from('midweek_meetings')
