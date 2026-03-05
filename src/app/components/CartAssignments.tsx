@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
-import { ChevronLeft, ChevronRight, X, Search, MapPin, Clock, Users, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Search, MapPin, Clock, Users, Plus, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { downloadElementAsImage, downloadElementAsPdf } from '../lib/dom-export';
 import { ExportActions } from './ExportActions';
@@ -27,6 +27,43 @@ const WEEKDAY_COLORS: Record<string, string> = {
   'Sábado': 'bg-blue-100 text-blue-700',
 };
 
+const WEEKDAY_INDEX_BY_KEY: Record<string, number> = {
+  domingo: 0,
+  segundafeira: 1,
+  tercafeira: 2,
+  quartafeira: 3,
+  quintafeira: 4,
+  sextafeira: 5,
+  sabado: 6,
+};
+
+function normalizeWeekdayKey(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z]/g, '');
+}
+
+function getMonthDaysForWeekday(monthIndex: number, year: number, weekday: string): number[] {
+  const key = normalizeWeekdayKey(weekday);
+  const weekdayIndex = WEEKDAY_INDEX_BY_KEY[key];
+  if (typeof weekdayIndex !== 'number') {
+    return [];
+  }
+
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+  const days: number[] = [];
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    if (new Date(year, monthIndex, day).getDay() === weekdayIndex) {
+      days.push(day);
+    }
+  }
+
+  return days;
+}
+
 export function CartAssignments({
   canCreate = true,
   canEdit = true,
@@ -46,6 +83,7 @@ export function CartAssignments({
   const [members, setMembers] = useState<{ id: string; full_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [copyingFromPreviousMonth, setCopyingFromPreviousMonth] = useState(false);
   const [exporting, setExporting] = useState<'image' | 'pdf' | null>(null);
   const exportRef = useRef<HTMLDivElement>(null);
   const [newAssignment, setNewAssignment] = useState({
@@ -86,6 +124,14 @@ export function CartAssignments({
   const nextMonth = () => {
     if (currentMonth === 11) { setCurrentMonth(0); setCurrentYear(y => y + 1); }
     else setCurrentMonth(m => m + 1);
+  };
+
+  const getPreviousPeriod = () => {
+    if (currentMonth === 0) {
+      return { month: 11, year: currentYear - 1 };
+    }
+
+    return { month: currentMonth - 1, year: currentYear };
   };
 
   const handleEdit = (id: string, field: 'publisher1' | 'publisher2', currentValue: string) => {
@@ -162,6 +208,127 @@ export function CartAssignments({
     }
   };
 
+  const handleCopyPreviousMonth = async () => {
+    if (!canCreate || copyingFromPreviousMonth) {
+      return;
+    }
+
+    const previousPeriod = getPreviousPeriod();
+    const previousLabel = `${MONTHS[previousPeriod.month]} ${previousPeriod.year}`;
+
+    try {
+      setCopyingFromPreviousMonth(true);
+
+      const previousRows = await api.getCartAssignments(previousPeriod.month, previousPeriod.year);
+      if (previousRows.length === 0) {
+        toast.error(`Não há designações em ${previousLabel}.`);
+        return;
+      }
+
+      if (data.length > 0) {
+        const shouldReplace = window.confirm(
+          `O mês atual já possui ${data.length} designação(ões). Deseja substituir tudo por uma cópia de ${previousLabel}?`,
+        );
+
+        if (!shouldReplace) {
+          return;
+        }
+
+        await api.deleteCartAssignmentsForMonth(currentMonth, currentYear);
+      }
+
+      const sourceDaysByWeekday = new Map<string, number[]>();
+      for (const row of previousRows) {
+        const key = normalizeWeekdayKey(row.weekday);
+        if (!key) {
+          continue;
+        }
+
+        const currentDays = sourceDaysByWeekday.get(key) || [];
+        if (!currentDays.includes(row.day)) {
+          currentDays.push(row.day);
+          currentDays.sort((a, b) => a - b);
+          sourceDaysByWeekday.set(key, currentDays);
+        }
+      }
+
+      const targetDaysByWeekday = new Map<string, number[]>();
+      const rowsToCreate: Parameters<typeof api.createCartAssignment>[0][] = [];
+      let skippedRows = 0;
+
+      const sortedPreviousRows = [...previousRows].sort(
+        (a, b) => a.week - b.week || a.day - b.day || a.time.localeCompare(b.time),
+      );
+
+      for (const row of sortedPreviousRows) {
+        const key = normalizeWeekdayKey(row.weekday);
+        if (!key) {
+          skippedRows += 1;
+          continue;
+        }
+
+        const sourceDays = sourceDaysByWeekday.get(key) || [];
+        if (sourceDays.length === 0) {
+          skippedRows += 1;
+          continue;
+        }
+
+        let occurrenceIndex = sourceDays.indexOf(row.day);
+        if (occurrenceIndex < 0) {
+          occurrenceIndex = sourceDays.filter(sourceDay => sourceDay < row.day).length;
+        }
+
+        let targetDays = targetDaysByWeekday.get(key);
+        if (!targetDays) {
+          targetDays = getMonthDaysForWeekday(currentMonth, currentYear, row.weekday);
+          targetDaysByWeekday.set(key, targetDays);
+        }
+
+        if (occurrenceIndex < 0 || occurrenceIndex >= targetDays.length) {
+          skippedRows += 1;
+          continue;
+        }
+
+        rowsToCreate.push({
+          month: currentMonth + 1,
+          year: currentYear,
+          day: targetDays[occurrenceIndex],
+          weekday: row.weekday,
+          time: row.time,
+          location: row.location,
+          publisher1: row.publisher1,
+          publisher1_member_id: findMemberIdByName(row.publisher1),
+          publisher2: row.publisher2,
+          publisher2_member_id: findMemberIdByName(row.publisher2),
+          week: occurrenceIndex + 1,
+        });
+      }
+
+      if (rowsToCreate.length === 0) {
+        toast.error('Não foi possível copiar as designações do mês anterior.');
+        return;
+      }
+
+      const createdRows: CartAssignment[] = [];
+      for (const rowInput of rowsToCreate) {
+        const created = await api.createCartAssignment(rowInput);
+        createdRows.push(created);
+      }
+
+      setData(createdRows.sort((a, b) => a.week - b.week || a.day - b.day || a.time.localeCompare(b.time)));
+
+      if (skippedRows > 0) {
+        toast.warning(`${skippedRows} designação(ões) não couberam no mês atual e foram ignoradas.`);
+      }
+
+      toast.success(`${createdRows.length} designação(ões) copiadas de ${previousLabel}.`);
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao copiar designações do mês anterior.');
+    } finally {
+      setCopyingFromPreviousMonth(false);
+    }
+  };
+
   // Group by week
   const weeks = [1, 2, 3, 4, 5];
   const grouped = weeks
@@ -195,6 +362,9 @@ export function CartAssignments({
     }
   };
 
+  const previousPeriod = getPreviousPeriod();
+  const previousPeriodLabel = `${MONTHS[previousPeriod.month]} ${previousPeriod.year}`;
+
   return (
     <div className="relative space-y-4">
       {/* Month Navigator */}
@@ -209,6 +379,28 @@ export function CartAssignments({
           <ChevronRight size={18} className="text-gray-600" />
         </button>
       </div>
+
+      {canCreate && (
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>
+              Preenchimento automático
+            </p>
+            <p className="text-muted-foreground" style={{ fontSize: '0.82rem' }}>
+              Copia a escala de {previousPeriodLabel} e ajusta os dias para o mês atual.
+            </p>
+          </div>
+          <button
+            onClick={handleCopyPreviousMonth}
+            disabled={loading || copyingFromPreviousMonth}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-border px-3 py-2 text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+            style={{ fontSize: '0.85rem' }}
+          >
+            <Copy size={14} />
+            {copyingFromPreviousMonth ? 'Copiando mês anterior...' : 'Copiar mês anterior'}
+          </button>
+        </div>
+      )}
 
       {(canExportImage || canExportPdf) && (
         <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">

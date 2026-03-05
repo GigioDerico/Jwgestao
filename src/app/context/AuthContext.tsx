@@ -114,11 +114,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const initSession = async () => {
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const sessionResult = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('SESSION_TIMEOUT')), 3000),
+          ),
+        ]);
 
-        const { data: { session: s } } = await supabase.auth.getSession();
-        clearTimeout(timeoutId);
+        const { data: { session: s } } = sessionResult;
 
         if (cancelled) return;
 
@@ -128,7 +131,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (!cancelled) setUser(authUser);
         }
       } catch (err) {
-        console.warn('[Auth] Falha ao restaurar sessão:', err);
+        if (err instanceof Error && err.message === 'SESSION_TIMEOUT') {
+          console.warn('[Auth] Timeout ao restaurar sessão. Prosseguindo sem sessão ativa.');
+        } else {
+          console.warn('[Auth] Falha ao restaurar sessão:', err);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

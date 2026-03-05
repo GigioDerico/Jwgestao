@@ -1,5 +1,12 @@
 {
   "appId": "com.jwgestao.app",
   "appName": "JWGestao",
-  "webDir": "dist"
+  "webDir": "dist",
+  "plugins": {
+    "StatusBar": {
+      "overlaysWebView": true,
+      "style": "LIGHT",
+      "backgroundColor": "#082c45"
+    }
+  }
 }

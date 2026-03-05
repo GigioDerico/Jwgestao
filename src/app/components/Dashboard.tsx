@@ -176,30 +176,47 @@ export function Dashboard() {
   const displayMidweekTime = configuredMidweekTime || nextMidweekMeeting?.startTime || '';
   const displayWeekendTime = configuredWeekendTime || nextWeekendMeeting?.startTime || '';
 
+  const visibleNotifications = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return notifications.filter(notification => {
+      if (notification.status === 'revoked') {
+        return false;
+      }
+
+      if (!notification.assignmentDate) {
+        return true;
+      }
+
+      const assignmentDate = new Date(`${notification.assignmentDate}T12:00:00`);
+      assignmentDate.setHours(0, 0, 0, 0);
+      return !Number.isNaN(assignmentDate.getTime()) && assignmentDate.getTime() >= today.getTime();
+    });
+  }, [notifications]);
+
   const nextMidweekNotifications = useMemo(
-    () => notifications.filter(
+    () => visibleNotifications.filter(
       notification =>
-        notification.status !== 'revoked' &&
         notification.category === 'midweek' &&
         notification.assignmentDate === nextMidweekDate
     ),
-    [notifications, nextMidweekDate]
+    [visibleNotifications, nextMidweekDate]
   );
 
   const nextWeekendNotifications = useMemo(
-    () => notifications.filter(
+    () => visibleNotifications.filter(
       notification =>
-        notification.status !== 'revoked' &&
         notification.category === 'weekend' &&
         notification.assignmentDate === nextWeekendDate
     ),
-    [notifications, nextWeekendDate]
+    [visibleNotifications, nextWeekendDate]
   );
 
   const notificationGroups = useMemo(() => {
-    const groups = new Map<string, { label: string; items: typeof notifications }>();
+    const groups = new Map<string, { label: string; items: typeof visibleNotifications }>();
 
-    for (const notification of notifications) {
+    for (const notification of visibleNotifications) {
       if (!notification.assignmentDate) {
         const existing = groups.get('no-date');
         if (existing) {
@@ -235,7 +252,7 @@ export function Dashboard() {
         return aKey.localeCompare(bKey);
       })
       .map(([, group]) => group);
-  }, [notifications]);
+  }, [visibleNotifications]);
 
   const stats = [
     { label: 'Membros', value: loading ? '...' : membersCount, icon: Users, color: 'bg-blue-500', path: '/members' },
@@ -285,7 +302,7 @@ export function Dashboard() {
           </h3>
         </div>
 
-        {notifications.length > 0 ? (
+        {visibleNotifications.length > 0 ? (
           <div>
             {notificationGroups.map((group, groupIndex) => (
               <div key={group.label} className={groupIndex > 0 ? 'border-t border-border' : ''}>
