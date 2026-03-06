@@ -21,6 +21,7 @@ interface NotificationsContextType {
   markRead: (id: string) => Promise<void>;
   markAllRead: () => Promise<void>;
   confirm: (id: string) => Promise<void>;
+  hideNotification: (id: string) => Promise<void>;
 }
 
 const NotificationsContext = createContext<NotificationsContextType>({
@@ -32,6 +33,7 @@ const NotificationsContext = createContext<NotificationsContextType>({
   markRead: async () => { },
   markAllRead: async () => { },
   confirm: async () => { },
+  hideNotification: async () => { },
 });
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
@@ -128,6 +130,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     await refreshNotifications();
   };
 
+  const hideNotification = async (id: string) => {
+    await api.hideAssignmentNotification(id);
+    await refreshNotifications();
+  };
+
   const value = {
     notifications,
     unreadCount: notifications.filter(notification => !notification.isRead).length,
@@ -137,6 +144,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     markRead,
     markAllRead,
     confirm,
+    hideNotification,
   };
 
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;

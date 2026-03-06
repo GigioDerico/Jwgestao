@@ -458,6 +458,7 @@ export const api = {
       .select('*')
       .eq('member_id', memberId)
       .neq('status', 'revoked')
+      .neq('status', 'hidden')
       .order('assignment_date', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false });
 
@@ -501,6 +502,18 @@ export const api = {
       .eq('id', notificationId);
 
     if (error) throw new Error(formatDatabaseWriteError('Erro ao marcar notificação como lida', error));
+  },
+
+  async hideAssignmentNotification(notificationId: string) {
+    const { error } = await supabase
+      .from('member_assignment_notifications')
+      .update({
+        status: 'hidden',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', notificationId);
+
+    if (error) throw new Error(formatDatabaseWriteError('Erro ao ocultar notificação', error));
   },
 
   async markAllAssignmentNotificationsRead(memberId: string) {

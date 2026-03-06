@@ -14,6 +14,7 @@ import {
   ChevronRight,
   CheckCircle2,
   AlertCircle,
+  X,
 } from 'lucide-react';
 
 function getWeekStart(date: Date) {
@@ -115,7 +116,7 @@ function getAssignmentDesignationLabel(message: string) {
 
 export function Dashboard() {
   const { user, isAdmin } = useAuth();
-  const { notifications, confirm } = useNotifications();
+  const { notifications, confirm, hideNotification } = useNotifications();
   const navigate = useNavigate();
   const [membersCount, setMembersCount] = useState(0);
   const [eldersCount, setEldersCount] = useState(0);
@@ -322,27 +323,57 @@ export function Dashboard() {
                         <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>{notification.message}</p>
                       </div>
                       {notification.status === 'pending_confirmation' ? (
-                        <button
-                          onClick={async () => {
-                            try {
-                              await confirm(notification.id);
-                            } catch (error: any) {
-                              console.error(error);
-                              toast.error(error?.message || 'Erro ao confirmar designação.');
-                            }
-                          }}
-                          className="shrink-0 rounded-full bg-primary/10 px-3 py-1 font-medium text-primary transition-colors hover:bg-primary/20"
-                          style={{ fontSize: '0.75rem' }}
-                        >
-                          Confirmar
-                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={async () => {
+                              try {
+                                await confirm(notification.id);
+                              } catch (error: any) {
+                                console.error(error);
+                                toast.error(error?.message || 'Erro ao confirmar designação.');
+                              }
+                            }}
+                            className="rounded-full bg-primary/10 px-3 py-1 font-medium text-primary transition-colors hover:bg-primary/20"
+                            style={{ fontSize: '0.75rem' }}
+                          >
+                            Confirmar
+                          </button>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await hideNotification(notification.id);
+                              } catch (e) {
+                                toast.error('Erro ao ocultar');
+                              }
+                            }}
+                            className="p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600 rounded-full transition-colors"
+                            title="Ocultar do painel"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
                       ) : (
-                        <span
-                          className="shrink-0 rounded-full bg-green-50 px-3 py-1 font-medium text-green-700"
-                          style={{ fontSize: '0.75rem' }}
-                        >
-                          Confirmado ✓
-                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span
+                            className="rounded-full bg-green-50 px-3 py-1 font-medium text-green-700"
+                            style={{ fontSize: '0.75rem' }}
+                          >
+                            Confirmado ✓
+                          </span>
+                          <button
+                            onClick={async () => {
+                              try {
+                                await hideNotification(notification.id);
+                              } catch (e) {
+                                toast.error('Erro ao ocultar');
+                              }
+                            }}
+                            className="p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600 rounded-full transition-colors"
+                            title="Ocultar do painel"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
                       )}
                     </div>
                   ))}
@@ -411,20 +442,52 @@ export function Dashboard() {
                       : 'Designação já confirmada'}
                   </p>
                   {notification.status === 'pending_confirmation' && (
-                    <button
-                      onClick={async () => {
-                        try {
-                          await confirm(notification.id);
-                        } catch (error: any) {
-                          console.error(error);
-                          toast.error(error?.message || 'Erro ao confirmar designação.');
-                        }
-                      }}
-                      className="mt-2 rounded-full bg-white/15 px-3 py-1 text-white transition-colors hover:bg-white/25"
-                      style={{ fontSize: '0.72rem' }}
-                    >
-                      Confirmar
-                    </button>
+                    <div className="flex gap-2 items-center mt-2">
+                      <button
+                        onClick={async () => {
+                          try {
+                            await confirm(notification.id);
+                          } catch (error: any) {
+                            console.error(error);
+                            toast.error(error?.message || 'Erro ao confirmar designação.');
+                          }
+                        }}
+                        className="rounded-full bg-white/15 px-3 py-1 text-white transition-colors hover:bg-white/25"
+                        style={{ fontSize: '0.72rem' }}
+                      >
+                        Confirmar
+                      </button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            await hideNotification(notification.id);
+                          } catch (e) {
+                            toast.error('Erro ao ocultar');
+                          }
+                        }}
+                        className="p-1 rounded-full text-white/70 hover:bg-white/20 transition-colors"
+                        title="Ocultar do painel"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
+                  {notification.status !== 'pending_confirmation' && (
+                    <div className="flex items-center justify-end mt-1">
+                      <button
+                        onClick={async () => {
+                          try {
+                            await hideNotification(notification.id);
+                          } catch (e) {
+                            toast.error('Erro ao ocultar');
+                          }
+                        }}
+                        className="p-1 rounded-full text-emerald-600 hover:bg-emerald-500/20 transition-colors"
+                        title="Ocultar do painel"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
                   )}
                 </div>
               ))
@@ -487,20 +550,52 @@ export function Dashboard() {
                       : 'Designação já confirmada'}
                   </p>
                   {notification.status === 'pending_confirmation' && (
-                    <button
-                      onClick={async () => {
-                        try {
-                          await confirm(notification.id);
-                        } catch (error: any) {
-                          console.error(error);
-                          toast.error(error?.message || 'Erro ao confirmar designação.');
-                        }
-                      }}
-                      className="mt-2 rounded-full bg-red-100 px-3 py-1 text-red-700 transition-colors hover:bg-red-200"
-                      style={{ fontSize: '0.72rem' }}
-                    >
-                      Confirmar
-                    </button>
+                    <div className="flex gap-2 items-center mt-2">
+                      <button
+                        onClick={async () => {
+                          try {
+                            await confirm(notification.id);
+                          } catch (error: any) {
+                            console.error(error);
+                            toast.error(error?.message || 'Erro ao confirmar designação.');
+                          }
+                        }}
+                        className="rounded-full bg-red-100 px-3 py-1 text-red-700 transition-colors hover:bg-red-200"
+                        style={{ fontSize: '0.72rem' }}
+                      >
+                        Confirmar
+                      </button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            await hideNotification(notification.id);
+                          } catch (e) {
+                            toast.error('Erro ao ocultar');
+                          }
+                        }}
+                        className="p-1 rounded-full text-red-700/70 hover:bg-red-200 transition-colors"
+                        title="Ocultar do painel"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
+                  {notification.status !== 'pending_confirmation' && (
+                    <div className="flex items-center justify-end mt-1">
+                      <button
+                        onClick={async () => {
+                          try {
+                            await hideNotification(notification.id);
+                          } catch (e) {
+                            toast.error('Erro ao ocultar');
+                          }
+                        }}
+                        className="p-1 rounded-full text-emerald-700/70 hover:bg-emerald-200 transition-colors"
+                        title="Ocultar do painel"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
                   )}
                 </div>
               ))
