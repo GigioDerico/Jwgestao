@@ -1786,10 +1786,10 @@ export const api = {
 
   // Midweek Meetings 
   async getMidweekMeetings() {
-    const scheduleResult = await supabase.rpc('get_midweek_meetings_schedule');
+    /* const scheduleResult = await supabase.rpc('get_midweek_meetings_schedule');
     if (!scheduleResult.error && Array.isArray(scheduleResult.data)) {
       return scheduleResult.data;
-    }
+    } */
 
     const { data, error } = await supabase
       .from('midweek_meetings')
@@ -1809,7 +1809,6 @@ export const api = {
       .order('date', { ascending: true });
 
     if (error) {
-      if (scheduleResult.error) throw scheduleResult.error;
       throw error;
     }
     return data;
@@ -1817,10 +1816,10 @@ export const api = {
 
   // Weekend Meetings
   async getWeekendMeetings() {
-    const scheduleResult = await supabase.rpc('get_weekend_meetings_schedule');
+    /* const scheduleResult = await supabase.rpc('get_weekend_meetings_schedule');
     if (!scheduleResult.error && Array.isArray(scheduleResult.data)) {
       return scheduleResult.data;
-    }
+    } */
 
     const { data, error } = await supabase
       .from('weekend_meetings')
@@ -1834,7 +1833,6 @@ export const api = {
       .order('date', { ascending: true });
 
     if (error) {
-      if (scheduleResult.error) throw scheduleResult.error;
       throw error;
     }
     return data;
