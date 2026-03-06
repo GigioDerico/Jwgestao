@@ -474,118 +474,118 @@ export function CartAssignments({
 
       {canCreate && (
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <div>
-            <h4 className="text-foreground" style={{ fontSize: '0.95rem' }}>Criar nova escala de carrinho</h4>
-            <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>Cadastre uma nova linha de trabalho com carrinho organizada por semana.</p>
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <div>
+              <h4 className="text-foreground" style={{ fontSize: '0.95rem' }}>Criar nova escala de carrinho</h4>
+              <p className="text-muted-foreground" style={{ fontSize: '0.8rem' }}>Cadastre uma nova linha de trabalho com carrinho organizada por semana.</p>
+            </div>
+            <button
+              onClick={() => setShowCreateForm(prev => !prev)}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
+              style={{ fontSize: '0.85rem' }}
+            >
+              <Plus size={14} />
+              {showCreateForm ? 'Fechar' : 'Nova escala'}
+            </button>
           </div>
-          <button
-            onClick={() => setShowCreateForm(prev => !prev)}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
-            style={{ fontSize: '0.85rem' }}
-          >
-            <Plus size={14} />
-            {showCreateForm ? 'Fechar' : 'Nova escala'}
-          </button>
-        </div>
 
-        {showCreateForm && (
-          <div className="grid gap-4 px-4 py-4 md:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Semana</label>
-              <select
-                value={newAssignment.week}
-                onChange={e => setNewAssignment(prev => ({ ...prev, week: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="1">Semana 1</option>
-                <option value="2">Semana 2</option>
-                <option value="3">Semana 3</option>
-                <option value="4">Semana 4</option>
-                <option value="5">Semana 5</option>
-              </select>
+          {showCreateForm && (
+            <div className="grid gap-4 px-4 py-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Semana</label>
+                <select
+                  value={newAssignment.week}
+                  onChange={e => setNewAssignment(prev => ({ ...prev, week: e.target.value }))}
+                  className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="1">Semana 1</option>
+                  <option value="2">Semana 2</option>
+                  <option value="3">Semana 3</option>
+                  <option value="4">Semana 4</option>
+                  <option value="5">Semana 5</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Dia do mês</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={newAssignment.day}
+                  onChange={e => setNewAssignment(prev => ({ ...prev, day: e.target.value }))}
+                  className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Dia da semana</label>
+                <select
+                  value={newAssignment.weekday}
+                  onChange={e => setNewAssignment(prev => ({ ...prev, weekday: e.target.value }))}
+                  className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="Terça-feira">Terça-feira</option>
+                  <option value="Quarta-feira">Quarta-feira</option>
+                  <option value="Quinta-feira">Quinta-feira</option>
+                  <option value="Sexta-feira">Sexta-feira</option>
+                  <option value="Sábado">Sábado</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Horário</label>
+                <input
+                  type="text"
+                  value={newAssignment.time}
+                  onChange={e => setNewAssignment(prev => ({ ...prev, time: e.target.value }))}
+                  placeholder="09:00 às 11:00"
+                  className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Local</label>
+                <input
+                  type="text"
+                  value={newAssignment.location}
+                  onChange={e => setNewAssignment(prev => ({ ...prev, location: e.target.value }))}
+                  className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Publicador 1</label>
+                <select
+                  value={newAssignment.publisher1}
+                  onChange={e => setNewAssignment(prev => ({ ...prev, publisher1: e.target.value }))}
+                  className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">A definir</option>
+                  {members.map(member => (
+                    <option key={`p1-${member.id}`} value={member.full_name}>{member.full_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Publicador 2</label>
+                <select
+                  value={newAssignment.publisher2}
+                  onChange={e => setNewAssignment(prev => ({ ...prev, publisher2: e.target.value }))}
+                  className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">A definir</option>
+                  {members.map(member => (
+                    <option key={`p2-${member.id}`} value={member.full_name}>{member.full_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="md:col-span-2 flex justify-end">
+                <button
+                  onClick={handleCreate}
+                  className="rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
+                  style={{ fontSize: '0.9rem' }}
+                >
+                  Criar designação
+                </button>
+              </div>
             </div>
-            <div>
-              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Dia do mês</label>
-              <input
-                type="number"
-                min="1"
-                max="31"
-                value={newAssignment.day}
-                onChange={e => setNewAssignment(prev => ({ ...prev, day: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Dia da semana</label>
-              <select
-                value={newAssignment.weekday}
-                onChange={e => setNewAssignment(prev => ({ ...prev, weekday: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="Terça-feira">Terça-feira</option>
-                <option value="Quarta-feira">Quarta-feira</option>
-                <option value="Quinta-feira">Quinta-feira</option>
-                <option value="Sexta-feira">Sexta-feira</option>
-                <option value="Sábado">Sábado</option>
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Horário</label>
-              <input
-                type="text"
-                value={newAssignment.time}
-                onChange={e => setNewAssignment(prev => ({ ...prev, time: e.target.value }))}
-                placeholder="09:00 às 11:00"
-                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Local</label>
-              <input
-                type="text"
-                value={newAssignment.location}
-                onChange={e => setNewAssignment(prev => ({ ...prev, location: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Publicador 1</label>
-              <select
-                value={newAssignment.publisher1}
-                onChange={e => setNewAssignment(prev => ({ ...prev, publisher1: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="">Selecione...</option>
-                {members.map(member => (
-                  <option key={`p1-${member.id}`} value={member.full_name}>{member.full_name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Publicador 2</label>
-              <select
-                value={newAssignment.publisher2}
-                onChange={e => setNewAssignment(prev => ({ ...prev, publisher2: e.target.value }))}
-                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="">Selecione...</option>
-                {members.map(member => (
-                  <option key={`p2-${member.id}`} value={member.full_name}>{member.full_name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="md:col-span-2 flex justify-end">
-              <button
-                onClick={handleCreate}
-                className="rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
-                style={{ fontSize: '0.9rem' }}
-              >
-                Criar designação
-              </button>
-            </div>
-          </div>
-        )}
+          )}
         </div>
       )}
 

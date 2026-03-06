@@ -768,18 +768,18 @@ function MeetingsAssignmentsContent({
 
     // Safety fallback properties mapping from Supabase payload
     const mappedTreasureTitle = meeting.treasure_talk_title || 'Nenhum Tema';
-    const mappedPresident = meeting.president?.full_name || 'Desconhecido';
-    const mappedOpeningPrayer = meeting.opening_prayer?.full_name || 'Desconhecido';
-    const mappedClosingPrayer = meeting.closing_prayer?.full_name || 'Desconhecido';
+    const mappedPresident = meeting.president?.full_name || 'A definir';
+    const mappedOpeningPrayer = meeting.opening_prayer?.full_name || 'A definir';
+    const mappedClosingPrayer = meeting.closing_prayer?.full_name || 'A definir';
 
     // Treasures 
-    const mappedTalkSpeaker = meeting.treasure_talk_speaker?.full_name || 'Desconhecido';
-    const mappedGemsSpeaker = meeting.treasure_gems_speaker?.full_name || 'Desconhecido';
-    const mappedReadingStudent = meeting.treasure_reading_student?.full_name || 'Desconhecido';
+    const mappedTalkSpeaker = meeting.treasure_talk_speaker?.full_name || 'A definir';
+    const mappedGemsSpeaker = meeting.treasure_gems_speaker?.full_name || 'A definir';
+    const mappedReadingStudent = meeting.treasure_reading_student?.full_name || 'A definir';
 
     // CBS
-    const mappedCbsConductor = meeting.cbs_conductor?.full_name || 'Desconhecido';
-    const mappedCbsReader = meeting.cbs_reader?.full_name || 'Desconhecido';
+    const mappedCbsConductor = meeting.cbs_conductor?.full_name || 'A definir';
+    const mappedCbsReader = meeting.cbs_reader?.full_name || 'A definir';
 
     // Parts processing ensuring safely array map
     const ministryParts = meeting.ministry_parts?.sort((a: any, b: any) => a.part_number - b.part_number) || [];
@@ -839,12 +839,12 @@ function MeetingsAssignmentsContent({
             {renderWhatsAppButton(
               meeting.treasure_reading_student?.phone
                 ? {
-                    studentName: meeting.treasure_reading_student.full_name,
-                    date: new Date(meeting.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-                    partNumber: 3,
-                    location: MIDWEEK_PRIMARY_ROOM,
-                    phone: meeting.treasure_reading_student.phone,
-                  }
+                  studentName: meeting.treasure_reading_student.full_name,
+                  date: new Date(meeting.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+                  partNumber: 3,
+                  location: MIDWEEK_PRIMARY_ROOM,
+                  phone: meeting.treasure_reading_student.phone,
+                }
                 : null
             )}
           </AssignmentSection>
@@ -858,33 +858,33 @@ function MeetingsAssignmentsContent({
 
                   return (
                     <>
-                <AssignmentField
-                  label={`${displayNumber}. ${part.title} (${part.duration} min) — Estudante`}
-                  value={part.student?.full_name || 'Desconhecido'}
-                  onClick={() => openEdit({ label: `Parte ${displayNumber} Estudante`, mode: 'member', currentValue: part.student?.full_name || '', table: 'midweek_ministry_parts', rowId: part.id, column: 'student_id' })}
-                  canEdit={canEditAssignments}
-                />
-                {part.assistant_id && (
-                  <AssignmentField
-                    label={`${displayNumber}. ${part.title} — Ajudante`}
-                    value={part.assistant?.full_name || 'Desconhecido'}
-                    onClick={() => openEdit({ label: `Parte ${displayNumber} Ajudante`, mode: 'member', currentValue: part.assistant?.full_name || '', table: 'midweek_ministry_parts', rowId: part.id, column: 'assistant_id' })}
-                    indent
-                    canEdit={canEditAssignments}
-                  />
-                )}
-                {renderWhatsAppButton(
-                  part.student?.phone
-                    ? {
-                        studentName: part.student.full_name,
-                        assistantName: part.assistant?.full_name,
-                        date: new Date(meeting.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-                        partNumber: displayNumber,
-                        location: part.room || MIDWEEK_PRIMARY_ROOM,
-                        phone: part.student.phone,
-                      }
-                    : null
-                )}
+                      <AssignmentField
+                        label={`${displayNumber}. ${part.title} (${part.duration} min) — Estudante`}
+                        value={part.student?.full_name || 'A definir'}
+                        onClick={() => openEdit({ label: `Parte ${displayNumber} Estudante`, mode: 'member', currentValue: part.student?.full_name || '', table: 'midweek_ministry_parts', rowId: part.id, column: 'student_id' })}
+                        canEdit={canEditAssignments}
+                      />
+                      {part.assistant_id && (
+                        <AssignmentField
+                          label={`${displayNumber}. ${part.title} — Ajudante`}
+                          value={part.assistant?.full_name || 'A definir'}
+                          onClick={() => openEdit({ label: `Parte ${displayNumber} Ajudante`, mode: 'member', currentValue: part.assistant?.full_name || '', table: 'midweek_ministry_parts', rowId: part.id, column: 'assistant_id' })}
+                          indent
+                          canEdit={canEditAssignments}
+                        />
+                      )}
+                      {renderWhatsAppButton(
+                        part.student?.phone
+                          ? {
+                            studentName: part.student.full_name,
+                            assistantName: part.assistant?.full_name,
+                            date: new Date(meeting.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+                            partNumber: displayNumber,
+                            location: part.room || MIDWEEK_PRIMARY_ROOM,
+                            phone: part.student.phone,
+                          }
+                          : null
+                      )}
                     </>
                   );
                 })()}
@@ -902,7 +902,7 @@ function MeetingsAssignmentsContent({
                   <AssignmentField
                     key={idx}
                     label={`${displayNumber}. ${part.title} (${part.duration} min)`}
-                    value={part.speaker?.full_name || 'Desconhecido'}
+                    value={part.speaker?.full_name || 'A definir'}
                     onClick={() => openEdit({ label: `Parte ${displayNumber}`, mode: 'member', currentValue: part.speaker?.full_name || '', table: 'midweek_christian_life_parts', rowId: part.id, column: 'speaker_id' })}
                     canEdit={canEditAssignments}
                   />
@@ -941,8 +941,8 @@ function MeetingsAssignmentsContent({
   if (!meeting) return <div className="p-6 text-center text-gray-500 rounded-xl bg-white border border-gray-100">Não há reuniões de Fim de Semana cadastradas.</div>;
   const talkCongregationLabel = formatWeekendSpeakerCongregation(meeting.talk_congregation);
   const talkSpeakerLabel = talkCongregationLabel
-    ? `${meeting.talk_speaker_name || 'Desconhecido'} (${talkCongregationLabel})`
-    : (meeting.talk_speaker_name || 'Desconhecido');
+    ? `${meeting.talk_speaker_name || 'A definir'} (${talkCongregationLabel})`
+    : (meeting.talk_speaker_name || 'A definir');
 
   return (
     <>
@@ -981,18 +981,18 @@ function MeetingsAssignmentsContent({
 
       <div className="space-y-4">
         <AssignmentSection title="Conferência Pública" color="bg-[#1a5fb4]">
-          <AssignmentField label="Presidente" value={meeting.president?.full_name || 'Desconhecido'} onClick={() => openEdit({ label: 'Presidente', mode: 'member', currentValue: meeting.president?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'president_id' })} canEdit={canEditAssignments} />
+          <AssignmentField label="Presidente" value={meeting.president?.full_name || 'A definir'} onClick={() => openEdit({ label: 'Presidente', mode: 'member', currentValue: meeting.president?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'president_id' })} canEdit={canEditAssignments} />
           {renderWhatsAppButton(
             meeting.president?.phone
               ? {
-                  studentName: meeting.president.full_name,
-                  date: new Date(meeting.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-                  partNumber: 'Presidente',
-                  assignmentLabel: 'Designação',
-                  meetingTitle: 'DESIGNAÇÃO PARA A REUNIÃO DE FIM DE SEMANA',
-                  location: MIDWEEK_PRIMARY_ROOM,
-                  phone: meeting.president.phone,
-                }
+                studentName: meeting.president.full_name,
+                date: new Date(meeting.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+                partNumber: 'Presidente',
+                assignmentLabel: 'Designação',
+                meetingTitle: 'DESIGNAÇÃO PARA A REUNIÃO DE FIM DE SEMANA',
+                location: MIDWEEK_PRIMARY_ROOM,
+                phone: meeting.president.phone,
+              }
               : null
           )}
           <AssignmentField label="Tema" value={meeting.talk_theme || 'Não definido'} onClick={() => openEdit({ label: 'Tema', mode: 'text', currentValue: meeting.talk_theme || '', table: 'weekend_meetings', rowId: meeting.id, column: 'talk_theme' })} canEdit={canEditAssignments} />
@@ -1017,25 +1017,25 @@ function MeetingsAssignmentsContent({
         </AssignmentSection>
 
         <AssignmentSection title="Estudo de A Sentinela" color="bg-[#1a5fb4]">
-          <AssignmentField label="Dirigente" value={meeting.watchtower_conductor?.full_name || 'Desconhecido'} onClick={() => openEdit({ label: 'Dirigente', mode: 'member', currentValue: meeting.watchtower_conductor?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'watchtower_conductor_id' })} canEdit={canEditAssignments} />
-          <AssignmentField label="Leitor" value={meeting.watchtower_reader?.full_name || 'Desconhecido'} onClick={() => openEdit({ label: 'Leitor', mode: 'member', currentValue: meeting.watchtower_reader?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'watchtower_reader_id' })} canEdit={canEditAssignments} />
+          <AssignmentField label="Dirigente" value={meeting.watchtower_conductor?.full_name || 'A definir'} onClick={() => openEdit({ label: 'Dirigente', mode: 'member', currentValue: meeting.watchtower_conductor?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'watchtower_conductor_id' })} canEdit={canEditAssignments} />
+          <AssignmentField label="Leitor" value={meeting.watchtower_reader?.full_name || 'A definir'} onClick={() => openEdit({ label: 'Leitor', mode: 'member', currentValue: meeting.watchtower_reader?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'watchtower_reader_id' })} canEdit={canEditAssignments} />
           {renderWhatsAppButton(
             meeting.watchtower_reader?.phone
               ? {
-                  studentName: meeting.watchtower_reader.full_name,
-                  date: new Date(meeting.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-                  partNumber: 'Leitor da Sentinela',
-                  assignmentLabel: 'Designação',
-                  meetingTitle: 'DESIGNAÇÃO PARA A REUNIÃO DE FIM DE SEMANA',
-                  location: MIDWEEK_PRIMARY_ROOM,
-                  phone: meeting.watchtower_reader.phone,
-                }
+                studentName: meeting.watchtower_reader.full_name,
+                date: new Date(meeting.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+                partNumber: 'Leitor da Sentinela',
+                assignmentLabel: 'Designação',
+                meetingTitle: 'DESIGNAÇÃO PARA A REUNIÃO DE FIM DE SEMANA',
+                location: MIDWEEK_PRIMARY_ROOM,
+                phone: meeting.watchtower_reader.phone,
+              }
               : null
           )}
         </AssignmentSection>
 
         <AssignmentSection title="Encerramento" color="bg-gray-700">
-          <AssignmentField label="Oração Final" value={meeting.closing_prayer?.full_name || 'Desconhecido'} onClick={() => openEdit({ label: 'Oração Final', mode: 'member', currentValue: meeting.closing_prayer?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'closing_prayer_id' })} canEdit={canEditAssignments} />
+          <AssignmentField label="Oração Final" value={meeting.closing_prayer?.full_name || 'A definir'} onClick={() => openEdit({ label: 'Oração Final', mode: 'member', currentValue: meeting.closing_prayer?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'closing_prayer_id' })} canEdit={canEditAssignments} />
         </AssignmentSection>
       </div>
 
@@ -1161,6 +1161,18 @@ function EditModal({
             </div>
 
             <div className="flex-1 overflow-y-auto p-2">
+              <button
+                key="empty-option"
+                onClick={() => {
+                  setSelected('');
+                  setSelectedMemberId(null);
+                }}
+                className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${!selected || selected === 'A definir' ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'
+                  }`}
+                style={{ fontSize: '0.9rem' }}
+              >
+                A definir
+              </button>
               {filtered.map(m => (
                 <button
                   key={m.id}
@@ -1301,7 +1313,7 @@ function CreateMeetingModal({
         className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
         style={{ fontSize: '0.9rem' }}
       >
-        <option value="">Selecione...</option>
+        <option value="">A definir</option>
         {options.map(option => (
           <option key={option.id} value={option.id}>{option.name}</option>
         ))}
@@ -1594,7 +1606,7 @@ function CreateMeetingModal({
                             onChange={e => updateMinistryPartType(index, e.target.value)}
                             className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                           >
-                            <option value="">Selecione...</option>
+                            <option value="">A definir</option>
                             {part.title && !MINISTRY_PART_TYPES.includes(part.title as typeof MINISTRY_PART_TYPES[number]) ? (
                               <option value={part.title}>{part.title}</option>
                             ) : null}
@@ -1610,7 +1622,7 @@ function CreateMeetingModal({
                             onChange={e => updateMinistryPart(index, 'studentId', e.target.value)}
                             className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                           >
-                            <option value="">Selecione...</option>
+                            <option value="">A definir</option>
                             {memberOptions.map(option => (
                               <option key={`student-${index}-${option.id}`} value={option.id}>{option.name}</option>
                             ))}
@@ -1626,7 +1638,7 @@ function CreateMeetingModal({
                             disabled={part.title === 'Discurso'}
                             className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                           >
-                            <option value="">Selecione...</option>
+                            <option value="">A definir</option>
                             {memberOptions.map(option => (
                               <option key={`assistant-${index}-${option.id}`} value={option.id}>{option.name}</option>
                             ))}
