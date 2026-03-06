@@ -5,6 +5,8 @@ import { useNotifications } from '../context/NotificationsContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { ProfileDrawer } from './ProfileDrawer';
 import { ministryApi } from '../lib/ministry-api';
+import { initializeLocationTrackingForUser, stopTracking } from '../lib/location-tracking';
+import { initializeFieldServiceForUser, stopFieldService } from '../lib/field-service-live';
 import { toast } from 'sonner';
 import {
   LayoutDashboard,
@@ -52,7 +54,7 @@ export function Layout() {
 
   const ministryChildren = [
     { path: '/ministry/field-record', label: 'Registro de Campo' },
-    { path: '/ministry/field-day', label: 'Dia de Campo' },
+    { path: '/ministry/field-day', label: 'Saída de Campo' },
     { path: '/ministry/journal', label: 'Diário Espiritual' },
     { path: '/ministry/settings', label: 'Configurações' },
   ];
@@ -126,6 +128,23 @@ export function Layout() {
     return unsubscribe;
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!user?.id) {
+      void stopTracking({ keepPreference: true });
+      return;
+    }
+    void initializeLocationTrackingForUser(user.id);
+    void initializeFieldServiceForUser({
+      user_id: user.id,
+      member_id: user.member_id ?? null,
+      display_name: user.name,
+      avatar_url: user.avatar ?? null,
+      group_id: user.group_id ?? null,
+    }).catch((error) => {
+      console.warn('[Layout] Falha ao inicializar presença de saída de campo:', error);
+    });
+  }, [user?.id]);
+
   const filteredNav = user
     ? navItems
       .filter(item => item.roles.includes(user.role))
@@ -139,6 +158,16 @@ export function Layout() {
     setNotificationsOpen(false);
     setProfileOpen(false);
     setSidebarOpen(false);
+    if (user?.id) {
+      await stopFieldService({
+        user_id: user.id,
+        member_id: user.member_id ?? null,
+        display_name: user.name,
+        avatar_url: user.avatar ?? null,
+        group_id: user.group_id ?? null,
+      }).catch(() => { });
+    }
+    await stopTracking({ keepPreference: true });
     await logout();
     navigate('/', { replace: true });
   };

@@ -1,7 +1,7 @@
 import React from 'react';
-import { Outlet, NavLink, useLocation } from 'react-router';
+import { Outlet, NavLink } from 'react-router';
 import { MinistryProvider, useMinistry } from '../../context/MinistryContext';
-import { Clock, Users, BookOpen, Target, History, Settings, MoreHorizontal } from 'lucide-react';
+import { Clock, Users, BookOpen, Target, History, Settings, MoreHorizontal, MapPinned } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 function formatTimer(seconds: number): string {
@@ -31,6 +31,7 @@ function PersistentTimer() {
 
 const NAV_ITEMS = [
   { path: '/ministry/field-record', label: 'Campo', icon: Clock },
+  { path: '/ministry/field-day', label: 'Saída de Campo', icon: MapPinned },
   { path: '/ministry/return-visits', label: 'Revisitas', icon: Users },
   { path: '/ministry/studies', label: 'Estudos', icon: BookOpen },
   { path: '/ministry/goals', label: 'Metas', icon: Target },
@@ -39,14 +40,11 @@ const NAV_ITEMS = [
 
 const MORE_ITEMS = [
   { path: '/ministry/territory', label: 'Território', icon: Settings },
-  { path: '/ministry/field-day', label: 'Dia de Campo', icon: Settings },
   { path: '/ministry/journal', label: 'Diário', icon: Settings },
   { path: '/ministry/settings', label: 'Config', icon: Settings },
 ];
 
 function MinistryNavigation() {
-  const location = useLocation();
-
   return (
     <>
       {/* Top Tabs - Desktop/Tablet */}

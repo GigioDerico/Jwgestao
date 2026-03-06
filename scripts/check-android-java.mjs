@@ -29,9 +29,9 @@ if (!major) {
   process.exit(1);
 }
 
-if (major < 17 || major > 24) {
+if (major < 17 || major > 25) {
   console.error(`Unsupported Java version detected: ${major}.`);
-  console.error('Use a JDK between 17 and 24 for the Android release build.');
+  console.error('Use a JDK between 17 and 25 for the Android release build.');
 
   const androidStudioJbr = '/Applications/Android Studio.app/Contents/jbr/Contents/Home';
   if (process.platform === 'darwin' && fs.existsSync(androidStudioJbr)) {

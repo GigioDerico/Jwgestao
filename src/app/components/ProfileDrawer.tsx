@@ -16,12 +16,28 @@ import {
   Trash2,
   Bell,
   MapPin,
+  PauseCircle,
+  PlayCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Geolocation } from '@capacitor/geolocation';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { supabase } from '../lib/supabase';
 import { formatPhoneDisplay } from '../helpers';
+import {
+  flushPoints,
+  getLocationTrackingSnapshot,
+  getTrackingConsentText,
+  initializeLocationTrackingForUser,
+  pauseTrackingForUser,
+  requestBackgroundLocationPermissionStep,
+  requestForegroundLocationPermission,
+  setLocationTrackingPreference,
+  startTracking,
+  subscribeToLocationTracking,
+  type LocationTrackingSnapshot,
+} from '../lib/location-tracking';
 
 interface ProfileDrawerProps {
   open: boolean;
@@ -67,6 +83,11 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
 
   const [geoStatus, setGeoStatus] = useState<string>('unknown');
   const [pushStatus, setPushStatus] = useState<string>('unknown');
+  const [tracking, setTracking] = useState<LocationTrackingSnapshot>(() => getLocationTrackingSnapshot());
+  const [consentOpen, setConsentOpen] = useState(false);
+  const [consentConfirmed, setConsentConfirmed] = useState(false);
+  const [trackingBusy, setTrackingBusy] = useState(false);
+  const [syncBusy, setSyncBusy] = useState(false);
 
   // Check initial permission status for native features
   useEffect(() => {
@@ -83,7 +104,24 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
       } catch (e) { }
     };
     if (open) {
-      checkPermissions();
+      void checkPermissions();
+      if (user?.id) {
+        void initializeLocationTrackingForUser(user.id);
+      }
+    }
+  }, [open, user?.id]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToLocationTracking((next) => {
+      setTracking(next);
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (!open) {
+      setConsentOpen(false);
+      setConsentConfirmed(false);
     }
   }, [open]);
 
@@ -98,6 +136,111 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
       }
     } catch (e) {
       toast.error('Dispositivo/Navegador sem suporte nativo.');
+    }
+  };
+
+  const formatTrackingStatus = () => {
+    switch (tracking.status) {
+      case 'active':
+        return 'Ativo';
+      case 'starting':
+        return 'Iniciando';
+      case 'paused':
+        return 'Pausado';
+      case 'permission_denied':
+        return 'Permissão negada';
+      case 'feature_disabled':
+        return 'Feature flag desativada';
+      case 'unsupported':
+        return 'Sem suporte no dispositivo';
+      case 'error':
+        return 'Erro de rastreamento';
+      default:
+        return 'Inativo';
+    }
+  };
+
+  const handleEnableTracking = async () => {
+    if (!user?.id) return;
+
+    setTrackingBusy(true);
+    try {
+      const permission = await requestForegroundLocationPermission();
+      if (permission !== 'granted') {
+        setGeoStatus(permission);
+        toast.error('Permissão de localização necessária para iniciar o rastreamento.');
+        return;
+      }
+
+      setGeoStatus('granted');
+      setConsentOpen(true);
+    } finally {
+      setTrackingBusy(false);
+    }
+  };
+
+  const handleConfirmTrackingConsent = async () => {
+    if (!user?.id) return;
+    if (!consentConfirmed) {
+      toast.error('Confirme o consentimento para continuar.');
+      return;
+    }
+
+    setTrackingBusy(true);
+    try {
+      const backgroundGranted = await requestBackgroundLocationPermissionStep();
+      if (!backgroundGranted) {
+        toast.message('Ative "Permitir o tempo todo" nas configurações do Android para melhor continuidade.');
+      }
+
+      setLocationTrackingPreference(user.id, true);
+      const status = await startTracking(user.id);
+
+      if (status === 'active') {
+        toast.success('Rastreamento de localização iniciado.');
+        setConsentOpen(false);
+        setConsentConfirmed(false);
+      } else if (status === 'feature_disabled') {
+        toast.error('Tracking ainda desativado para este usuário pela feature flag.');
+      } else if (status === 'permission_denied') {
+        toast.error('Permissão de localização insuficiente.');
+      } else {
+        toast.error('Não foi possível iniciar o rastreamento.');
+      }
+    } finally {
+      setTrackingBusy(false);
+    }
+  };
+
+  const handlePauseTracking = async () => {
+    if (!user?.id) return;
+    setTrackingBusy(true);
+    try {
+      await pauseTrackingForUser(user.id);
+      toast.success('Rastreamento pausado.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao pausar rastreamento.';
+      toast.error(message);
+    } finally {
+      setTrackingBusy(false);
+    }
+  };
+
+  const handleSyncTracking = async () => {
+    if (!user?.id) return;
+    setSyncBusy(true);
+    try {
+      const synced = await flushPoints({ userId: user.id, batchSize: 50 });
+      if (synced > 0) {
+        toast.success(`${synced} ponto(s) de localização sincronizado(s).`);
+      } else {
+        toast.message('Nenhum ponto pendente para sincronizar.');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao sincronizar localização.';
+      toast.error(message);
+    } finally {
+      setSyncBusy(false);
     }
   };
 
@@ -731,6 +874,79 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
                   </button>
                 </div>
 
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-100 flex flex-col items-center justify-center text-emerald-600">
+                        <MapPin size={16} />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-800" style={{ fontSize: '0.85rem' }}>Rastreamento Contínuo</p>
+                        <p className="text-gray-500" style={{ fontSize: '0.75rem' }}>
+                          Status: {formatTrackingStatus()}
+                        </p>
+                      </div>
+                    </div>
+                    {tracking.status === 'active' ? (
+                      <button
+                        onClick={handlePauseTracking}
+                        disabled={trackingBusy}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold bg-red-100 text-red-700 hover:bg-red-200 transition-colors disabled:opacity-60"
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          <PauseCircle size={13} />
+                          Pausar
+                        </span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleEnableTracking}
+                        disabled={trackingBusy || tracking.status === 'feature_disabled'}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${tracking.status === 'feature_disabled'
+                          ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                          : 'bg-[#082c45] text-white hover:bg-[#0a4a7a] disabled:opacity-60'
+                          }`}
+                      >
+                        <span className="inline-flex items-center gap-1">
+                          <PlayCircle size={13} />
+                          Iniciar
+                        </span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[11px] text-gray-600">
+                    <p>Fila local: <span className="font-semibold text-gray-700">{tracking.queueSize}</span></p>
+                    <p>Intervalo: <span className="font-semibold text-gray-700">{tracking.config.intervalSec}s</span></p>
+                    <p>Distância: <span className="font-semibold text-gray-700">{tracking.config.distanceM}m</span></p>
+                    <p>Retenção: <span className="font-semibold text-gray-700">{tracking.config.retentionDays} dias</span></p>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] text-gray-500 truncate">
+                      {tracking.lastSyncAt
+                        ? `Última sincronização: ${new Date(tracking.lastSyncAt).toLocaleString('pt-BR')}`
+                        : 'Sincronização ainda não realizada'}
+                    </p>
+                    <button
+                      onClick={handleSyncTracking}
+                      disabled={syncBusy}
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-60"
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        <RefreshCw size={12} className={syncBusy ? 'animate-spin' : ''} />
+                        Sincronizar agora
+                      </span>
+                    </button>
+                  </div>
+
+                  {tracking.lastError && (
+                    <p className="text-[11px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-2 py-1.5">
+                      {tracking.lastError}
+                    </p>
+                  )}
+                </div>
+
                 <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-xl">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-xl bg-[#35bdf8]/10 flex flex-col items-center justify-center text-[#35bdf8]">
@@ -764,6 +980,58 @@ export function ProfileDrawer({ open, onClose }: ProfileDrawerProps) {
             )}
           </div>
         </div>
+
+        {consentOpen && (
+          <div className="absolute inset-0 z-50 bg-black/55 flex items-center justify-center px-4">
+            <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-gray-100 p-5 space-y-4">
+              <div>
+                <h4 className="text-gray-900 font-bold" style={{ fontSize: '1rem' }}>
+                  Consentimento de Localização
+                </h4>
+                <p className="text-gray-600 mt-1" style={{ fontSize: '0.82rem' }}>
+                  {getTrackingConsentText()}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-amber-800" style={{ fontSize: '0.75rem' }}>
+                Etapa 1: acesso em uso. Etapa 2: permitir em segundo plano para melhor continuidade.
+              </div>
+
+              <label className="flex items-start gap-2 text-gray-700" style={{ fontSize: '0.8rem' }}>
+                <input
+                  type="checkbox"
+                  checked={consentConfirmed}
+                  onChange={e => setConsentConfirmed(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>Eu autorizo a coleta contínua e posso pausar/desativar quando quiser.</span>
+              </label>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConsentOpen(false);
+                    setConsentConfirmed(false);
+                  }}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors font-medium"
+                  style={{ fontSize: '0.85rem' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmTrackingConsent}
+                  disabled={trackingBusy}
+                  className="flex-1 py-2.5 rounded-xl bg-[#082c45] text-white hover:bg-[#0a4a7a] transition-colors font-bold disabled:opacity-60"
+                  style={{ fontSize: '0.85rem' }}
+                >
+                  {trackingBusy ? 'Iniciando...' : 'Concordar e iniciar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="px-5 py-4 border-t border-gray-100 bg-white shrink-0 flex gap-3">
