@@ -1,3 +1,4 @@
+import { supabase } from './supabase';
 import {
   ministryStore,
   type GoalPlannerActivityType,
@@ -192,8 +193,18 @@ export const ministryApi = {
   },
 
   async deleteFieldRecord(id: string, userId: string): Promise<void> {
+    const rec = await ministryStore.getFieldRecordById(id, userId);
+    if (!rec) return;
+
+    if (rec.supabase_id) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        throw new Error('Você precisa estar online para excluir um registro sincronizado.');
+      }
+      const { error } = await supabase.from('personal_field_records').delete().eq('id', rec.supabase_id);
+      if (error) throw new Error('Erro ao excluir na nuvem: ' + error.message);
+    }
+
     await ministryStore.deleteFieldRecord(id, userId);
-    await doSync(userId);
   },
 
   async getMonthlyGoal(userId: string, year: number, month: number): Promise<LocalMonthlyGoal | undefined> {
@@ -413,8 +424,18 @@ export const ministryApi = {
   },
 
   async deleteReturnVisit(id: string, userId: string): Promise<void> {
+    const rec = await ministryStore.getReturnVisitById(id, userId);
+    if (!rec) return;
+
+    if (rec.supabase_id) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        throw new Error('Você precisa estar online para excluir um registro sincronizado.');
+      }
+      const { error } = await supabase.from('personal_return_visits').delete().eq('id', rec.supabase_id);
+      if (error) throw new Error('Erro ao excluir na nuvem: ' + error.message);
+    }
+
     await ministryStore.deleteReturnVisit(id, userId);
-    await doSync(userId);
   },
 
   async getTerritoryLogs(userId: string, dateFrom?: string, dateTo?: string): Promise<LocalTerritoryLog[]> {
@@ -445,8 +466,18 @@ export const ministryApi = {
   },
 
   async deleteTerritoryLog(id: string, userId: string): Promise<void> {
+    const rec = await ministryStore.getTerritoryLogById(id, userId);
+    if (!rec) return;
+
+    if (rec.supabase_id) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        throw new Error('Você precisa estar online para excluir um registro sincronizado.');
+      }
+      const { error } = await supabase.from('personal_territory_logs').delete().eq('id', rec.supabase_id);
+      if (error) throw new Error('Erro ao excluir na nuvem: ' + error.message);
+    }
+
     await ministryStore.deleteTerritoryLog(id, userId);
-    await doSync(userId);
   },
 
   async getJournalEntries(userId: string): Promise<LocalSpiritualJournal[]> {
@@ -470,8 +501,18 @@ export const ministryApi = {
   },
 
   async deleteJournalEntry(id: string, userId: string): Promise<void> {
+    const rec = await ministryStore.getJournalEntryById(id, userId);
+    if (!rec) return;
+
+    if (rec.supabase_id) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        throw new Error('Você precisa estar online para excluir um registro sincronizado.');
+      }
+      const { error } = await supabase.from('personal_spiritual_journal').delete().eq('id', rec.supabase_id);
+      if (error) throw new Error('Erro ao excluir na nuvem: ' + error.message);
+    }
+
     await ministryStore.deleteJournalEntry(id, userId);
-    await doSync(userId);
   },
 
   async syncIfOnline(userId: string): Promise<SyncResult> {

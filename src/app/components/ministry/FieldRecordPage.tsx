@@ -290,92 +290,105 @@ export function FieldRecordPage() {
 
       {/* Modal de formulário completo */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editRecord ? 'Editar registro' : 'Novo registro'}</DialogTitle>
+        <DialogContent className="max-w-md w-[95vw] sm:w-full max-h-[90vh] flex flex-col p-6 overflow-hidden rounded-2xl">
+          <DialogHeader className="shrink-0 mb-2">
+            <DialogTitle className="text-xl">{editRecord ? 'Editar registro' : 'Novo registro'}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label htmlFor="date">Data</Label>
+
+          <div className="flex-1 overflow-y-auto space-y-5 pr-2 pb-2">
+            <div className="space-y-2">
+              <Label htmlFor="date" className="text-sm font-medium">Data</Label>
               <Input
                 id="date"
                 type="date"
                 value={form.date}
                 onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-                className="mt-1"
+                className="h-12 w-full rounded-xl bg-muted/50 border-transparent focus:bg-background focus:border-primary transition-colors"
               />
             </div>
-            <div>
-              <Label htmlFor="hours">Horas</Label>
+
+            <div className="space-y-2">
+              <Label htmlFor="hours" className="text-sm font-medium">Horas</Label>
               <Input
                 id="hours"
                 type="number"
                 step="0.25"
                 min="0"
+                inputMode="decimal"
                 value={form.hours || ''}
                 onChange={(e) => setForm((f) => ({ ...f, hours: parseFloat(e.target.value) || 0 }))}
-                className="mt-1"
+                className="h-12 text-lg rounded-xl bg-muted/50 border-transparent focus:bg-background focus:border-primary transition-colors"
+                placeholder="Ex: 2.5"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Publicações</Label>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Publicações</Label>
                 <Input
                   type="number"
+                  inputMode="numeric"
                   min="0"
                   value={form.publications ?? 0}
                   onChange={(e) => setForm((f) => ({ ...f, publications: parseInt(e.target.value, 10) || 0 }))}
-                  className="mt-1"
+                  className="h-12 text-center text-lg rounded-xl bg-muted/50 border-transparent focus:bg-background focus:border-primary transition-colors"
                 />
               </div>
-              <div>
-                <Label>Vídeos</Label>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Vídeos</Label>
                 <Input
                   type="number"
+                  inputMode="numeric"
                   min="0"
                   value={form.videos ?? 0}
                   onChange={(e) => setForm((f) => ({ ...f, videos: parseInt(e.target.value, 10) || 0 }))}
-                  className="mt-1"
+                  className="h-12 text-center text-lg rounded-xl bg-muted/50 border-transparent focus:bg-background focus:border-primary transition-colors"
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Revisitas</Label>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Revisitas</Label>
                 <Input
                   type="number"
+                  inputMode="numeric"
                   min="0"
                   value={form.return_visits ?? 0}
                   onChange={(e) => setForm((f) => ({ ...f, return_visits: parseInt(e.target.value, 10) || 0 }))}
-                  className="mt-1"
+                  className="h-12 text-center text-lg rounded-xl bg-muted/50 border-transparent focus:bg-background focus:border-primary transition-colors"
                 />
               </div>
-              <div>
-                <Label>Estudos bíblicos</Label>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Estudos</Label>
                 <Input
                   type="number"
+                  inputMode="numeric"
                   min="0"
                   value={form.bible_studies ?? 0}
                   onChange={(e) => setForm((f) => ({ ...f, bible_studies: parseInt(e.target.value, 10) || 0 }))}
-                  className="mt-1"
+                  className="h-12 text-center text-lg rounded-xl bg-muted/50 border-transparent focus:bg-background focus:border-primary transition-colors"
                 />
               </div>
             </div>
-            <div>
-              <Label>Observações</Label>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Observações</Label>
               <Textarea
                 value={form.notes ?? ''}
                 onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
                 rows={3}
-                className="mt-1"
+                placeholder="Algo importante que aconteceu no campo?"
+                className="resize-none rounded-xl bg-muted/50 border-transparent focus:bg-background focus:border-primary transition-colors"
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancelar
+
+          <DialogFooter className="shrink-0 pt-4 grid grid-cols-2 gap-3 sm:flex sm:justify-end mt-auto">
+            <Button variant="outline" onClick={() => setDialogOpen(false)} className="h-12 rounded-xl text-base w-full sm:w-auto">
+              Voltar
             </Button>
-            <Button onClick={handleSubmit} className="bg-primary text-primary-foreground">
+            <Button onClick={handleSubmit} className="h-12 rounded-xl text-base w-full sm:w-auto bg-primary text-primary-foreground shadow-md shadow-primary/20">
               Salvar
             </Button>
           </DialogFooter>
@@ -384,36 +397,38 @@ export function FieldRecordPage() {
 
       {/* Modal de ações rápidas */}
       <Dialog open={quickDialog !== null} onOpenChange={() => setQuickDialog(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>
+        <DialogContent className="max-w-sm w-[95vw] sm:w-full rounded-2xl p-6">
+          <DialogHeader className="mb-2">
+            <DialogTitle className="text-xl">
               {quickDialog === 'revisita' && 'Registrar revisita'}
               {quickDialog === 'estudo' && 'Registrar estudo bíblico'}
               {quickDialog === 'nota' && 'Adicionar nota'}
             </DialogTitle>
           </DialogHeader>
-          <div className="py-4">
+          <div className="py-2">
             {(quickDialog === 'revisita' || quickDialog === 'nota') && (
-              <div>
-                <Label>{quickDialog === 'revisita' ? 'Nome ou iniciais' : 'Nota'}</Label>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">{quickDialog === 'revisita' ? 'Nome ou iniciais (Opcional)' : 'O que deseja anotar?'}</Label>
                 <Input
                   value={quickValue}
                   onChange={(e) => setQuickValue(e.target.value)}
-                  placeholder="Opcional"
-                  className="mt-1"
+                  placeholder="Escreva aqui..."
+                  className="h-12 rounded-xl bg-muted/50 border-transparent focus:bg-background focus:border-primary transition-colors"
                   autoFocus
                 />
               </div>
             )}
             {quickDialog === 'estudo' && (
-              <p className="text-sm text-muted-foreground">Será adicionado 1 estudo bíblico ao registro de hoje.</p>
+              <p className="text-base text-muted-foreground p-4 bg-muted/30 rounded-xl border border-border">
+                Será adicionado <strong className="text-foreground">1 estudo bíblico</strong> ao registro de hoje imediatamente.
+              </p>
             )}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setQuickDialog(null)}>
+          <DialogFooter className="grid grid-cols-2 gap-3 mt-4">
+            <Button variant="outline" onClick={() => setQuickDialog(null)} className="h-12 rounded-xl text-base w-full">
               Cancelar
             </Button>
-            <Button onClick={handleQuickSubmit} className="bg-primary text-primary-foreground">
+            <Button onClick={handleQuickSubmit} className="h-12 rounded-xl text-base w-full bg-primary text-primary-foreground shadow-md shadow-primary/20">
               Confirmar
             </Button>
           </DialogFooter>
