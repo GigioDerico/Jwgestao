@@ -19,7 +19,7 @@ import {
   hasPlannerConflict,
   validatePlannerItemInput,
 } from './goal-planner';
-import { syncIfOnline as doSync, subscribeToOnline, type SyncResult } from './ministry-sync';
+import { syncIfOnline as doSync, pullFromSupabase, subscribeToOnline, type SyncResult } from './ministry-sync';
 
 export type {
   GoalPlannerActivityType,
@@ -480,6 +480,10 @@ export const ministryApi = {
 
   subscribeToOnline(callback: () => void): () => void {
     return subscribeToOnline(callback);
+  },
+
+  async pullFromCloud(userId: string): Promise<{ pulled: number; errors: string[] }> {
+    return pullFromSupabase(userId);
   },
 
   async clearAllData(userId: string): Promise<void> {

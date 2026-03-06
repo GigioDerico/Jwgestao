@@ -39,7 +39,6 @@ const NAV_ITEMS = [
 
 const MORE_ITEMS = [
   { path: '/ministry/territory', label: 'Território', icon: Settings },
-  { path: '/ministry/field-day', label: 'Dia de Campo', icon: Settings },
   { path: '/ministry/journal', label: 'Diário', icon: Settings },
   { path: '/ministry/settings', label: 'Config', icon: Settings },
 ];

@@ -19,7 +19,6 @@ import { HistoryPage } from './components/ministry/HistoryPage';
 import { ReturnVisitsPage } from './components/ministry/ReturnVisitsPage';
 import { StudiesPage } from './components/ministry/StudiesPage';
 import { TerritoryPage } from './components/ministry/TerritoryPage';
-import { FieldDayPage } from './components/ministry/FieldDayPage';
 import { LibraryPage } from './components/ministry/LibraryPage';
 import { JournalPage } from './components/ministry/JournalPage';
 import { MinistrySettingsPage } from './components/ministry/MinistrySettingsPage';
@@ -60,7 +59,6 @@ export const router = createBrowserRouter([
           { path: 'return-visits', Component: ReturnVisitsPage },
           { path: 'studies', Component: StudiesPage },
           { path: 'territory', Component: TerritoryPage },
-          { path: 'field-day', Component: FieldDayPage },
           { path: 'library', Component: LibraryPage },
           { path: 'journal', Component: JournalPage },
           { path: 'settings', Component: MinistrySettingsPage },
