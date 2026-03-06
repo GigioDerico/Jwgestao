@@ -167,11 +167,11 @@ class MinistryDatabase extends Dexie {
 
 export const ministryDb = new MinistryDatabase();
 
-function generateLocalId(): string {
+export function generateLocalId(): string {
   return crypto.randomUUID();
 }
 
-function nowISO(): string {
+export function nowISO(): string {
   return new Date().toISOString();
 }
 

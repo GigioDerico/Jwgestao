@@ -51,8 +51,7 @@ export function Layout() {
   const canViewAssignments = can('view_assignments');
 
   const ministryChildren = [
-    { path: '/ministry/field-record', label: 'Registro de Campo' },
-    { path: '/ministry/field-day', label: 'Dia de Campo' },
+    { path: '/ministry/field-record', label: 'Campo' },
     { path: '/ministry/journal', label: 'Diário Espiritual' },
     { path: '/ministry/settings', label: 'Configurações' },
   ];
@@ -251,7 +250,7 @@ export function Layout() {
                 ? () => setAssignmentsMenuOpen(v => !v)
                 : isMinistry
                   ? () => setMinistryMenuOpen(v => !v)
-                  : () => {};
+                  : () => { };
               const isExpanded = menuOpen || isActive;
 
               return (

@@ -26,12 +26,18 @@ importers:
       '@capacitor/ios':
         specifier: ^8.1.0
         version: 8.1.0(@capacitor/core@8.1.0)
+      '@capacitor/local-notifications':
+        specifier: ^8.0.2
+        version: 8.0.2(@capacitor/core@8.1.0)
       '@capacitor/push-notifications':
         specifier: ^8.0.1
         version: 8.0.1(@capacitor/core@8.1.0)
       '@capacitor/status-bar':
         specifier: ^8.0.0
         version: 8.0.0(@capacitor/core@8.1.0)
+      '@capawesome-team/capacitor-android-foreground-service':
+        specifier: ^8.0.1
+        version: 8.0.1(@capacitor/core@8.1.0)
       '@emotion/react':
         specifier: 11.14.0
         version: 11.14.0(@types/react@19.2.14)(react@18.3.1)
@@ -338,6 +344,11 @@ packages:
     peerDependencies:
       '@capacitor/core': ^8.1.0
 
+  '@capacitor/local-notifications@8.0.2':
+    resolution: {integrity: sha512-X7KE/I4ZutMTGVHNUyTjIugYcQEcHJRLks+TsPnOriuS+lo0geSTuaRln6zAZlJSSXSoVMSSzHexdSbIjR/8iw==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+
   '@capacitor/push-notifications@8.0.1':
     resolution: {integrity: sha512-CDY6syMxdG81Epn+V4fCYRR4L9tVS72F1kVrTY2ka6umWy4BmwXOXPsxGxlE5PmHLOhmBwKpy3uOiIJtSpMhOw==}
     peerDependencies:
@@ -350,6 +361,11 @@ packages:
 
   '@capacitor/synapse@1.0.4':
     resolution: {integrity: sha512-/C1FUo8/OkKuAT4nCIu/34ny9siNHr9qtFezu4kxm6GY1wNFxrCFWjfYx5C1tUhVGz3fxBABegupkpjXvjCHrw==}
+
+  '@capawesome-team/capacitor-android-foreground-service@8.0.1':
+    resolution: {integrity: sha512-SnkzGKvtbQ5aiIddRUviCelMjlM68WF835Zzt3AhRNg13v6uvzAL7EnqMByxX7RTqicSuvhJVYJprv/SyDiN7Q==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
 
   '@emotion/babel-plugin@11.13.5':
     resolution: {integrity: sha512-pxHCpT2ex+0q+HH91/zsdHkw/lXd468DIN2zvfvLtPKLLMo6gQj7oLObq8PhkrxOZb/gGCq03S3Z7PDhS8pduQ==}
@@ -2908,6 +2924,10 @@ snapshots:
     dependencies:
       '@capacitor/core': 8.1.0
 
+  '@capacitor/local-notifications@8.0.2(@capacitor/core@8.1.0)':
+    dependencies:
+      '@capacitor/core': 8.1.0
+
   '@capacitor/push-notifications@8.0.1(@capacitor/core@8.1.0)':
     dependencies:
       '@capacitor/core': 8.1.0
@@ -2917,6 +2937,10 @@ snapshots:
       '@capacitor/core': 8.1.0
 
   '@capacitor/synapse@1.0.4': {}
+
+  '@capawesome-team/capacitor-android-foreground-service@8.0.1(@capacitor/core@8.1.0)':
+    dependencies:
+      '@capacitor/core': 8.1.0
 
   '@emotion/babel-plugin@11.13.5':
     dependencies:

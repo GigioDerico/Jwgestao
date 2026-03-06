@@ -1,70 +1,68 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import {
+    startNativeTimer,
+    stopNativeTimer,
+    getElapsedSeconds,
+    hasActiveTimer,
+} from '../lib/ministry-timer';
 
 interface MinistryContextType {
     timerSeconds: number;
     isTimerRunning: boolean;
-    startTimer: () => void;
-    stopTimer: () => number; // returns elapsed hours
+    startTimer: () => Promise<void>;
+    stopTimer: () => Promise<number>;
     resetTimer: () => void;
 }
 
 const MinistryContext = createContext<MinistryContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'jwgestao-ministry-timer-start';
-
 export function MinistryProvider({ children }: { children: React.ReactNode }) {
     const [timerSeconds, setTimerSeconds] = useState(0);
     const [isTimerRunning, setIsTimerRunning] = useState(false);
-    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    // Initialize from localStorage
+    // Ao montar: verifica se há timer ativo persistido e retoma contagem
     useEffect(() => {
-        const savedStartTime = localStorage.getItem(STORAGE_KEY);
-        if (savedStartTime) {
-            const startTime = parseInt(savedStartTime, 10);
-            const now = Date.now();
-            const elapsed = Math.floor((now - startTime) / 1000);
-
-            if (elapsed > 0) {
-                setTimerSeconds(elapsed);
-                setIsTimerRunning(true);
-            }
+        if (hasActiveTimer()) {
+            const elapsed = getElapsedSeconds();
+            setTimerSeconds(elapsed);
+            setIsTimerRunning(true);
         }
     }, []);
 
-    // Timer effect
+    // Tick do cronômetro — recalcula sempre a partir do timestamp salvo
+    // para manter precisão mesmo após hibernação / janela minimizada
     useEffect(() => {
         if (isTimerRunning) {
-            timerRef.current = setInterval(() => {
-                setTimerSeconds((s) => s + 1);
+            intervalRef.current = setInterval(() => {
+                setTimerSeconds(getElapsedSeconds());
             }, 1000);
         } else {
-            if (timerRef.current) clearInterval(timerRef.current);
+            if (intervalRef.current) clearInterval(intervalRef.current);
         }
 
         return () => {
-            if (timerRef.current) clearInterval(timerRef.current);
+            if (intervalRef.current) clearInterval(intervalRef.current);
         };
     }, [isTimerRunning]);
 
-    const startTimer = () => {
-        const now = Date.now();
-        localStorage.setItem(STORAGE_KEY, now.toString());
+    const startTimer = async () => {
+        await startNativeTimer();
         setTimerSeconds(0);
         setIsTimerRunning(true);
     };
 
-    const stopTimer = () => {
+    const stopTimer = async (): Promise<number> => {
         setIsTimerRunning(false);
-        localStorage.removeItem(STORAGE_KEY);
-        const hours = timerSeconds / 3600;
-        return Math.round(hours * 100) / 100;
+        const hours = await stopNativeTimer();
+        setTimerSeconds(0);
+        return hours;
     };
 
     const resetTimer = () => {
         setIsTimerRunning(false);
         setTimerSeconds(0);
-        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem('jwgestao-ministry-timer-start');
     };
 
     return (

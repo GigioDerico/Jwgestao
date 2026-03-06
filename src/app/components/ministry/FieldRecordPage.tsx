@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useMinistry } from '../../context/MinistryContext';
 import { ministryApi, type LocalFieldRecord, type CreateFieldRecordInput } from '../../lib/ministry-api';
 import { toast } from 'sonner';
-import { Plus, Trash2, Edit2, Play, Square, Clock } from 'lucide-react';
+import { Plus, Trash2, Edit2, Play, Square, Clock, BookOpen, FileText } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -33,9 +33,13 @@ export function FieldRecordPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<LocalFieldRecord | null>(null);
+  const [quickDialog, setQuickDialog] = useState<'revisita' | 'estudo' | 'nota' | null>(null);
+  const [quickValue, setQuickValue] = useState('');
+
+  const today = new Date().toISOString().slice(0, 10);
 
   const [form, setForm] = useState<CreateFieldRecordInput>({
-    date: new Date().toISOString().slice(0, 10),
+    date: today,
     hours: 0,
     publications: 0,
     videos: 0,
@@ -48,6 +52,8 @@ export function FieldRecordPage() {
     if (!userId) return;
     try {
       setLoading(true);
+      // Puxa dados do Supabase antes de ler o store local
+      await ministryApi.pullFromCloud(userId);
       const data = await ministryApi.getFieldRecords(userId);
       setRecords(data);
     } catch (e) {
@@ -61,12 +67,10 @@ export function FieldRecordPage() {
     loadRecords();
   }, [userId]);
 
-  const handleStartTimer = () => {
-    startTimer();
-  };
+  const handleStartTimer = async () => startTimer();
 
   const handleStopTimer = async () => {
-    const hours = stopTimer();
+    const hours = await stopTimer();
     setForm((f) => ({ ...f, hours }));
     setEditRecord(null);
     setDialogOpen(true);
@@ -75,7 +79,7 @@ export function FieldRecordPage() {
   const handleOpenNew = () => {
     setEditRecord(null);
     setForm({
-      date: new Date().toISOString().slice(0, 10),
+      date: today,
       hours: 0,
       publications: 0,
       videos: 0,
@@ -127,6 +131,45 @@ export function FieldRecordPage() {
       loadRecords();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Erro ao excluir');
+    }
+  };
+
+  const handleQuickSubmit = async () => {
+    if (!userId) return;
+    try {
+      if (quickDialog === 'revisita') {
+        await ministryApi.createReturnVisit(userId, { name_or_initials: quickValue || undefined });
+        toast.success('Revisita registrada');
+      } else if (quickDialog === 'estudo') {
+        const todayRec = records.find((r) => r.date === today);
+        if (todayRec) {
+          await ministryApi.updateFieldRecord(todayRec.supabase_id ?? todayRec.local_id, userId, {
+            bible_studies: (todayRec.bible_studies ?? 0) + 1,
+          });
+        } else {
+          await ministryApi.createFieldRecord(userId, {
+            date: today,
+            hours: 0,
+            return_visits: 0,
+            bible_studies: 1,
+          });
+        }
+        toast.success('Estudo registrado');
+      } else if (quickDialog === 'nota') {
+        await ministryApi.createFieldRecord(userId, {
+          date: today,
+          hours: 0,
+          return_visits: 0,
+          bible_studies: 0,
+          notes: quickValue,
+        });
+        toast.success('Nota adicionada');
+      }
+      setQuickDialog(null);
+      setQuickValue('');
+      loadRecords();
+    } catch {
+      toast.error('Erro ao registrar');
     }
   };
 
@@ -191,6 +234,25 @@ export function FieldRecordPage() {
         </CardContent>
       </Card>
 
+      {/* Ações Rápidas */}
+      <div>
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Ações Rápidas</p>
+        <div className="grid grid-cols-3 gap-2">
+          <Button variant="outline" onClick={() => { setQuickValue(''); setQuickDialog('revisita'); }} className="flex flex-col gap-1 py-4 border-border h-auto">
+            <Plus size={20} />
+            <span className="text-xs">Revisita</span>
+          </Button>
+          <Button variant="outline" onClick={() => { setQuickValue(''); setQuickDialog('estudo'); }} className="flex flex-col gap-1 py-4 border-border h-auto">
+            <BookOpen size={20} />
+            <span className="text-xs">Estudo</span>
+          </Button>
+          <Button variant="outline" onClick={() => { setQuickValue(''); setQuickDialog('nota'); }} className="flex flex-col gap-1 py-4 border-border h-auto">
+            <FileText size={20} />
+            <span className="text-xs">Nota</span>
+          </Button>
+        </div>
+      </div>
+
       {/* Lista de registros */}
       <Card className="border border-border rounded-xl shadow-sm bg-card">
         <CardHeader>
@@ -226,7 +288,7 @@ export function FieldRecordPage() {
         </CardContent>
       </Card>
 
-      {/* Modal de formulário */}
+      {/* Modal de formulário completo */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -315,6 +377,44 @@ export function FieldRecordPage() {
             </Button>
             <Button onClick={handleSubmit} className="bg-primary text-primary-foreground">
               Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de ações rápidas */}
+      <Dialog open={quickDialog !== null} onOpenChange={() => setQuickDialog(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {quickDialog === 'revisita' && 'Registrar revisita'}
+              {quickDialog === 'estudo' && 'Registrar estudo bíblico'}
+              {quickDialog === 'nota' && 'Adicionar nota'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            {(quickDialog === 'revisita' || quickDialog === 'nota') && (
+              <div>
+                <Label>{quickDialog === 'revisita' ? 'Nome ou iniciais' : 'Nota'}</Label>
+                <Input
+                  value={quickValue}
+                  onChange={(e) => setQuickValue(e.target.value)}
+                  placeholder="Opcional"
+                  className="mt-1"
+                  autoFocus
+                />
+              </div>
+            )}
+            {quickDialog === 'estudo' && (
+              <p className="text-sm text-muted-foreground">Será adicionado 1 estudo bíblico ao registro de hoje.</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setQuickDialog(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleQuickSubmit} className="bg-primary text-primary-foreground">
+              Confirmar
             </Button>
           </DialogFooter>
         </DialogContent>
