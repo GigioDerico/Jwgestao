@@ -20,6 +20,10 @@ interface AuthUser {
   group_id?: string;
   avatar?: string;
   approved_audio_video?: boolean;
+  approved_sound?: boolean;
+  approved_image?: boolean;
+  approved_stage?: boolean;
+  approved_roving_mic?: boolean;
   approved_indicadores?: boolean;
   approved_carrinho?: boolean;
 }
@@ -74,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (profile?.member_id) {
         const { data: memberRows, error: memberError } = await supabase
           .from('members')
-          .select('full_name, gender, spiritual_status, group_id, avatar_url, approved_audio_video, approved_indicadores, approved_carrinho')
+          .select('full_name, gender, spiritual_status, group_id, avatar_url, approved_audio_video, approved_sound, approved_image, approved_stage, approved_roving_mic, approved_indicadores, approved_carrinho')
           .eq('id', profile.member_id)
           .limit(1);
 
@@ -93,6 +97,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           group_id: (member as any)?.group_id || undefined,
           avatar: (member as any)?.avatar_url || undefined,
           approved_audio_video: Boolean((member as any)?.approved_audio_video),
+          approved_sound: Boolean((member as any)?.approved_sound),
+          approved_image: Boolean((member as any)?.approved_image),
+          approved_stage: Boolean((member as any)?.approved_stage),
+          approved_roving_mic: Boolean((member as any)?.approved_roving_mic),
           approved_indicadores: Boolean((member as any)?.approved_indicadores),
           approved_carrinho: Boolean((member as any)?.approved_carrinho),
         };

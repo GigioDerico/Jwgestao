@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Navigate } from 'react-router';
 import { api } from '../lib/api';
 import {
@@ -17,9 +17,11 @@ import {
   parseWeekendSpeakerCongregation,
   serializeWeekendSpeakerCongregation,
 } from '../helpers';
-import { Plus, X, ChevronDown, BookOpen, MessageCircle } from 'lucide-react';
+import { filterMembersEligibleForAssignments } from '../lib/assignment-member-eligibility';
+import { Plus, X, ChevronDown, BookOpen, MessageCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { sendDesignationWhatsApp } from '../lib/whatsapp';
+import { AssignmentHistory } from './AssignmentHistory';
 
 type MeetingEditField = {
   label: string;
@@ -50,6 +52,11 @@ const MINISTRY_PART_TYPES = [
   'Fazendo discípulos',
   'Discurso',
 ] as const;
+
+const MONTHS = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
 
 const createEmptyMinistryPartDraft = (time = '20:00') => ({
   time,
@@ -164,6 +171,7 @@ function getUnavailableWeekendReaderIds(
 export function AssignmentsPage() {
   const { user } = useAuth();
   const { can } = usePermissions();
+  const [viewMode, setViewMode] = useState<'scale' | 'history'>('scale');
   const [meetingType, setMeetingType] = useState<'midweek' | 'weekend'>('midweek');
   const [selectedMeetingIdx, setSelectedMeetingIdx] = useState(0);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -196,7 +204,7 @@ export function AssignmentsPage() {
         throw avData.error;
       }
 
-      setAllMembers(membersData);
+      setAllMembers(filterMembersEligibleForAssignments(membersData || []));
       setMidweekMeetings(mwData);
       setWeekendMeetings(weData);
       setAudioVideoAssignments((avData.data || []) as AudioVideoRestrictionAssignment[]);
@@ -610,64 +618,110 @@ export function AssignmentsPage() {
     <div className="max-w-5xl mx-auto space-y-4">
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+        <div className="space-y-2">
           <h1 className="text-foreground">Designações de Reuniões</h1>
           <p className="text-muted-foreground" style={{ fontSize: '0.85rem' }}>
             Separe e organize as partes das reuniões do meio e do fim de semana em uma página própria.
           </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {canCreateAssignments && (
+          <div className="inline-flex rounded-xl border border-border bg-muted/30 p-1">
             <button
-              onClick={openCreateMeetingModal}
-              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
+              type="button"
+              onClick={() => setViewMode('scale')}
+              className={`rounded-lg px-3 py-1.5 transition-colors ${viewMode === 'scale'
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+                }`}
+              style={{ fontSize: '0.82rem' }}
             >
-              <Plus size={16} />
-              <span style={{ fontSize: '0.9rem' }}>Nova Reunião</span>
+              Escala
             </button>
-          )}
-          {canEditAssignments && (
             <button
-              onClick={openEditMeetingModal}
-              className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-foreground transition-colors hover:bg-muted"
+              type="button"
+              onClick={() => {
+                setShowCreateMeetingModal(false);
+                setShowEditModal(false);
+                setViewMode('history');
+              }}
+              className={`rounded-lg px-3 py-1.5 transition-colors ${viewMode === 'history'
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+                }`}
+              style={{ fontSize: '0.82rem' }}
             >
-              <BookOpen size={16} />
-              <span style={{ fontSize: '0.9rem' }}>Editar Reunião</span>
+              Histórico
             </button>
-          )}
+          </div>
         </div>
+        {viewMode === 'scale' && (
+          <div className="flex flex-wrap gap-2">
+            {canCreateAssignments && (
+              <button
+                onClick={openCreateMeetingModal}
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                <Plus size={16} />
+                <span style={{ fontSize: '0.9rem' }}>Nova Reunião</span>
+              </button>
+            )}
+            {canEditAssignments && (
+              <button
+                onClick={openEditMeetingModal}
+                className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-foreground transition-colors hover:bg-muted"
+              >
+                <BookOpen size={16} />
+                <span style={{ fontSize: '0.9rem' }}>Editar Reunião</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
-      <MeetingsAssignmentsContent
-        midweekMeetings={midweekMeetings}
-        weekendMeetings={weekendMeetings}
-        meetingType={meetingType}
-        setMeetingType={setMeetingType}
-        selectedMeetingIdx={selectedMeetingIdx}
-        setSelectedMeetingIdx={setSelectedMeetingIdx}
-        openEdit={openEdit}
-        showEditModal={showEditModal}
-        editField={editField}
-        allMembers={allMembers}
-        audioVideoAssignments={audioVideoAssignments}
-        canEditAssignments={canEditAssignments}
-        onCloseModal={() => setShowEditModal(false)}
-        onSaveModal={saveAssignment}
-      />
+      {viewMode === 'scale' ? (
+        <>
+          <MeetingsAssignmentsContent
+            midweekMeetings={midweekMeetings}
+            weekendMeetings={weekendMeetings}
+            meetingType={meetingType}
+            setMeetingType={setMeetingType}
+            selectedMeetingIdx={selectedMeetingIdx}
+            setSelectedMeetingIdx={setSelectedMeetingIdx}
+            openEdit={openEdit}
+            showEditModal={showEditModal}
+            editField={editField}
+            allMembers={allMembers}
+            audioVideoAssignments={audioVideoAssignments}
+            canEditAssignments={canEditAssignments}
+            onCloseModal={() => setShowEditModal(false)}
+            onSaveModal={saveAssignment}
+          />
 
-      {canCreateAssignments && showCreateMeetingModal && (
-        <CreateMeetingModal
-          mode={meetingFormMode}
-          meetingType={createMeetingType}
-          setMeetingType={setCreateMeetingType}
-          members={allMembers}
-          midweekDraft={midweekDraft}
-          setMidweekDraft={setMidweekDraft}
-          weekendDraft={weekendDraft}
-          setWeekendDraft={setWeekendDraft}
-          audioVideoAssignments={audioVideoAssignments}
-          onClose={() => setShowCreateMeetingModal(false)}
-          onSave={handleCreateMeeting}
+          {canCreateAssignments && showCreateMeetingModal && (
+            <CreateMeetingModal
+              mode={meetingFormMode}
+              meetingType={createMeetingType}
+              setMeetingType={setCreateMeetingType}
+              members={allMembers}
+              midweekDraft={midweekDraft}
+              setMidweekDraft={setMidweekDraft}
+              weekendDraft={weekendDraft}
+              setWeekendDraft={setWeekendDraft}
+              audioVideoAssignments={audioVideoAssignments}
+              onClose={() => setShowCreateMeetingModal(false)}
+              onSave={handleCreateMeeting}
+            />
+          )}
+        </>
+      ) : (
+        <AssignmentHistory
+          allowedSources={['midweek', 'weekend']}
+          title="Histórico de Reuniões"
+          description="Histórico das últimas designações de meio e fim de semana."
+          sourceFilterMode="tabs"
+          sourceFilterLabel="Tipo de Reunião"
+          allowAllSources={false}
+          defaultSource="midweek"
+          enableDesignationFilter
+          designationFilterLabel="Designação"
         />
       )}
     </div>
@@ -762,9 +816,240 @@ function MeetingsAssignmentsContent({
     return weekendMaleMembers;
   };
 
+  const today = new Date();
+  const [midweekMonth, setMidweekMonth] = useState(today.getMonth());
+  const [midweekYear, setMidweekYear] = useState(today.getFullYear());
+  const [weekendMonth, setWeekendMonth] = useState(today.getMonth());
+  const [weekendYear, setWeekendYear] = useState(today.getFullYear());
+
+  const parseMeetingDate = (date: string) => {
+    const parsed = new Date(`${date}T12:00:00`);
+    if (Number.isNaN(parsed.getTime())) {
+      return null;
+    }
+
+    return parsed;
+  };
+
+  const midweekMeetingOptions = useMemo(() => {
+    return midweekMeetings
+      .map((meeting, index) => {
+        const parsedDate = parseMeetingDate(meeting.date);
+        return {
+          meeting,
+          index,
+          parsedDate,
+        };
+      })
+      .filter(item => {
+        if (!item.parsedDate) {
+          return false;
+        }
+
+        return item.parsedDate.getMonth() === midweekMonth && item.parsedDate.getFullYear() === midweekYear;
+      });
+  }, [midweekMeetings, midweekMonth, midweekYear]);
+
+  const weekendMeetingOptions = useMemo(() => {
+    return weekendMeetings
+      .map((meeting, index) => {
+        const parsedDate = parseMeetingDate(meeting.date);
+        return {
+          meeting,
+          index,
+          parsedDate,
+        };
+      })
+      .filter(item => {
+        if (!item.parsedDate) {
+          return false;
+        }
+
+        return item.parsedDate.getMonth() === weekendMonth && item.parsedDate.getFullYear() === weekendYear;
+      });
+  }, [weekendMeetings, weekendMonth, weekendYear]);
+
+  useEffect(() => {
+    if (midweekMeetings.length === 0) {
+      return;
+    }
+
+    const hasMeetingsInSelectedMonth = midweekMeetings.some((meeting: any) => {
+      const parsed = parseMeetingDate(meeting.date);
+      return parsed && parsed.getMonth() === midweekMonth && parsed.getFullYear() === midweekYear;
+    });
+
+    if (hasMeetingsInSelectedMonth) {
+      return;
+    }
+
+    const lastMeeting = midweekMeetings[midweekMeetings.length - 1];
+    const parsed = parseMeetingDate(lastMeeting?.date);
+    if (!parsed) {
+      return;
+    }
+
+    setMidweekMonth(parsed.getMonth());
+    setMidweekYear(parsed.getFullYear());
+  }, [midweekMeetings, midweekMonth, midweekYear]);
+
+  useEffect(() => {
+    if (weekendMeetings.length === 0) {
+      return;
+    }
+
+    const hasMeetingsInSelectedMonth = weekendMeetings.some((meeting: any) => {
+      const parsed = parseMeetingDate(meeting.date);
+      return parsed && parsed.getMonth() === weekendMonth && parsed.getFullYear() === weekendYear;
+    });
+
+    if (hasMeetingsInSelectedMonth) {
+      return;
+    }
+
+    const lastMeeting = weekendMeetings[weekendMeetings.length - 1];
+    const parsed = parseMeetingDate(lastMeeting?.date);
+    if (!parsed) {
+      return;
+    }
+
+    setWeekendMonth(parsed.getMonth());
+    setWeekendYear(parsed.getFullYear());
+  }, [weekendMeetings, weekendMonth, weekendYear]);
+
+  useEffect(() => {
+    if (meetingType !== 'midweek' || midweekMeetingOptions.length === 0) {
+      return;
+    }
+
+    const isSelectedVisible = midweekMeetingOptions.some(option => option.index === selectedMeetingIdx);
+    if (!isSelectedVisible) {
+      setSelectedMeetingIdx(midweekMeetingOptions[0].index);
+    }
+  }, [meetingType, midweekMeetingOptions, selectedMeetingIdx, setSelectedMeetingIdx]);
+
+  useEffect(() => {
+    if (meetingType !== 'weekend' || weekendMeetingOptions.length === 0) {
+      return;
+    }
+
+    const isSelectedVisible = weekendMeetingOptions.some(option => option.index === selectedMeetingIdx);
+    if (!isSelectedVisible) {
+      setSelectedMeetingIdx(weekendMeetingOptions[0].index);
+    }
+  }, [meetingType, weekendMeetingOptions, selectedMeetingIdx, setSelectedMeetingIdx]);
+
+  const getShiftedPeriod = (month: number, year: number, direction: -1 | 1) => {
+    if (direction === -1) {
+      if (month === 0) {
+        return { month: 11, year: year - 1 };
+      }
+      return { month: month - 1, year };
+    }
+
+    if (month === 11) {
+      return { month: 0, year: year + 1 };
+    }
+    return { month: month + 1, year };
+  };
+
+  const switchMeetingType = (nextType: 'midweek' | 'weekend') => {
+    setMeetingType(nextType);
+    const nextOptions = nextType === 'midweek' ? midweekMeetingOptions : weekendMeetingOptions;
+    if (nextOptions.length > 0) {
+      setSelectedMeetingIdx(nextOptions[0].index);
+    }
+  };
+
+  const moveMonth = (targetType: 'midweek' | 'weekend', direction: -1 | 1) => {
+    if (targetType === 'midweek') {
+      const nextPeriod = getShiftedPeriod(midweekMonth, midweekYear, direction);
+      setMidweekMonth(nextPeriod.month);
+      setMidweekYear(nextPeriod.year);
+
+      const firstMeetingIndex = midweekMeetings.findIndex((meeting: any) => {
+        const parsed = parseMeetingDate(meeting.date);
+        return parsed && parsed.getMonth() === nextPeriod.month && parsed.getFullYear() === nextPeriod.year;
+      });
+
+      if (meetingType === 'midweek' && firstMeetingIndex >= 0) {
+        setSelectedMeetingIdx(firstMeetingIndex);
+      }
+
+      return;
+    }
+
+    const nextPeriod = getShiftedPeriod(weekendMonth, weekendYear, direction);
+    setWeekendMonth(nextPeriod.month);
+    setWeekendYear(nextPeriod.year);
+
+    const firstMeetingIndex = weekendMeetings.findIndex((meeting: any) => {
+      const parsed = parseMeetingDate(meeting.date);
+      return parsed && parsed.getMonth() === nextPeriod.month && parsed.getFullYear() === nextPeriod.year;
+    });
+
+    if (meetingType === 'weekend' && firstMeetingIndex >= 0) {
+      setSelectedMeetingIdx(firstMeetingIndex);
+    }
+  };
+
   if (meetingType === 'midweek') {
-    const meeting = midweekMeetings[selectedMeetingIdx];
-    if (!meeting) return <div className="p-6 text-center text-gray-500 rounded-xl bg-white border border-gray-100">Não há reuniões de Meio de Semana cadastradas.</div>;
+    const selectedMidweekOption =
+      midweekMeetingOptions.find(option => option.index === selectedMeetingIdx)
+      || midweekMeetingOptions[0]
+      || null;
+    const meeting = selectedMidweekOption?.meeting || null;
+
+    if (!meeting) {
+      const emptyMessage = midweekMeetings.length === 0
+        ? 'Não há reuniões de Meio de Semana cadastradas.'
+        : `Não há reuniões de Meio de Semana em ${MONTHS[midweekMonth]} ${midweekYear}.`;
+
+      return (
+        <>
+          <div className="bg-white rounded-xl border border-gray-100 p-3 flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex gap-1 bg-gray-100 rounded-lg p-1 sm:w-auto">
+                <button
+                  onClick={() => switchMeetingType('midweek')}
+                  className={`px-3 py-1.5 rounded-md transition ${meetingType === 'midweek' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
+                  style={{ fontSize: '0.85rem' }}
+                >
+                  Meio de Semana
+                </button>
+                <button
+                  onClick={() => switchMeetingType('weekend')}
+                  className={`px-3 py-1.5 rounded-md transition ${(meetingType as string) === 'weekend' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
+                  style={{ fontSize: '0.85rem' }}
+                >
+                  Fim de Semana
+                </button>
+              </div>
+              <div className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-1 py-1">
+                <button
+                  onClick={() => moveMonth('midweek', -1)}
+                  className="rounded-md p-1.5 text-gray-600 transition-colors hover:bg-white"
+                  aria-label="Mês anterior"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="px-2 text-gray-800" style={{ fontSize: '0.85rem' }}>
+                  {MONTHS[midweekMonth]} {midweekYear}
+                </span>
+                <button
+                  onClick={() => moveMonth('midweek', 1)}
+                  className="rounded-md p-1.5 text-gray-600 transition-colors hover:bg-white"
+                  aria-label="Próximo mês"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="p-6 text-center text-gray-500 rounded-xl bg-white border border-gray-100">{emptyMessage}</div>
+        </>
+      );
+    }
 
     // Safety fallback properties mapping from Supabase payload
     const mappedTreasureTitle = meeting.treasure_talk_title || 'Nenhum Tema';
@@ -791,33 +1076,54 @@ function MeetingsAssignmentsContent({
     return (
       <>
         {/* Meeting selector */}
-        <div className="bg-white rounded-xl border border-gray-100 p-3 flex flex-col sm:flex-row gap-3">
-          <div className="flex gap-1 bg-gray-100 rounded-lg p-1 sm:w-auto">
-            <button
-              onClick={() => { setMeetingType('midweek'); setSelectedMeetingIdx(0); }}
-              className={`px-3 py-1.5 rounded-md transition ${meetingType === 'midweek' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
-              style={{ fontSize: '0.85rem' }}
-            >
-              Meio de Semana
-            </button>
-            <button
-              onClick={() => { setMeetingType('weekend'); setSelectedMeetingIdx(0); }}
-              className={`px-3 py-1.5 rounded-md transition ${(meetingType as string) === 'weekend' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
-              style={{ fontSize: '0.85rem' }}
-            >
-              Fim de Semana
-            </button>
+        <div className="bg-white rounded-xl border border-gray-100 p-3 flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex gap-1 bg-gray-100 rounded-lg p-1 sm:w-auto">
+              <button
+                onClick={() => switchMeetingType('midweek')}
+                className={`px-3 py-1.5 rounded-md transition ${meetingType === 'midweek' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
+                style={{ fontSize: '0.85rem' }}
+              >
+                Meio de Semana
+              </button>
+              <button
+                onClick={() => switchMeetingType('weekend')}
+                className={`px-3 py-1.5 rounded-md transition ${(meetingType as string) === 'weekend' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
+                style={{ fontSize: '0.85rem' }}
+              >
+                Fim de Semana
+              </button>
+            </div>
+            <div className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-1 py-1">
+              <button
+                onClick={() => moveMonth('midweek', -1)}
+                className="rounded-md p-1.5 text-gray-600 transition-colors hover:bg-white"
+                aria-label="Mês anterior"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="px-2 text-gray-800" style={{ fontSize: '0.85rem' }}>
+                {MONTHS[midweekMonth]} {midweekYear}
+              </span>
+              <button
+                onClick={() => moveMonth('midweek', 1)}
+                className="rounded-md p-1.5 text-gray-600 transition-colors hover:bg-white"
+                aria-label="Próximo mês"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
           </div>
           <div className="flex-1">
             <select
-              value={selectedMeetingIdx}
+              value={selectedMidweekOption.index}
               onChange={e => setSelectedMeetingIdx(Number(e.target.value))}
               className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg"
               style={{ fontSize: '0.9rem' }}
             >
-              {midweekMeetings.map((m: any, i: number) => (
-                <option key={m.id} value={i}>
-                  {new Date(m.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })} — {m.bible_reading || 'Sem Leitura Informada'}
+              {midweekMeetingOptions.map(option => (
+                <option key={option.meeting.id} value={option.index}>
+                  {new Date(option.meeting.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })} — {option.meeting.bible_reading || 'Sem Leitura Informada'}
                 </option>
               ))}
             </select>
@@ -937,8 +1243,62 @@ function MeetingsAssignmentsContent({
   }
 
   // Weekend view
-  const meeting = weekendMeetings[selectedMeetingIdx];
-  if (!meeting) return <div className="p-6 text-center text-gray-500 rounded-xl bg-white border border-gray-100">Não há reuniões de Fim de Semana cadastradas.</div>;
+  const selectedWeekendOption =
+    weekendMeetingOptions.find(option => option.index === selectedMeetingIdx)
+    || weekendMeetingOptions[0]
+    || null;
+  const meeting = selectedWeekendOption?.meeting || null;
+
+  if (!meeting) {
+    const emptyMessage = weekendMeetings.length === 0
+      ? 'Não há reuniões de Fim de Semana cadastradas.'
+      : `Não há reuniões de Fim de Semana em ${MONTHS[weekendMonth]} ${weekendYear}.`;
+
+    return (
+      <>
+        <div className="bg-white rounded-xl border border-gray-100 p-3 flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex gap-1 bg-gray-100 rounded-lg p-1 sm:w-auto">
+              <button
+                onClick={() => switchMeetingType('midweek')}
+                className={`px-3 py-1.5 rounded-md transition ${(meetingType as string) === 'midweek' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
+                style={{ fontSize: '0.85rem' }}
+              >
+                Meio de Semana
+              </button>
+              <button
+                onClick={() => switchMeetingType('weekend')}
+                className={`px-3 py-1.5 rounded-md transition ${meetingType === 'weekend' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
+                style={{ fontSize: '0.85rem' }}
+              >
+                Fim de Semana
+              </button>
+            </div>
+            <div className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-1 py-1">
+              <button
+                onClick={() => moveMonth('weekend', -1)}
+                className="rounded-md p-1.5 text-gray-600 transition-colors hover:bg-white"
+                aria-label="Mês anterior"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="px-2 text-gray-800" style={{ fontSize: '0.85rem' }}>
+                {MONTHS[weekendMonth]} {weekendYear}
+              </span>
+              <button
+                onClick={() => moveMonth('weekend', 1)}
+                className="rounded-md p-1.5 text-gray-600 transition-colors hover:bg-white"
+                aria-label="Próximo mês"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="p-6 text-center text-gray-500 rounded-xl bg-white border border-gray-100">{emptyMessage}</div>
+      </>
+    );
+  }
   const talkCongregationLabel = formatWeekendSpeakerCongregation(meeting.talk_congregation);
   const talkSpeakerLabel = talkCongregationLabel
     ? `${meeting.talk_speaker_name || 'A definir'} (${talkCongregationLabel})`
@@ -946,33 +1306,54 @@ function MeetingsAssignmentsContent({
 
   return (
     <>
-      <div className="bg-white rounded-xl border border-gray-100 p-3 flex flex-col sm:flex-row gap-3">
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-1 sm:w-auto">
-          <button
-            onClick={() => { setMeetingType('midweek'); setSelectedMeetingIdx(0); }}
-            className={`px-3 py-1.5 rounded-md transition ${(meetingType as string) === 'midweek' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
-            style={{ fontSize: '0.85rem' }}
-          >
-            Meio de Semana
-          </button>
-          <button
-            onClick={() => { setMeetingType('weekend'); setSelectedMeetingIdx(0); }}
-            className={`px-3 py-1.5 rounded-md transition ${meetingType === 'weekend' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
-            style={{ fontSize: '0.85rem' }}
-          >
-            Fim de Semana
-          </button>
+      <div className="bg-white rounded-xl border border-gray-100 p-3 flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-1 sm:w-auto">
+            <button
+              onClick={() => switchMeetingType('midweek')}
+              className={`px-3 py-1.5 rounded-md transition ${(meetingType as string) === 'midweek' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
+              style={{ fontSize: '0.85rem' }}
+            >
+              Meio de Semana
+            </button>
+            <button
+              onClick={() => switchMeetingType('weekend')}
+              className={`px-3 py-1.5 rounded-md transition ${meetingType === 'weekend' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
+              style={{ fontSize: '0.85rem' }}
+            >
+              Fim de Semana
+            </button>
+          </div>
+          <div className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-1 py-1">
+            <button
+              onClick={() => moveMonth('weekend', -1)}
+              className="rounded-md p-1.5 text-gray-600 transition-colors hover:bg-white"
+              aria-label="Mês anterior"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span className="px-2 text-gray-800" style={{ fontSize: '0.85rem' }}>
+              {MONTHS[weekendMonth]} {weekendYear}
+            </span>
+            <button
+              onClick={() => moveMonth('weekend', 1)}
+              className="rounded-md p-1.5 text-gray-600 transition-colors hover:bg-white"
+              aria-label="Próximo mês"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
         <div className="flex-1">
           <select
-            value={selectedMeetingIdx}
+            value={selectedWeekendOption.index}
             onChange={e => setSelectedMeetingIdx(Number(e.target.value))}
             className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg"
             style={{ fontSize: '0.9rem' }}
           >
-            {weekendMeetings.map((m: any, i: number) => (
-              <option key={m.id} value={i}>
-                {new Date(m.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })} — {m.talk_theme || 'Reunião Pública'}
+            {weekendMeetingOptions.map(option => (
+              <option key={option.meeting.id} value={option.index}>
+                {new Date(option.meeting.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })} — {option.meeting.talk_theme || 'Reunião Pública'}
               </option>
             ))}
           </select>
@@ -1242,12 +1623,19 @@ function EditModal({
             Cancelar
           </button>
           <button
-            onClick={() => onSave({
-              value: selected,
-              memberId: field.mode === 'member' ? selectedMemberId : undefined,
-              secondaryValue: field.mode === 'weekend_speaker' ? secondaryValue : undefined,
-              tertiaryValue: field.mode === 'weekend_speaker' ? tertiaryValue : undefined,
-            })}
+            onClick={() => {
+              if (field.mode === 'member' && selected && !selectedMemberId) {
+                toast.error('Este membro não está disponível para designação. Escolha outro ou deixe "A definir".');
+                return;
+              }
+
+              onSave({
+                value: selected,
+                memberId: field.mode === 'member' ? selectedMemberId : undefined,
+                secondaryValue: field.mode === 'weekend_speaker' ? secondaryValue : undefined,
+                tertiaryValue: field.mode === 'weekend_speaker' ? tertiaryValue : undefined,
+              });
+            }}
             className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition shadow-md shadow-primary/10"
             style={{ fontSize: '0.9rem' }}
           >

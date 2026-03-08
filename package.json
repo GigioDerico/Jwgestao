@@ -6,6 +6,7 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite --host 0.0.0.0 --port 5173",
+    "import:historico-designacoes": "node scripts/import-historico-designacoes.mjs",
     "check:android-java": "node scripts/check-android-java.mjs",
     "check:main-branch": "node scripts/check-git-branch.mjs main",
     "sync:android": "npx cap sync android",

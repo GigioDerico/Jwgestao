@@ -1,0 +1,2 @@
+-- Compat migration placeholder.
+-- This version exists in remote history and is intentionally kept as no-op locally.

@@ -50,6 +50,10 @@ export interface CreateMemberInput {
   is_family_head?: boolean;
   family_head_id?: string;
   approved_audio_video?: boolean;
+  approved_sound?: boolean;
+  approved_image?: boolean;
+  approved_stage?: boolean;
+  approved_roving_mic?: boolean;
   approved_indicadores?: boolean;
   approved_carrinho?: boolean;
   approved_pioneiro_auxiliar?: boolean;
@@ -162,12 +166,47 @@ export interface CreateCartAssignmentInput {
   week: number;
 }
 
+export interface DesignationHistoryEntry {
+  id: string;
+  date: string;
+  source: 'midweek' | 'weekend' | 'audio_video' | 'field_service' | 'cart';
+  sourceId: string;
+  roleKey: string;
+  roleLabel: string;
+  memberId: string | null;
+  memberName: string;
+  details?: string | null;
+}
+
 function formatMonthBounds(monthIndex: number, year: number) {
   const month = monthIndex + 1;
   const start = `${year}-${String(month).padStart(2, '0')}-01`;
   const lastDay = new Date(year, month, 0).getDate();
   const end = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
   return { start, end };
+}
+
+function formatIsoDate(date: Date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
+function isPastAssignmentDate(date: string | null | undefined) {
+  if (!date) {
+    return false;
+  }
+
+  const assignmentDate = new Date(`${date}T12:00:00`);
+  if (Number.isNaN(assignmentDate.getTime())) {
+    return false;
+  }
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0, 0);
+  return assignmentDate.getTime() < today.getTime();
 }
 
 function mapAudioVideoAssignment(row: any) {
@@ -340,6 +379,25 @@ async function upsertAssignmentNotificationSlot(input: {
   message: string;
 }) {
   const timestamp = new Date().toISOString();
+
+  if (isPastAssignmentDate(input.assignmentDate)) {
+    const { error } = await supabase
+      .from('member_assignment_notifications')
+      .update({
+        status: 'revoked',
+        revoked_at: timestamp,
+        updated_at: timestamp,
+      })
+      .eq('source_type', input.sourceType)
+      .eq('source_id', input.sourceId)
+      .eq('slot_key', input.slotKey)
+      .neq('status', 'revoked');
+
+    if (error) {
+      throw new Error(formatDatabaseWriteError('Erro ao revogar notificação de designação antiga', error));
+    }
+    return;
+  }
 
   if (!input.memberId) {
     const { error } = await supabase
@@ -905,6 +963,19 @@ export const api = {
     const normalizedAddressState = normalizeOptionalState(input.address_state);
     const normalizedAddressZipCode = normalizeOptionalZipCode(input.address_zip_code);
 
+    const approvedSound = input.approved_sound;
+    const approvedImage = input.approved_image;
+    const approvedStage = input.approved_stage;
+    const approvedRovingMic = input.approved_roving_mic;
+    const approvedAudioVideo = (
+      approvedSound ??
+      approvedImage ??
+      approvedStage ??
+      approvedRovingMic
+    ) !== undefined
+      ? Boolean(approvedSound) || Boolean(approvedImage) || Boolean(approvedStage) || Boolean(approvedRovingMic)
+      : input.approved_audio_video;
+
     const { error } = await supabase
       .from('members')
       .update({
@@ -924,7 +995,11 @@ export const api = {
         group_id: input.group_id || null,
         is_family_head: input.is_family_head,
         family_head_id: input.family_head_id || null,
-        approved_audio_video: input.approved_audio_video,
+        approved_audio_video: approvedAudioVideo,
+        approved_sound: approvedSound,
+        approved_image: approvedImage,
+        approved_stage: approvedStage,
+        approved_roving_mic: approvedRovingMic,
         approved_indicadores: input.approved_indicadores,
         approved_carrinho: input.approved_carrinho,
         approved_pioneiro_auxiliar: input.approved_pioneiro_auxiliar,
@@ -946,6 +1021,13 @@ export const api = {
     const normalizedAddressCity = normalizeOptionalText(input.address_city);
     const normalizedAddressState = normalizeOptionalState(input.address_state);
     const normalizedAddressZipCode = normalizeOptionalZipCode(input.address_zip_code);
+
+    const approvedSound = Boolean(input.approved_sound);
+    const approvedImage = Boolean(input.approved_image);
+    const approvedStage = Boolean(input.approved_stage);
+    const approvedRovingMic = Boolean(input.approved_roving_mic);
+    const approvedAudioVideo =
+      approvedSound || approvedImage || approvedStage || approvedRovingMic || Boolean(input.approved_audio_video);
 
     if (!phoneDigits || phoneDigits.length < 10) {
       throw new Error('Telefone é obrigatório para criar o acesso do membro.');
@@ -971,7 +1053,11 @@ export const api = {
         group_id: input.group_id || null,
         is_family_head: input.is_family_head || false,
         family_head_id: input.family_head_id || null,
-        approved_audio_video: input.approved_audio_video || false,
+        approved_audio_video: approvedAudioVideo,
+        approved_sound: approvedSound,
+        approved_image: approvedImage,
+        approved_stage: approvedStage,
+        approved_roving_mic: approvedRovingMic,
         approved_indicadores: input.approved_indicadores || false,
         approved_carrinho: input.approved_carrinho || false,
         approved_pioneiro_auxiliar: input.approved_pioneiro_auxiliar || false,
@@ -1782,6 +1868,488 @@ export const api = {
     if (error) throw new Error(formatDatabaseWriteError('Erro ao atualizar reunião de fim de semana', error));
     await this.syncWeekendMeetingNotifications(meetingId);
     return data;
+  },
+
+  async getDesignationHistory(months = 12): Promise<DesignationHistoryEntry[]> {
+    const parsedMonths = Number.isFinite(months) ? Math.trunc(months) : 12;
+    const safeMonths = Math.min(Math.max(parsedMonths || 12, 1), 24);
+    const now = new Date();
+    const startDateObj = new Date(now.getFullYear(), now.getMonth() - (safeMonths - 1), 1);
+    const startDate = formatIsoDate(startDateObj);
+    const endDate = formatIsoDate(now);
+
+    const { data: members, error: membersError } = await supabase
+      .from('members')
+      .select('id, full_name');
+
+    if (membersError) {
+      throw new Error(`Erro ao carregar membros do histórico: ${membersError.message}`);
+    }
+
+    const memberNameById = new Map<string, string>(
+      (members || []).map(member => [member.id, member.full_name])
+    );
+    const memberByFirstName = new Map<string, { id: string; full_name: string }>();
+
+    const normalizeFirstNameKey = (value?: string | null) => {
+      const normalized = value
+        ?.trim()
+        .split(/\s+/)[0]
+        ?.normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+      return normalized || null;
+    };
+
+    for (const member of members || []) {
+      const firstNameKey = normalizeFirstNameKey(member.full_name);
+      if (!firstNameKey || memberByFirstName.has(firstNameKey)) {
+        continue;
+      }
+
+      memberByFirstName.set(firstNameKey, {
+        id: member.id,
+        full_name: member.full_name,
+      });
+    }
+
+    const normalizeAssignedName = (value?: string | null) => {
+      const normalized = value?.trim();
+      if (!normalized || /^a definir$/i.test(normalized)) {
+        return null;
+      }
+      return normalized;
+    };
+
+    const entries: DesignationHistoryEntry[] = [];
+    const addEntry = (input: {
+      date: string;
+      source: DesignationHistoryEntry['source'];
+      sourceId: string;
+      roleKey: string;
+      roleLabel: string;
+      memberId?: string | null;
+      fallbackName?: string | null;
+      details?: string | null;
+    }) => {
+      if (!input.date || input.date < startDate || input.date > endDate) {
+        return;
+      }
+
+      let resolvedMemberId = input.memberId || null;
+      let resolvedName = normalizeAssignedName(
+        (input.memberId ? memberNameById.get(input.memberId) : null) || input.fallbackName || null
+      );
+
+      if (input.source === 'audio_video' && !resolvedMemberId) {
+        const firstNameKey = normalizeFirstNameKey(resolvedName || input.fallbackName || null);
+        const matchedMember = firstNameKey ? memberByFirstName.get(firstNameKey) : null;
+
+        if (matchedMember) {
+          resolvedMemberId = matchedMember.id;
+          resolvedName = matchedMember.full_name;
+        }
+      }
+
+      if (!resolvedName) {
+        return;
+      }
+
+      entries.push({
+        id: `${input.source}:${input.sourceId}:${input.roleKey}:${resolvedMemberId || resolvedName}:${input.date}`,
+        date: input.date,
+        source: input.source,
+        sourceId: input.sourceId,
+        roleKey: input.roleKey,
+        roleLabel: input.roleLabel,
+        memberId: resolvedMemberId,
+        memberName: resolvedName,
+        details: input.details || null,
+      });
+    };
+
+    const { data: midweekRows, error: midweekError } = await supabase
+      .from('midweek_meetings')
+      .select(`
+        id,
+        date,
+        treasure_talk_title,
+        president_id,
+        opening_prayer_id,
+        closing_prayer_id,
+        treasure_talk_speaker_id,
+        treasure_gems_speaker_id,
+        treasure_reading_student_id,
+        cbs_conductor_id,
+        cbs_reader_id
+      `)
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date', { ascending: false });
+
+    if (midweekError) {
+      throw new Error(`Erro ao carregar histórico de meio de semana: ${midweekError.message}`);
+    }
+
+    const midweekDateById = new Map<string, string>();
+    for (const meeting of midweekRows || []) {
+      midweekDateById.set(meeting.id, meeting.date);
+
+      addEntry({
+        date: meeting.date,
+        source: 'midweek',
+        sourceId: meeting.id,
+        roleKey: 'president',
+        roleLabel: 'Presidente',
+        memberId: meeting.president_id,
+      });
+      addEntry({
+        date: meeting.date,
+        source: 'midweek',
+        sourceId: meeting.id,
+        roleKey: 'opening_prayer',
+        roleLabel: 'Oração Inicial',
+        memberId: meeting.opening_prayer_id,
+      });
+      addEntry({
+        date: meeting.date,
+        source: 'midweek',
+        sourceId: meeting.id,
+        roleKey: 'closing_prayer',
+        roleLabel: 'Oração Final',
+        memberId: meeting.closing_prayer_id,
+      });
+      addEntry({
+        date: meeting.date,
+        source: 'midweek',
+        sourceId: meeting.id,
+        roleKey: 'treasure_talk',
+        roleLabel: 'Tesouros da Palavra',
+        memberId: meeting.treasure_talk_speaker_id,
+        details: meeting.treasure_talk_title || null,
+      });
+      addEntry({
+        date: meeting.date,
+        source: 'midweek',
+        sourceId: meeting.id,
+        roleKey: 'treasure_gems',
+        roleLabel: 'Joias Espirituais',
+        memberId: meeting.treasure_gems_speaker_id,
+      });
+      addEntry({
+        date: meeting.date,
+        source: 'midweek',
+        sourceId: meeting.id,
+        roleKey: 'treasure_reading',
+        roleLabel: 'Leitura da Bíblia',
+        memberId: meeting.treasure_reading_student_id,
+      });
+      addEntry({
+        date: meeting.date,
+        source: 'midweek',
+        sourceId: meeting.id,
+        roleKey: 'cbs_conductor',
+        roleLabel: 'Dirigente do Estudo',
+        memberId: meeting.cbs_conductor_id,
+      });
+      addEntry({
+        date: meeting.date,
+        source: 'midweek',
+        sourceId: meeting.id,
+        roleKey: 'cbs_reader',
+        roleLabel: 'Leitor do Estudo',
+        memberId: meeting.cbs_reader_id,
+      });
+    }
+
+    const midweekIds = (midweekRows || []).map(row => row.id);
+    if (midweekIds.length > 0) {
+      const { data: ministryParts, error: ministryError } = await supabase
+        .from('midweek_ministry_parts')
+        .select('id, meeting_id, title, part_number, student_id, assistant_id')
+        .in('meeting_id', midweekIds)
+        .order('part_number', { ascending: true });
+
+      if (ministryError) {
+        throw new Error(`Erro ao carregar partes do ministério: ${ministryError.message}`);
+      }
+
+      for (const part of ministryParts || []) {
+        const meetingDate = part.meeting_id ? midweekDateById.get(part.meeting_id) : null;
+        if (!meetingDate) {
+          continue;
+        }
+
+        const ministryPartTitle = (part.title || '').trim() || 'Faça seu melhor no ministério';
+
+        addEntry({
+          date: meetingDate,
+          source: 'midweek',
+          sourceId: part.id,
+          roleKey: 'ministry_student',
+          roleLabel: ministryPartTitle,
+          memberId: part.student_id,
+          details: null,
+        });
+        addEntry({
+          date: meetingDate,
+          source: 'midweek',
+          sourceId: part.id,
+          roleKey: 'ministry_assistant',
+          roleLabel: `${ministryPartTitle} - Ajudante`,
+          memberId: part.assistant_id,
+          details: null,
+        });
+      }
+
+      const { data: christianLifeParts, error: christianLifeError } = await supabase
+        .from('midweek_christian_life_parts')
+        .select('id, meeting_id, title, part_number, speaker_id')
+        .in('meeting_id', midweekIds)
+        .order('part_number', { ascending: true });
+
+      if (christianLifeError) {
+        throw new Error(`Erro ao carregar partes de vida cristã: ${christianLifeError.message}`);
+      }
+
+      for (const part of christianLifeParts || []) {
+        const meetingDate = part.meeting_id ? midweekDateById.get(part.meeting_id) : null;
+        if (!meetingDate) {
+          continue;
+        }
+
+        addEntry({
+          date: meetingDate,
+          source: 'midweek',
+          sourceId: part.id,
+          roleKey: 'christian_life_speaker',
+          roleLabel: 'Parte de Vida Cristã',
+          memberId: part.speaker_id,
+          details: part.title || null,
+        });
+      }
+    }
+
+    const { data: weekendRows, error: weekendError } = await supabase
+      .from('weekend_meetings')
+      .select('id, date, president_id, watchtower_conductor_id, watchtower_reader_id, closing_prayer_id')
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date', { ascending: false });
+
+    if (weekendError) {
+      throw new Error(`Erro ao carregar histórico de fim de semana: ${weekendError.message}`);
+    }
+
+    for (const meeting of weekendRows || []) {
+      addEntry({
+        date: meeting.date,
+        source: 'weekend',
+        sourceId: meeting.id,
+        roleKey: 'president',
+        roleLabel: 'Presidente',
+        memberId: meeting.president_id,
+      });
+      addEntry({
+        date: meeting.date,
+        source: 'weekend',
+        sourceId: meeting.id,
+        roleKey: 'watchtower_conductor',
+        roleLabel: 'Dirigente da Sentinela',
+        memberId: meeting.watchtower_conductor_id,
+      });
+      addEntry({
+        date: meeting.date,
+        source: 'weekend',
+        sourceId: meeting.id,
+        roleKey: 'watchtower_reader',
+        roleLabel: 'Leitor da Sentinela',
+        memberId: meeting.watchtower_reader_id,
+      });
+      addEntry({
+        date: meeting.date,
+        source: 'weekend',
+        sourceId: meeting.id,
+        roleKey: 'closing_prayer',
+        roleLabel: 'Oração Final',
+        memberId: meeting.closing_prayer_id,
+      });
+    }
+
+    const { data: audioVideoRows, error: audioVideoError } = await supabase
+      .from('audio_video_assignments')
+      .select(`
+        id,
+        date,
+        sound,
+        sound_member_id,
+        image,
+        image_member_id,
+        stage,
+        stage_member_id,
+        roving_mic_1,
+        roving_mic_1_member_id,
+        roving_mic_2,
+        roving_mic_2_member_id,
+        attendants,
+        attendants_member_ids
+      `)
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date', { ascending: false });
+
+    if (audioVideoError) {
+      throw new Error(`Erro ao carregar histórico de áudio e vídeo: ${audioVideoError.message}`);
+    }
+
+    for (const row of audioVideoRows || []) {
+      addEntry({
+        date: row.date,
+        source: 'audio_video',
+        sourceId: row.id,
+        roleKey: 'sound',
+        roleLabel: 'Som',
+        memberId: row.sound_member_id,
+        fallbackName: row.sound,
+      });
+      addEntry({
+        date: row.date,
+        source: 'audio_video',
+        sourceId: row.id,
+        roleKey: 'image',
+        roleLabel: 'Imagem',
+        memberId: row.image_member_id,
+        fallbackName: row.image,
+      });
+      addEntry({
+        date: row.date,
+        source: 'audio_video',
+        sourceId: row.id,
+        roleKey: 'stage',
+        roleLabel: 'Palco',
+        memberId: row.stage_member_id,
+        fallbackName: row.stage,
+      });
+      addEntry({
+        date: row.date,
+        source: 'audio_video',
+        sourceId: row.id,
+        roleKey: 'roving_mic_1',
+        roleLabel: 'Microfone Volante 1',
+        memberId: row.roving_mic_1_member_id,
+        fallbackName: row.roving_mic_1,
+      });
+      addEntry({
+        date: row.date,
+        source: 'audio_video',
+        sourceId: row.id,
+        roleKey: 'roving_mic_2',
+        roleLabel: 'Microfone Volante 2',
+        memberId: row.roving_mic_2_member_id,
+        fallbackName: row.roving_mic_2,
+      });
+
+      const attendantsNames = Array.isArray(row.attendants) ? row.attendants : [];
+      const attendantsIds = Array.isArray(row.attendants_member_ids) ? row.attendants_member_ids : [];
+      const totalAttendants = Math.max(attendantsNames.length, attendantsIds.length);
+
+      for (let index = 0; index < totalAttendants; index += 1) {
+        const memberId = attendantsIds[index] || null;
+        const fallbackName = attendantsNames[index] || null;
+
+        addEntry({
+          date: row.date,
+          source: 'audio_video',
+          sourceId: row.id,
+          roleKey: `attendant_${index + 1}`,
+          roleLabel: 'Indicador',
+          memberId,
+          fallbackName,
+        });
+      }
+    }
+
+    const startYear = startDateObj.getFullYear();
+    const endYear = now.getFullYear();
+
+    const { data: fieldServiceRows, error: fieldServiceError } = await supabase
+      .from('field_service_assignments')
+      .select('id, month, year, category, weekday, responsible, responsible_member_id')
+      .gte('year', startYear)
+      .lte('year', endYear)
+      .order('year', { ascending: false })
+      .order('month', { ascending: false });
+
+    if (fieldServiceError) {
+      throw new Error(`Erro ao carregar histórico de saída de campo: ${fieldServiceError.message}`);
+    }
+
+    for (const row of fieldServiceRows || []) {
+      const syntheticDate = `${row.year}-${String(row.month).padStart(2, '0')}-01`;
+      if (syntheticDate < startDate || syntheticDate > endDate) {
+        continue;
+      }
+
+      addEntry({
+        date: syntheticDate,
+        source: 'field_service',
+        sourceId: row.id,
+        roleKey: 'responsible',
+        roleLabel: 'Responsável',
+        memberId: row.responsible_member_id,
+        fallbackName: row.responsible,
+        details: `${row.category} - ${row.weekday}`,
+      });
+    }
+
+    const { data: cartRows, error: cartError } = await supabase
+      .from('cart_assignments')
+      .select('id, day, month, year, publisher1, publisher1_member_id, publisher2, publisher2_member_id')
+      .gte('year', startYear)
+      .lte('year', endYear)
+      .order('year', { ascending: false })
+      .order('month', { ascending: false })
+      .order('day', { ascending: false });
+
+    if (cartError) {
+      throw new Error(`Erro ao carregar histórico de carrinho: ${cartError.message}`);
+    }
+
+    for (const row of cartRows || []) {
+      const syntheticDate = `${row.year}-${String(row.month).padStart(2, '0')}-${String(row.day).padStart(2, '0')}`;
+      if (syntheticDate < startDate || syntheticDate > endDate) {
+        continue;
+      }
+
+      addEntry({
+        date: syntheticDate,
+        source: 'cart',
+        sourceId: row.id,
+        roleKey: 'publisher1',
+        roleLabel: 'Publicador 1',
+        memberId: row.publisher1_member_id,
+        fallbackName: row.publisher1,
+      });
+      addEntry({
+        date: syntheticDate,
+        source: 'cart',
+        sourceId: row.id,
+        roleKey: 'publisher2',
+        roleLabel: 'Publicador 2',
+        memberId: row.publisher2_member_id,
+        fallbackName: row.publisher2,
+      });
+    }
+
+    return entries.sort((a, b) => {
+      if (a.date !== b.date) {
+        return b.date.localeCompare(a.date);
+      }
+      if (a.memberName !== b.memberName) {
+        return a.memberName.localeCompare(b.memberName, 'pt-BR');
+      }
+      return a.roleLabel.localeCompare(b.roleLabel, 'pt-BR');
+    });
   },
 
   // Midweek Meetings 
