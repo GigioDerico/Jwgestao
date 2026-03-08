@@ -484,29 +484,29 @@ function WeekendExportDocument({ meetings }: { meetings: WeekendMeeting[] }) {
 
   return (
     <div
-      className="mx-auto flex min-h-[1218px] w-full max-w-[860px] flex-col bg-white px-5 py-4 text-[#141414]"
+      className="mx-auto w-full max-w-[760px] bg-white px-1 py-1 text-[#141414]"
       style={{ fontFamily: 'Calibri, Arial, sans-serif' }}
     >
-      <div className="overflow-hidden rounded-xl border border-[#0f2f53] bg-white">
-        <div className="bg-[#1a5fb4] px-4 py-2.5 text-center text-white">
-          <h3 className="text-[1.08rem] font-bold leading-tight">
+      <div className="overflow-hidden rounded-lg border border-[#0f2f53] bg-white">
+        <div className="bg-[#1a5fb4] px-2.5 py-1.5 text-center text-white">
+          <h3 className="text-[1rem] font-bold leading-tight">
             Conferência Pública
           </h3>
-          <p className="text-[0.9rem] font-bold leading-tight">
+          <p className="text-[0.875rem] font-bold leading-tight">
             e
           </p>
-          <p className="text-[0.98rem] font-bold leading-tight">
+          <p className="text-[0.875rem] font-bold leading-tight">
             Estudo de &quot;A Sentinela&quot; - {monthLabel}
           </p>
         </div>
       </div>
-      <div className="mt-3 flex-1 space-y-3">
+      <div className="mt-1.5 space-y-1.5">
         {meetings.length > 0 ? (
           meetings.map(meeting => (
             <WeekendExportMeetingCard key={meeting.id} meeting={meeting} />
           ))
         ) : (
-          <div className="rounded-xl border border-stone-200 bg-white px-4 py-8 text-center text-stone-500">
+          <div className="rounded-lg border border-stone-200 bg-white px-4 py-8 text-center text-stone-500">
             Nenhuma reunião de fim de semana cadastrada.
           </div>
         )}
@@ -526,25 +526,25 @@ function WeekendExportMeetingCard({ meeting }: { meeting: WeekendMeeting }) {
     : meeting.public_talk.speaker;
 
   return (
-    <div className="h-full overflow-hidden rounded-xl border border-[#d4deea] bg-white shadow-[0_1px_0_rgba(15,47,83,0.08)]">
-      <div className="bg-[#1a5fb4] px-3 py-1.5 text-center text-white">
-        <h4 className="text-[0.9rem] font-semibold leading-tight">{dateFormatted}</h4>
+    <div className="h-full overflow-hidden rounded-lg border border-[#d4deea] bg-white shadow-[0_1px_0_rgba(15,47,83,0.08)]">
+      <div className="bg-[#1a5fb4] px-2.5 py-1 text-center text-white">
+        <h4 className="text-[0.875rem] font-semibold leading-tight">{dateFormatted}</h4>
       </div>
-      <div className="space-y-1.5 px-3 py-2.5 text-[0.82rem] leading-[1.16]">
+      <div className="space-y-0.5 px-2 py-1.5 text-[0.875rem] leading-tight">
         <WeekendExportField
           label="Presidente"
           value={meeting.president}
         />
-        <div className="rounded-lg bg-blue-50/30 px-2.5 py-2">
-          <p className="mb-1 text-[0.9rem] font-semibold tracking-[0.05em] text-blue-600">CONFERÊNCIA PÚBLICA</p>
-          <div className="space-y-0.5">
+        <div className="rounded-md bg-blue-50/30 px-2 py-1">
+          <p className="mb-0 text-[0.875rem] font-semibold tracking-[0.02em] text-blue-600">CONFERÊNCIA PÚBLICA</p>
+          <div className="space-y-0">
             <WeekendExportField label="Tema" value={meeting.public_talk.theme} compact valueClass="text-green-700 italic" />
             <WeekendExportField label="Orador" value={speakerLabel} compact />
           </div>
         </div>
-        <div className="rounded-lg bg-blue-50/30 px-2.5 py-2">
-          <p className="mb-1 text-[0.9rem] font-semibold tracking-[0.05em] text-blue-600">ESTUDO DE A SENTINELA</p>
-          <div className="space-y-0.5">
+        <div className="rounded-md bg-blue-50/30 px-2 py-1">
+          <p className="mb-0 text-[0.875rem] font-semibold tracking-[0.02em] text-blue-600">ESTUDO DE A SENTINELA</p>
+          <div className="space-y-0">
             <WeekendExportField label="Dirigente" value={meeting.watchtower_study.conductor} compact />
             <WeekendExportField label="Leitor" value={meeting.watchtower_study.reader} compact valueClass="text-red-600" />
           </div>
@@ -570,9 +570,9 @@ function WeekendExportField({
   valueClass?: string;
 }) {
   return (
-    <div className={`flex items-start ${compact ? 'gap-1' : 'gap-1.5'}`}>
-      <span className={`shrink-0 font-semibold text-[#53657a] ${compact ? 'text-[0.9rem]' : 'text-[0.9rem]'}`}>{label}:</span>
-      <span className={`min-w-0 flex-1 break-words ${valueClass || 'text-[#141414]'} ${compact ? 'text-[0.9rem]' : 'text-[0.9rem]'}`}>{value}</span>
+    <div className={`flex items-start ${compact ? 'gap-0.5' : 'gap-1'}`}>
+      <span className="shrink-0 font-semibold text-[#53657a] text-[0.875rem]">{label}:</span>
+      <span className={`min-w-0 flex-1 break-words text-[0.875rem] ${valueClass || 'text-[#141414]'}`}>{value}</span>
     </div>
   );
 }
@@ -801,12 +801,12 @@ export function MeetingsPage() {
         </div>
       </div>
 
-      <div className="pointer-events-none absolute -left-[10000px] top-0 w-[860px]" aria-hidden="true">
+      <div className="pointer-events-none absolute -left-[10000px] top-0 w-[760px]" aria-hidden="true">
         <div
           ref={weekendExportRef}
           data-export-pdf-mode="single-page"
           data-export-pdf-page="a4-portrait"
-          className="w-[860px] min-h-[1218px] bg-white"
+          className="w-[760px] bg-white"
         >
           <WeekendExportDocument meetings={weekendMeetings} />
         </div>
