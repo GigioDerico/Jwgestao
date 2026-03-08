@@ -7,9 +7,13 @@
     "build": "vite build",
     "dev": "vite --host 0.0.0.0 --port 5173",
     "check:android-java": "node scripts/check-android-java.mjs",
+    "check:main-branch": "node scripts/check-git-branch.mjs main",
     "sync:android": "npx cap sync android",
     "build:android": "npm run build && npm run sync:android",
-    "apk:release": "npm run check:android-java && npm run build:android && cd android && ./gradlew assembleRelease"
+    "apk:debug": "npm run check:android-java && npm run build:android && cd android && ./gradlew assembleDebug",
+    "apk:release": "npm run check:android-java && npm run build:android && cd android && ./gradlew assembleRelease",
+    "apk:main:debug": "npm run check:main-branch && npm run apk:debug",
+    "apk:main:release": "npm run check:main-branch && npm run apk:release"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
