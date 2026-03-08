@@ -479,6 +479,26 @@ function getWeekendExportMonthLabel(meetings: WeekendMeeting[]) {
   return referenceDate.toLocaleDateString('pt-BR', { month: 'long' }).toUpperCase();
 }
 
+function normalizeFileNameToken(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getExportMonthName(dates: string[]) {
+  const timestamps = dates
+    .map(date => new Date(`${date}T12:00:00`).getTime())
+    .filter(timestamp => !Number.isNaN(timestamp));
+
+  const referenceDate = timestamps.length > 0 ? new Date(Math.min(...timestamps)) : new Date();
+  const monthLabel = referenceDate.toLocaleDateString('pt-BR', { month: 'long' });
+  return normalizeFileNameToken(monthLabel);
+}
+
 function WeekendExportDocument({ meetings }: { meetings: WeekendMeeting[] }) {
   const monthLabel = getWeekendExportMonthLabel(meetings);
 
@@ -636,7 +656,12 @@ export function MeetingsPage() {
 
   const handleExportPdf = async () => {
     const element = tab === 'midweek' ? midweekExportRef.current : weekendExportRef.current;
-    const baseFilename = tab === 'midweek' ? 'reunioes-meio-semana' : 'reunioes-fim-semana';
+    const monthName = tab === 'midweek'
+      ? getExportMonthName(midweekMeetings.map(meeting => meeting.date))
+      : getExportMonthName(weekendMeetings.map(meeting => meeting.date));
+    const baseFilename = tab === 'midweek'
+      ? `reuniao meio de semana ${monthName}`
+      : `reuniao final de semana ${monthName}`;
 
     if (!element) {
       toast.error('Não foi possível preparar a exportação.');

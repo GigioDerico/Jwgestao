@@ -115,6 +115,20 @@ npm run sync:android
 npm run apk:release
 ```
 
+Para garantir que o APK sempre seja gerado a partir da branch `main`, use:
+
+```bash
+npm run apk:main:debug
+```
+
+ou, para o build assinado:
+
+```bash
+npm run apk:main:release
+```
+
+Esses comandos falham automaticamente se a branch atual nao for `main`.
+
 O comando valida o Java ativo antes de chamar o Gradle. Use um JDK entre `17` e `24`.
 
 Antes do `APK release`, configure a assinatura em `android/keystore.properties` (arquivo local, nao versionado) com:
