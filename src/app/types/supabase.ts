@@ -362,7 +362,11 @@ export type Database = {
           address_zip_code: string | null
           approved_audio_video: boolean | null
           approved_carrinho: boolean | null
+          approved_image: boolean | null
           approved_indicadores: boolean | null
+          approved_roving_mic: boolean | null
+          approved_sound: boolean | null
+          approved_stage: boolean | null
           avatar_url: string | null
           created_at: string | null
           email: string | null
@@ -388,7 +392,11 @@ export type Database = {
           address_zip_code?: string | null
           approved_audio_video?: boolean | null
           approved_carrinho?: boolean | null
+          approved_image?: boolean | null
           approved_indicadores?: boolean | null
+          approved_roving_mic?: boolean | null
+          approved_sound?: boolean | null
+          approved_stage?: boolean | null
           avatar_url?: string | null
           created_at?: string | null
           email?: string | null
@@ -414,7 +422,11 @@ export type Database = {
           address_zip_code?: string | null
           approved_audio_video?: boolean | null
           approved_carrinho?: boolean | null
+          approved_image?: boolean | null
           approved_indicadores?: boolean | null
+          approved_roving_mic?: boolean | null
+          approved_sound?: boolean | null
+          approved_stage?: boolean | null
           avatar_url?: string | null
           created_at?: string | null
           email?: string | null

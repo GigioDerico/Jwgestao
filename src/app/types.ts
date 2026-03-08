@@ -39,6 +39,10 @@ export interface Member {
   familyHeadId?: string;
   avatar?: string;
   approvedAudioVideo?: boolean;
+  approvedSound?: boolean;
+  approvedImage?: boolean;
+  approvedStage?: boolean;
+  approvedRovingMic?: boolean;
   approvedIndicadores?: boolean;
   approvedCarrinho?: boolean;
   system_role?: 'coordenador' | 'secretario' | 'designador' | 'publicador';

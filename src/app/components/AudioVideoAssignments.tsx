@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { getMeetingDatesForMonth, type AudioVideoMeetingDate } from '../lib/audio-video-calendar';
 import { downloadElementAsImage, downloadElementAsPdf } from '../lib/dom-export';
+import { isMemberEligibleForAssignments } from '../lib/assignment-member-eligibility';
 import { ExportActions } from './ExportActions';
 import type { AudioVideoAssignment } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -15,11 +16,16 @@ const MONTHS = [
 ];
 
 type AudioVideoRoleKey = 'sound' | 'image' | 'stage' | 'rovingMic1' | 'rovingMic2';
+type AudioVideoFilterRoleKey = AudioVideoRoleKey | 'attendants';
 
 interface MemberOption {
   id: string;
   full_name: string;
   approved_audio_video?: boolean;
+  approved_sound?: boolean;
+  approved_image?: boolean;
+  approved_stage?: boolean;
+  approved_roving_mic?: boolean;
   approved_indicadores?: boolean;
 }
 
@@ -41,7 +47,7 @@ const SUMMARY_DISPLAY_GROUPS = [
 const SINGLE_ROLE_CONFIG: {
   key: AudioVideoRoleKey;
   label: string;
-  group: 'audioVideo' | 'indicators';
+  group: 'audioVideo';
   hoverClass: string;
 }[] = [
   { key: 'sound', label: 'Som', group: 'audioVideo', hoverClass: 'hover:bg-sky-50' },
@@ -55,6 +61,26 @@ const SINGLE_ROLE_LABELS = SINGLE_ROLE_CONFIG.reduce<Record<AudioVideoRoleKey, s
   acc[role.key] = role.label;
   return acc;
 }, {} as Record<AudioVideoRoleKey, string>);
+
+function hasPrivilegeForRole(member: MemberOption, role: AudioVideoFilterRoleKey): boolean {
+  if (role === 'sound') {
+    return Boolean(member.approved_sound || member.approved_audio_video);
+  }
+
+  if (role === 'image') {
+    return Boolean(member.approved_image || member.approved_audio_video);
+  }
+
+  if (role === 'stage') {
+    return Boolean(member.approved_stage || member.approved_audio_video);
+  }
+
+  if (role === 'rovingMic1' || role === 'rovingMic2') {
+    return Boolean(member.approved_roving_mic || member.approved_audio_video);
+  }
+
+  return Boolean(member.approved_indicadores);
+}
 
 export function AudioVideoAssignments({
   canCreate = true,
@@ -124,8 +150,6 @@ export function AudioVideoAssignments({
     : calendarRows;
   const isMonthGenerated = calendarRows.length > 0 && calendarRows.every(row => Boolean(row.assignment));
 
-  const audioVideoMembers = members.filter(member => Boolean(member.approved_audio_video));
-  const indicatorMembers = members.filter(member => Boolean(member.approved_indicadores));
   const currentEditAssignment = editModal ? data.find(item => item.id === editModal.id) || null : null;
   const currentAttendantsAssignment = attendantsModal ? data.find(item => item.id === attendantsModal.id) || null : null;
   const assignmentCounts = new Map<string, Record<AssignmentSummaryKey | 'total', number>>();
@@ -203,8 +227,8 @@ export function AudioVideoAssignments({
   const loadEligibleMembers = async () => {
     const { data: rows, error } = await supabase
       .from('members')
-      .select('id, full_name, approved_audio_video, approved_indicadores')
-      .or('approved_audio_video.eq.true,approved_indicadores.eq.true')
+      .select('id, full_name, spiritual_status, approved_audio_video, approved_sound, approved_image, approved_stage, approved_roving_mic, approved_indicadores')
+      .or('approved_audio_video.eq.true,approved_sound.eq.true,approved_image.eq.true,approved_stage.eq.true,approved_roving_mic.eq.true,approved_indicadores.eq.true')
       .order('full_name');
 
     if (error) {
@@ -212,11 +236,25 @@ export function AudioVideoAssignments({
     }
 
     setMembers(
-      (rows || []).map((member: any) => ({
+      (rows || [])
+        .filter((member: any) => isMemberEligibleForAssignments(member?.spiritual_status ?? member?.spiritualStatus))
+        .map((member: any) => ({
         id: member.id,
         full_name: member.full_name,
         approved_audio_video: Boolean(
           member.approved_audio_video ?? member.approvedAudioVideo
+        ),
+        approved_sound: Boolean(
+          member.approved_sound ?? member.approvedSound
+        ),
+        approved_image: Boolean(
+          member.approved_image ?? member.approvedImage
+        ),
+        approved_stage: Boolean(
+          member.approved_stage ?? member.approvedStage
+        ),
+        approved_roving_mic: Boolean(
+          member.approved_roving_mic ?? member.approvedRovingMic
         ),
         approved_indicadores: Boolean(
           member.approved_indicadores ?? member.approvedIndicadores
@@ -806,14 +844,6 @@ export function AudioVideoAssignments({
                 </section>
                 <section className="space-y-2 border-t border-gray-100 pt-3">
                   <h5 className="text-gray-500" style={{ fontSize: '14px' }}>Indicadores</h5>
-                  {SINGLE_ROLE_CONFIG.filter(role => role.group === 'indicators').map(role => (
-                    <div key={role.key} className="flex items-center gap-3">
-                      <span className="w-24 shrink-0 text-gray-500" style={{ fontSize: '14px' }}>
-                        {role.label}
-                      </span>
-                      <div className="flex-1">{renderSingleRoleButton(row, role.key)}</div>
-                    </div>
-                  ))}
                   <div className="flex items-center gap-3">
                     <span className="w-24 shrink-0 text-gray-500" style={{ fontSize: '14px' }}>
                       Entradas
@@ -901,10 +931,11 @@ export function AudioVideoAssignments({
       {canEdit && editModal && (
         <MemberSelectModal
           label={SINGLE_ROLE_LABELS[editModal.field]}
+          role={editModal.field}
           currentValue={editModal.value}
           onClose={() => setEditModal(null)}
           onSave={handleSaveRole}
-          members={SINGLE_ROLE_CONFIG.find(role => role.key === editModal.field)?.group === 'audioVideo' ? audioVideoMembers : indicatorMembers}
+          members={members}
           unavailableNames={currentEditAssignment ? getUsedNamesForAssignment(currentEditAssignment, editModal.field) : new Set<string>()}
           saving={saving}
         />
@@ -912,10 +943,11 @@ export function AudioVideoAssignments({
 
       {canEdit && attendantsModal && (
         <AttendantsSelectModal
+          role="attendants"
           currentValues={attendantsModal.values}
           onClose={() => setAttendantsModal(null)}
           onSave={handleSaveAttendants}
-          members={indicatorMembers}
+          members={members}
           blockedNames={currentAttendantsAssignment ? getUsedNamesForAssignment(currentAttendantsAssignment, 'attendants') : new Set<string>()}
           saving={saving}
         />
@@ -990,6 +1022,7 @@ export function AudioVideoAssignments({
 
 function MemberSelectModal({
   label,
+  role,
   currentValue,
   onClose,
   onSave,
@@ -998,6 +1031,7 @@ function MemberSelectModal({
   saving,
 }: {
   label: string;
+  role: AudioVideoFilterRoleKey;
   currentValue: string;
   onClose: () => void;
   onSave: (value: string) => void;
@@ -1006,12 +1040,15 @@ function MemberSelectModal({
   saving: boolean;
 }) {
   const [search, setSearch] = useState('');
+  const [onlyPrivileged, setOnlyPrivileged] = useState(true);
   const [selected, setSelected] = useState(currentValue === 'A definir' ? '' : currentValue);
 
   const filteredMembers = members.filter(member => {
     const matchesSearch = member.full_name.toLowerCase().includes(search.toLowerCase());
     const isUnavailable = unavailableNames.has(member.full_name) && member.full_name !== selected;
-    return matchesSearch && !isUnavailable;
+    const hasPrivilege = hasPrivilegeForRole(member, role);
+    const passesPrivilegeFilter = !onlyPrivileged || hasPrivilege || member.full_name === selected;
+    return matchesSearch && !isUnavailable && passesPrivilegeFilter;
   });
 
   return (
@@ -1039,6 +1076,15 @@ function MemberSelectModal({
               autoFocus
             />
           </div>
+          <label className="mt-2 flex items-center gap-2 text-gray-600" style={{ fontSize: '0.85rem' }}>
+            <input
+              type="checkbox"
+              checked={onlyPrivileged}
+              onChange={event => setOnlyPrivileged(event.target.checked)}
+              className="h-4 w-4 rounded accent-[#35bdf8]"
+            />
+            Somente membros com privilégio para {label.toLowerCase()}
+          </label>
         </div>
         <div className="flex-1 overflow-y-auto p-2">
           <button
@@ -1091,6 +1137,7 @@ function MemberSelectModal({
 }
 
 function AttendantsSelectModal({
+  role,
   currentValues,
   onClose,
   onSave,
@@ -1098,6 +1145,7 @@ function AttendantsSelectModal({
   blockedNames,
   saving,
 }: {
+  role: AudioVideoFilterRoleKey;
   currentValues: string[];
   onClose: () => void;
   onSave: (values: string[]) => void;
@@ -1106,12 +1154,15 @@ function AttendantsSelectModal({
   saving: boolean;
 }) {
   const [search, setSearch] = useState('');
+  const [onlyPrivileged, setOnlyPrivileged] = useState(true);
   const [selected, setSelected] = useState<string[]>(currentValues);
 
   const filteredMembers = members.filter(member => {
     const matchesSearch = member.full_name.toLowerCase().includes(search.toLowerCase());
     const isBlocked = blockedNames.has(member.full_name) && !selected.includes(member.full_name);
-    return matchesSearch && !isBlocked;
+    const hasPrivilege = hasPrivilegeForRole(member, role);
+    const passesPrivilegeFilter = !onlyPrivileged || hasPrivilege || selected.includes(member.full_name);
+    return matchesSearch && !isBlocked && passesPrivilegeFilter;
   });
 
   const toggleMember = (fullName: string) => {
@@ -1149,6 +1200,15 @@ function AttendantsSelectModal({
               autoFocus
             />
           </div>
+          <label className="mt-2 flex items-center gap-2 text-gray-600" style={{ fontSize: '0.85rem' }}>
+            <input
+              type="checkbox"
+              checked={onlyPrivileged}
+              onChange={event => setOnlyPrivileged(event.target.checked)}
+              className="h-4 w-4 rounded accent-[#35bdf8]"
+            />
+            Somente membros com privilégio para indicadores
+          </label>
         </div>
         <div className="flex-1 overflow-y-auto p-2">
           {filteredMembers.map(member => {

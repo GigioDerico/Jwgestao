@@ -81,6 +81,10 @@ export function MembersList() {
     is_family_head: false,
     family_head_id: '',
     approved_audio_video: false,
+    approved_sound: false,
+    approved_image: false,
+    approved_stage: false,
+    approved_roving_mic: false,
     approved_indicadores: false,
     approved_carrinho: false,
     approved_pioneiro_auxiliar: false,
@@ -115,6 +119,10 @@ export function MembersList() {
         familyHeadId: m.family_head_id || undefined,
         avatar: m.avatar_url || undefined,
         approvedAudioVideo: m.approved_audio_video || false,
+        approvedSound: m.approved_sound || false,
+        approvedImage: m.approved_image || false,
+        approvedStage: m.approved_stage || false,
+        approvedRovingMic: m.approved_roving_mic || false,
         approvedIndicadores: m.approved_indicadores || false,
         approvedCarrinho: m.approved_carrinho || false,
         // Keep snake_case copies too so updateMember/handleOpenEdit can read them
@@ -212,6 +220,10 @@ export function MembersList() {
       is_family_head: false,
       family_head_id: '',
       approved_audio_video: false,
+      approved_sound: false,
+      approved_image: false,
+      approved_stage: false,
+      approved_roving_mic: false,
       approved_indicadores: false,
       approved_carrinho: false,
       approved_pioneiro_auxiliar: false,
@@ -286,6 +298,10 @@ export function MembersList() {
       is_family_head: member.isFamilyHead || false,
       family_head_id: (member as any).family_head_id || member.familyHeadId || '',
       approved_audio_video: member.approvedAudioVideo || false,
+      approved_sound: (member as any).approvedSound || (member as any).approved_sound || false,
+      approved_image: (member as any).approvedImage || (member as any).approved_image || false,
+      approved_stage: (member as any).approvedStage || (member as any).approved_stage || false,
+      approved_roving_mic: (member as any).approvedRovingMic || (member as any).approved_roving_mic || false,
       approved_indicadores: member.approvedIndicadores || false,
       approved_carrinho: member.approvedCarrinho || false,
       approved_pioneiro_auxiliar: (member as any).approved_pioneiro_auxiliar || false,
@@ -584,17 +600,35 @@ export function MembersList() {
               </div>
             )}
             {/* Approval badges */}
-            {(member.approvedAudioVideo || member.approvedIndicadores || member.approvedCarrinho) && (
+            {(member.approvedSound || member.approvedImage || member.approvedStage || member.approvedRovingMic || member.approvedIndicadores || member.approvedCarrinho) && (
               <div className="sm:col-span-2 mt-2">
                 <p className="text-muted-foreground font-medium mb-1.5 flex items-center gap-1.5" style={{ fontSize: '0.75rem' }}>
                   <UserCheck size={12} />
                   Aprovado para
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {member.approvedAudioVideo && (
+                  {member.approvedSound && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-sky-100 text-sky-700" style={{ fontSize: '0.7rem' }}>
                       <Monitor size={10} />
-                      Áudio e Vídeo
+                      Som
+                    </span>
+                  )}
+                  {member.approvedImage && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-cyan-100 text-cyan-700" style={{ fontSize: '0.7rem' }}>
+                      <Monitor size={10} />
+                      Imagem
+                    </span>
+                  )}
+                  {member.approvedStage && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700" style={{ fontSize: '0.7rem' }}>
+                      <Monitor size={10} />
+                      Palco
+                    </span>
+                  )}
+                  {member.approvedRovingMic && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-100 text-orange-700" style={{ fontSize: '0.7rem' }}>
+                      <Monitor size={10} />
+                      Volantes
                     </span>
                   )}
                   {member.approvedIndicadores && (
@@ -1404,9 +1438,24 @@ export function MembersList() {
                     <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>Carrinho</span>
                   </label>
                   <label className="flex items-center gap-2.5 cursor-pointer group">
-                    <input type="checkbox" checked={newMemberForm.approved_audio_video || false} onChange={e => setNewMemberForm(f => ({ ...f, approved_audio_video: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
+                    <input type="checkbox" checked={newMemberForm.approved_sound || false} onChange={e => setNewMemberForm(f => ({ ...f, approved_sound: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
                     <Monitor size={14} className="text-sky-500 shrink-0" />
-                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>Áudio e Vídeo</span>
+                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>Som</span>
+                  </label>
+                  <label className="flex items-center gap-2.5 cursor-pointer group">
+                    <input type="checkbox" checked={newMemberForm.approved_image || false} onChange={e => setNewMemberForm(f => ({ ...f, approved_image: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
+                    <Monitor size={14} className="text-cyan-500 shrink-0" />
+                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>Imagem</span>
+                  </label>
+                  <label className="flex items-center gap-2.5 cursor-pointer group">
+                    <input type="checkbox" checked={newMemberForm.approved_stage || false} onChange={e => setNewMemberForm(f => ({ ...f, approved_stage: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
+                    <Monitor size={14} className="text-emerald-500 shrink-0" />
+                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>Palco</span>
+                  </label>
+                  <label className="flex items-center gap-2.5 cursor-pointer group">
+                    <input type="checkbox" checked={newMemberForm.approved_roving_mic || false} onChange={e => setNewMemberForm(f => ({ ...f, approved_roving_mic: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
+                    <Monitor size={14} className="text-orange-500 shrink-0" />
+                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>Volantes</span>
                   </label>
                   <label className="flex items-center gap-2.5 cursor-pointer group">
                     <input type="checkbox" checked={newMemberForm.approved_indicadores || false} onChange={e => setNewMemberForm(f => ({ ...f, approved_indicadores: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
@@ -1581,7 +1630,10 @@ export function MembersList() {
                   { key: 'approved_pioneiro_auxiliar', label: 'Pioneiro Auxiliar' },
                   { key: 'approved_pioneiro_regular', label: 'Pioneiro Regular' },
                   { key: 'approved_carrinho', label: 'Carrinho' },
-                  { key: 'approved_audio_video', label: 'Áudio e Vídeo' },
+                  { key: 'approved_sound', label: 'Som' },
+                  { key: 'approved_image', label: 'Imagem' },
+                  { key: 'approved_stage', label: 'Palco' },
+                  { key: 'approved_roving_mic', label: 'Volantes' },
                   { key: 'approved_indicadores', label: 'Indicadores' },
                 ].map(({ key, label }) => (
                   <label key={key} className="flex items-center gap-2.5 cursor-pointer">

@@ -3,6 +3,7 @@ import { api } from '../lib/api';
 import { ChevronLeft, ChevronRight, X, Search, MapPin, Clock, Users, Plus, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { downloadElementAsImage, downloadElementAsPdf } from '../lib/dom-export';
+import { filterMembersEligibleForAssignments } from '../lib/assignment-member-eligibility';
 import { ExportActions } from './ExportActions';
 import type { CartAssignment } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -114,7 +115,17 @@ export function CartAssignments({
   };
 
   useEffect(() => {
-    api.getMembers().then(data => setMembers(data.map((m: any) => ({ id: m.id, full_name: m.full_name })))).catch(console.error);
+    api
+      .getMembers()
+      .then(data =>
+        setMembers(
+          filterMembersEligibleForAssignments(data || []).map((m: any) => ({
+            id: m.id,
+            full_name: m.full_name,
+          })),
+        ),
+      )
+      .catch(console.error);
   }, []);
 
   useEffect(() => {

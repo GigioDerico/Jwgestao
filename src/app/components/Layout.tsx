@@ -57,6 +57,13 @@ export function Layout() {
   ];
 
   const canManageAssignments = user?.role === 'coordenador' || user?.role === 'designador';
+  const canAccessAudioVideo =
+    Boolean(user?.approved_audio_video) ||
+    Boolean(user?.approved_sound) ||
+    Boolean(user?.approved_image) ||
+    Boolean(user?.approved_stage) ||
+    Boolean(user?.approved_roving_mic) ||
+    Boolean(user?.approved_indicadores);
   const assignmentChildren = canManageAssignments
     ? [
       { path: '/assignments/meetings', label: 'Reuniões' },
@@ -65,7 +72,7 @@ export function Layout() {
       { path: '/assignments/cart', label: 'Carrinho' },
     ]
     : [
-      ...(user?.approved_audio_video || user?.approved_indicadores
+      ...(canAccessAudioVideo
         ? [{ path: '/assignments/audio-video', label: 'Áudio e Vídeo' }]
         : []),
       ...(user?.approved_carrinho ? [{ path: '/assignments/cart', label: 'Carrinho' }] : []),

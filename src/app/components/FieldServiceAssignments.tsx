@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { api, type FieldServiceGroupOption } from '../lib/api';
 import { downloadElementAsImage, downloadElementAsPdf } from '../lib/dom-export';
 import { getSaturdaysForMonth } from '../lib/field-service-calendar';
+import { filterMembersEligibleForAssignments } from '../lib/assignment-member-eligibility';
 import { ExportActions } from './ExportActions';
 import type { FieldServiceAssignment } from '../types';
 
@@ -121,7 +122,14 @@ export function FieldServiceAssignments({
   useEffect(() => {
     api
       .getMembers()
-      .then(rawMembers => setMembers(rawMembers.map((member: any) => ({ id: member.id, full_name: member.full_name }))))
+      .then(rawMembers =>
+        setMembers(
+          filterMembersEligibleForAssignments(rawMembers || []).map((member: any) => ({
+            id: member.id,
+            full_name: member.full_name,
+          })),
+        ),
+      )
       .catch(error => {
         console.error(error);
         toast.error('Erro ao carregar membros.');
