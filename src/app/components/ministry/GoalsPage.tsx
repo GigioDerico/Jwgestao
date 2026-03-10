@@ -15,7 +15,7 @@ import {
   sumPlannedHours,
 } from '../../lib/goal-planner';
 import { toast } from 'sonner';
-import { Archive, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock3, Pencil, Plus, RefreshCcw, Target } from 'lucide-react';
+import { Archive, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock3, MessageCircle, Pencil, Plus, RefreshCcw, Target } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -35,6 +35,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
+import { supabase } from '../../lib/supabase';
+import { sendTextWhatsApp } from '../../lib/whatsapp';
 
 const BIBLE_VERSES = [
   'O amor não busca seus próprios interesses. — 1 Coríntios 13:5',
@@ -157,7 +159,9 @@ export function GoalsPage() {
   const [savingGoal, setSavingGoal] = useState(false);
   const [plannerSubmitting, setPlannerSubmitting] = useState(false);
   const [applyingTemplate, setApplyingTemplate] = useState(false);
-  const [recordsThisMonth, setRecordsThisMonth] = useState<{ hours: number }[]>([]);
+  const [recordsThisMonth, setRecordsThisMonth] = useState<Array<{ hours: number; return_visits: number; bible_studies: number }>>([]);
+  const [serviceOverseer, setServiceOverseer] = useState<{ name: string; phone: string } | null>(null);
+  const [sendingReport, setSendingReport] = useState(false);
   const [templateItems, setTemplateItems] = useState<LocalGoalPlannerTemplateItem[]>([]);
   const [monthItems, setMonthItems] = useState<LocalGoalPlannerMonthItem[]>([]);
   const [lastGoalToast, setLastGoalToast] = useState<number | null>(null);
@@ -170,6 +174,8 @@ export function GoalsPage() {
   const activeTemplateItems = templateItems.filter((item) => item.is_active);
   const activeMonthItems = monthItems.filter((item) => item.is_active);
   const hoursThisMonth = recordsThisMonth.reduce((sum, record) => sum + Number(record.hours), 0);
+  const returnVisitsThisMonth = recordsThisMonth.reduce((sum, record) => sum + Number(record.return_visits || 0), 0);
+  const bibleStudiesThisMonth = recordsThisMonth.reduce((sum, record) => sum + Number(record.bible_studies || 0), 0);
   const goalProgressPercent = goal > 0 ? Math.min(100, (hoursThisMonth / goal) * 100) : 0;
   const remainingHours = Math.max(goal - hoursThisMonth, 0);
   const plannedHours = sumPlannedHours(activeMonthItems);
@@ -194,7 +200,13 @@ export function GoalsPage() {
       ]);
 
       setGoal(goalData ? Number(goalData.hours_goal) : 10);
-      setRecordsThisMonth(records.map((record) => ({ hours: record.hours })));
+      setRecordsThisMonth(
+        records.map((record) => ({
+          hours: Number(record.hours || 0),
+          return_visits: Number(record.return_visits || 0),
+          bible_studies: Number(record.bible_studies || 0),
+        })),
+      );
       setTemplateItems(plannerTemplateData);
       setMonthItems(plannerMonthData);
     } catch {
@@ -263,6 +275,68 @@ export function GoalsPage() {
 
     void run();
   }, [userId, loading, activeTemplateItems.length, activeMonthItems.length, currentMonth, currentYear]);
+
+  useEffect(() => {
+    if (!user?.member_id) {
+      setServiceOverseer(null);
+      return;
+    }
+
+    const loadServiceOverseer = async () => {
+      try {
+        let groupId = user.group_id || null;
+
+        if (!groupId) {
+          const { data: memberData, error: memberError } = await supabase
+            .from('members')
+            .select('group_id')
+            .eq('id', user.member_id)
+            .maybeSingle();
+
+          if (memberError) throw memberError;
+          groupId = memberData?.group_id || null;
+        }
+
+        if (!groupId) {
+          setServiceOverseer(null);
+          return;
+        }
+
+        const { data: groupData, error: groupError } = await supabase
+          .from('field_service_groups')
+          .select('overseer_id')
+          .eq('id', groupId)
+          .maybeSingle();
+
+        if (groupError) throw groupError;
+        if (!groupData?.overseer_id) {
+          setServiceOverseer(null);
+          return;
+        }
+
+        const { data: overseerData, error: overseerError } = await supabase
+          .from('members')
+          .select('full_name, phone')
+          .eq('id', groupData.overseer_id)
+          .maybeSingle();
+
+        if (overseerError) throw overseerError;
+        if (!overseerData?.phone) {
+          setServiceOverseer(null);
+          return;
+        }
+
+        setServiceOverseer({
+          name: overseerData.full_name || 'Dirigente',
+          phone: overseerData.phone,
+        });
+      } catch {
+        setServiceOverseer(null);
+      }
+    };
+
+    void loadServiceOverseer();
+  }, [user?.member_id, user?.group_id]);
 
   const handleSaveGoal = async () => {
     if (!userId) return;
@@ -432,6 +506,33 @@ export function GoalsPage() {
     setSelectedMonthDate((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1));
   };
 
+  const handleSendReport = async () => {
+    if (!serviceOverseer?.phone) {
+      toast.error('Não foi possível encontrar o WhatsApp do dirigente de serviço.');
+      return;
+    }
+
+    const hoursLabel = Number.isInteger(hoursThisMonth)
+      ? `${hoursThisMonth}`
+      : hoursThisMonth.toFixed(1).replace('.', ',');
+
+    const message = `Bom dia ${serviceOverseer.name}, tudo bem ?\n\nSegue abaixo meu relatório de serviço ministerial do mês de ${capitalizeText(monthName)}:\n\n${hoursLabel} Horas\n${bibleStudiesThisMonth} Estudos\n${returnVisitsThisMonth} Revisitas`;
+
+    try {
+      setSendingReport(true);
+      await sendTextWhatsApp({
+        phone: serviceOverseer.phone,
+        text: message,
+      });
+      toast.success('Relatório enviado com sucesso.');
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : 'Erro ao enviar relatório.';
+      toast.error(messageText);
+    } finally {
+      setSendingReport(false);
+    }
+  };
+
   const monthName = new Date(currentYear, currentMonth - 1, 1).toLocaleDateString('pt-BR', { month: 'long' });
 
   let plannerMessage = 'Planejamento alinhado com o saldo restante.';
@@ -447,9 +548,19 @@ export function GoalsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-foreground">Metas Mensais</h2>
-        <p className="text-sm text-muted-foreground">Acompanhe sua meta e organize um plano prático para cumpri-la</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Metas Mensais</h2>
+          <p className="text-sm text-muted-foreground">Acompanhe sua meta e organize um plano prático para cumpri-la</p>
+        </div>
+        <Button
+          onClick={handleSendReport}
+          disabled={loading || sendingReport}
+          className="bg-[#1f7a45] text-white hover:bg-[#19673a]"
+        >
+          <MessageCircle size={14} className="mr-2" />
+          {sendingReport ? 'Enviando...' : 'Enviar Relatório'}
+        </Button>
       </div>
 
       <Card className="border border-border rounded-xl shadow-sm bg-card">

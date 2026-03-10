@@ -13,15 +13,61 @@ export interface DesignationMessageData {
     observationText?: string;
 }
 
+export interface PlainWhatsAppMessageData {
+    phone: string;
+    text: string;
+}
+
+async function sendWhatsAppText(number: string, text: string): Promise<boolean> {
+    const instance = await api.getAppSetting('uazapi_instance');
+    const token = await api.getAppSetting('uazapi_token');
+
+    if (!instance || !token) {
+        throw new Error('Credenciais da UAZAPI não configuradas nas Settings.');
+    }
+
+    const payload = { number, text };
+
+    let { data: responseData, error: responseError } = await supabase.functions.invoke('uazapi-proxy', {
+        body: {
+            instance,
+            token,
+            payload,
+            isFallback: false
+        }
+    });
+
+    if (responseError || (responseData && responseData.error && responseData.status === 404)) {
+        const { data: fallbackData, error: fallbackError } = await supabase.functions.invoke('uazapi-proxy', {
+            body: {
+                instance,
+                token,
+                payload,
+                isFallback: true
+            }
+        });
+
+        if (fallbackError || (fallbackData && fallbackData.error)) {
+            throw new Error(fallbackData?.error || fallbackError?.message || 'Falha na requisição UAZAPI Proxy Fallback');
+        }
+        return true;
+    } else if (responseData && responseData.error) {
+        throw new Error(responseData.error);
+    }
+
+    return true;
+}
+
+function formatPhoneForWhatsApp(phone: string) {
+    let formattedPhone = phone.replace(/\D/g, '');
+    if (formattedPhone.length === 10 || formattedPhone.length === 11) {
+        formattedPhone = `55${formattedPhone}`;
+    }
+    return formattedPhone;
+}
+
 export async function sendDesignationWhatsApp(data: DesignationMessageData): Promise<boolean> {
     try {
-        const instance = await api.getAppSetting('uazapi_instance');
-        const token = await api.getAppSetting('uazapi_token');
-
-        if (!instance || !token) {
-            throw new Error('Credenciais da UAZAPI não configuradas nas Settings.');
-        }
-
         if (!data.phone) {
             throw new Error('Número de telefone do estudante não encontrado.');
         }
@@ -49,48 +95,27 @@ Local: ${data.location}
 
 Observação: ${observationText}`;
 
-        // Format phone to ensure it has the country code (assuming +55 for Brazil if not provided)
-        let formattedPhone = data.phone.replace(/\D/g, '');
-        if (formattedPhone.length === 10 || formattedPhone.length === 11) {
-            formattedPhone = `55${formattedPhone}`;
-        }
-
-        const payload = {
-            number: formattedPhone,
-            text: messageTemplate,
-        };
-
-        let { data: responseData, error: responseError } = await supabase.functions.invoke('uazapi-proxy', {
-            body: {
-                instance,
-                token,
-                payload,
-                isFallback: false
-            }
-        });
-
-        if (responseError || (responseData && responseData.error && responseData.status === 404)) {
-            // Attempt fallback if 404
-            const { data: fallbackData, error: fallbackError } = await supabase.functions.invoke('uazapi-proxy', {
-                body: {
-                    instance,
-                    token,
-                    payload,
-                    isFallback: true
-                }
-            });
-
-            if (fallbackError || (fallbackData && fallbackData.error)) {
-                throw new Error(fallbackData?.error || fallbackError?.message || 'Falha na requisição UAZAPI Proxy Fallback');
-            }
-            return true;
-        } else if (responseData && responseData.error) {
-            throw new Error(responseData.error);
-        }
-
-        return true;
+        return sendWhatsAppText(formatPhoneForWhatsApp(data.phone), messageTemplate);
     } catch (error: any) {
         console.error('Error sending WhatsApp message:', error);
+        throw error;
+    }
+}
+
+export async function sendTextWhatsApp(data: PlainWhatsAppMessageData): Promise<boolean> {
+    try {
+        if (!data.phone) {
+            throw new Error('Número de telefone não encontrado.');
+        }
+
+        const message = (data.text || '').trim();
+        if (!message) {
+            throw new Error('Mensagem vazia.');
+        }
+
+        return sendWhatsAppText(formatPhoneForWhatsApp(data.phone), message);
+    } catch (error: any) {
+        console.error('Error sending WhatsApp text message:', error);
         throw error;
     }
 }

@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
-import { Loader2, CalendarDays, Plus } from 'lucide-react';
+import { Loader2, CalendarDays, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../lib/api';
 import { downloadElementAsPdf } from '../lib/dom-export';
@@ -16,6 +16,20 @@ import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { formatWeekendSpeakerCongregation } from '../helpers';
 import type { MidweekMeeting, WeekendMeeting } from '../types';
+
+const MONTHS = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+
+function parseMeetingDate(date: string) {
+  const parsed = new Date(`${date}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
+}
 
 function getName(value: any): string {
   if (!value) return '';
@@ -614,6 +628,11 @@ export function MeetingsPage() {
   const [exporting, setExporting] = useState<'pdf' | null>(null);
   const midweekExportRef = useRef<HTMLDivElement>(null);
   const weekendExportRef = useRef<HTMLDivElement>(null);
+  const today = new Date();
+  const [midweekMonth, setMidweekMonth] = useState(today.getMonth());
+  const [midweekYear, setMidweekYear] = useState(today.getFullYear());
+  const [weekendMonth, setWeekendMonth] = useState(today.getMonth());
+  const [weekendYear, setWeekendYear] = useState(today.getFullYear());
 
   useEffect(() => {
     if (locationState?.initialTab === 'weekend') {
@@ -649,16 +668,79 @@ export function MeetingsPage() {
     })();
   }, []);
 
+  const filteredMidweekMeetings = useMemo(
+    () =>
+      midweekMeetings.filter(meeting => {
+        const parsedDate = parseMeetingDate(meeting.date);
+        if (!parsedDate) {
+          return false;
+        }
+        return parsedDate.getMonth() === midweekMonth && parsedDate.getFullYear() === midweekYear;
+      }),
+    [midweekMeetings, midweekMonth, midweekYear],
+  );
+
+  const filteredWeekendMeetings = useMemo(
+    () =>
+      weekendMeetings.filter(meeting => {
+        const parsedDate = parseMeetingDate(meeting.date);
+        if (!parsedDate) {
+          return false;
+        }
+        return parsedDate.getMonth() === weekendMonth && parsedDate.getFullYear() === weekendYear;
+      }),
+    [weekendMeetings, weekendMonth, weekendYear],
+  );
+
   const midweekSheets: MidweekMeeting[][] = [];
-  for (let index = 0; index < midweekMeetings.length; index += 2) {
-    midweekSheets.push(midweekMeetings.slice(index, index + 2));
+  for (let index = 0; index < filteredMidweekMeetings.length; index += 2) {
+    midweekSheets.push(filteredMidweekMeetings.slice(index, index + 2));
   }
+
+  const moveMonth = (direction: -1 | 1) => {
+    if (tab === 'midweek') {
+      if (direction === -1) {
+        if (midweekMonth === 0) {
+          setMidweekMonth(11);
+          setMidweekYear(current => current - 1);
+          return;
+        }
+        setMidweekMonth(current => current - 1);
+        return;
+      }
+
+      if (midweekMonth === 11) {
+        setMidweekMonth(0);
+        setMidweekYear(current => current + 1);
+        return;
+      }
+      setMidweekMonth(current => current + 1);
+      return;
+    }
+
+    if (direction === -1) {
+      if (weekendMonth === 0) {
+        setWeekendMonth(11);
+        setWeekendYear(current => current - 1);
+        return;
+      }
+      setWeekendMonth(current => current - 1);
+      return;
+    }
+
+    if (weekendMonth === 11) {
+      setWeekendMonth(0);
+      setWeekendYear(current => current + 1);
+      return;
+    }
+    setWeekendMonth(current => current + 1);
+  };
 
   const handleExportPdf = async () => {
     const element = tab === 'midweek' ? midweekExportRef.current : weekendExportRef.current;
     const monthName = tab === 'midweek'
-      ? getExportMonthName(midweekMeetings.map(meeting => meeting.date))
-      : getExportMonthName(weekendMeetings.map(meeting => meeting.date));
+      ? getExportMonthName(filteredMidweekMeetings.map(meeting => meeting.date))
+      : getExportMonthName(filteredWeekendMeetings.map(meeting => meeting.date));
     const baseFilename = tab === 'midweek'
       ? `reuniao meio de semana ${monthName}`
       : `reuniao final de semana ${monthName}`;
@@ -728,6 +810,28 @@ export function MeetingsPage() {
         </button>
       </div>
 
+      <div className="bg-white rounded-xl border border-gray-100 p-3">
+        <div className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-1 py-1">
+          <button
+            onClick={() => moveMonth(-1)}
+            className="rounded-md p-1.5 text-gray-600 transition-colors hover:bg-white"
+            aria-label="Mês anterior"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <span className="px-2 text-gray-800 font-medium" style={{ fontSize: '0.9rem' }}>
+            {tab === 'midweek' ? MONTHS[midweekMonth] : MONTHS[weekendMonth]} {tab === 'midweek' ? midweekYear : weekendYear}
+          </span>
+          <button
+            onClick={() => moveMonth(1)}
+            className="rounded-md p-1.5 text-gray-600 transition-colors hover:bg-white"
+            aria-label="Próximo mês"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      </div>
+
       {canDownloadAssignments && (
         <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -736,8 +840,8 @@ export function MeetingsPage() {
             </p>
             <p className="text-muted-foreground" style={{ fontSize: '0.82rem' }}>
               {tab === 'midweek'
-                ? 'Exporta todas as páginas de reunião de meio de semana atualmente visíveis em PDF.'
-                : 'Exporta toda a listagem de reuniões de fim de semana atualmente visível em PDF.'}
+                ? 'Exporta as reuniões de meio de semana do mês selecionado.'
+                : 'Exporta as reuniões de fim de semana do mês selecionado.'}
             </p>
           </div>
           <ExportActions
@@ -753,10 +857,10 @@ export function MeetingsPage() {
           <Loader2 className="animate-spin text-primary" size={28} />
         </div>
       ) : tab === 'midweek' ? (
-        midweekMeetings.length > 0 ? (
+        filteredMidweekMeetings.length > 0 ? (
           <div className="space-y-6">
             <div className="space-y-4 lg:hidden">
-              {midweekMeetings.map((meeting, index) => (
+              {filteredMidweekMeetings.map((meeting, index) => (
                 <MidweekMobileMeetingCard
                   key={meeting.id}
                   meeting={meeting}
@@ -779,20 +883,20 @@ export function MeetingsPage() {
         ) : (
           <div className="text-center py-12 text-muted-foreground">
             <CalendarDays size={32} className="mx-auto mb-2 opacity-30" />
-            <p>Nenhuma reunião de meio de semana cadastrada</p>
+            <p>Nenhuma reunião de meio de semana em {MONTHS[midweekMonth]} de {midweekYear}.</p>
           </div>
         )
       ) : (
-        weekendMeetings.length > 0 ? (
+        filteredWeekendMeetings.length > 0 ? (
           <div className="space-y-6">
-            {weekendMeetings.map(meeting => (
+            {filteredWeekendMeetings.map(meeting => (
               <WeekendMeetingView key={meeting.id} meeting={meeting} />
             ))}
           </div>
         ) : (
           <div className="text-center py-12 text-muted-foreground">
             <CalendarDays size={32} className="mx-auto mb-2 opacity-30" />
-            <p>Nenhuma reunião de fim de semana cadastrada</p>
+            <p>Nenhuma reunião de fim de semana em {MONTHS[weekendMonth]} de {weekendYear}.</p>
           </div>
         )
       )}
@@ -833,7 +937,7 @@ export function MeetingsPage() {
           data-export-pdf-page="a4-portrait"
           className="w-[760px] bg-white"
         >
-          <WeekendExportDocument meetings={weekendMeetings} />
+          <WeekendExportDocument meetings={filteredWeekendMeetings} />
         </div>
       </div>
     </div>
