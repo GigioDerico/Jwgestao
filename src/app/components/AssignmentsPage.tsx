@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Navigate } from 'react-router';
 import { api } from '../lib/api';
 import {
@@ -831,6 +831,87 @@ function MeetingsAssignmentsContent({
     return parsed;
   };
 
+  const getCurrentWeekStart = () => {
+    const now = new Date();
+    const normalized = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0, 0);
+    const day = normalized.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    normalized.setDate(normalized.getDate() + diff);
+    return normalized;
+  };
+
+  const getPreferredMeetingOption = (meetings: any[]) => {
+    const options = meetings
+      .map((meeting, index) => ({
+        meeting,
+        index,
+        parsedDate: parseMeetingDate(meeting.date),
+      }))
+      .filter(
+        (option): option is { meeting: any; index: number; parsedDate: Date } =>
+          Boolean(option.parsedDate),
+      );
+
+    if (options.length === 0) {
+      return null;
+    }
+
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    const weekStart = getCurrentWeekStart();
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+
+    const weekOptions = options.filter(
+      option => option.parsedDate.getTime() >= weekStart.getTime() && option.parsedDate.getTime() <= weekEnd.getTime(),
+    );
+    if (weekOptions.length > 0) {
+      return weekOptions.find(option => option.parsedDate.getTime() >= today.getTime())
+        || weekOptions[weekOptions.length - 1];
+    }
+
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+    const currentMonthOptions = options.filter(
+      option =>
+        option.parsedDate.getMonth() === currentMonth
+        && option.parsedDate.getFullYear() === currentYear,
+    );
+    if (currentMonthOptions.length > 0) {
+      return currentMonthOptions.find(option => option.parsedDate.getTime() >= today.getTime())
+        || currentMonthOptions[currentMonthOptions.length - 1];
+    }
+
+    return options.find(option => option.parsedDate.getTime() >= today.getTime())
+      || options[options.length - 1];
+  };
+
+  const getPreferredMeetingOptionFromOptions = (
+    options: Array<{ meeting: any; index: number; parsedDate: Date | null }>,
+  ) => {
+    const validOptions = options
+      .filter(
+        (option): option is { meeting: any; index: number; parsedDate: Date } =>
+          Boolean(option.parsedDate),
+      )
+      .sort((a, b) => a.parsedDate.getTime() - b.parsedDate.getTime());
+
+    if (validOptions.length === 0) {
+      return null;
+    }
+
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+
+    return validOptions.find(option => option.parsedDate.getTime() >= today.getTime())
+      || validOptions[validOptions.length - 1];
+  };
+
+  const initializedSelectionRef = useRef({
+    midweek: false,
+    weekend: false,
+  });
+
   const midweekMeetingOptions = useMemo(() => {
     return midweekMeetings
       .map((meeting, index) => {
@@ -868,6 +949,42 @@ function MeetingsAssignmentsContent({
         return item.parsedDate.getMonth() === weekendMonth && item.parsedDate.getFullYear() === weekendYear;
       });
   }, [weekendMeetings, weekendMonth, weekendYear]);
+
+  useEffect(() => {
+    if (initializedSelectionRef.current.midweek || midweekMeetings.length === 0) {
+      return;
+    }
+
+    const preferredOption = getPreferredMeetingOption(midweekMeetings);
+    if (!preferredOption) {
+      return;
+    }
+
+    setMidweekMonth(preferredOption.parsedDate.getMonth());
+    setMidweekYear(preferredOption.parsedDate.getFullYear());
+    if (meetingType === 'midweek') {
+      setSelectedMeetingIdx(preferredOption.index);
+    }
+    initializedSelectionRef.current.midweek = true;
+  }, [midweekMeetings, meetingType, setSelectedMeetingIdx]);
+
+  useEffect(() => {
+    if (initializedSelectionRef.current.weekend || weekendMeetings.length === 0) {
+      return;
+    }
+
+    const preferredOption = getPreferredMeetingOption(weekendMeetings);
+    if (!preferredOption) {
+      return;
+    }
+
+    setWeekendMonth(preferredOption.parsedDate.getMonth());
+    setWeekendYear(preferredOption.parsedDate.getFullYear());
+    if (meetingType === 'weekend') {
+      setSelectedMeetingIdx(preferredOption.index);
+    }
+    initializedSelectionRef.current.weekend = true;
+  }, [weekendMeetings, meetingType, setSelectedMeetingIdx]);
 
   useEffect(() => {
     if (midweekMeetings.length === 0) {
@@ -924,7 +1041,10 @@ function MeetingsAssignmentsContent({
 
     const isSelectedVisible = midweekMeetingOptions.some(option => option.index === selectedMeetingIdx);
     if (!isSelectedVisible) {
-      setSelectedMeetingIdx(midweekMeetingOptions[0].index);
+      const preferredOption = getPreferredMeetingOptionFromOptions(midweekMeetingOptions);
+      if (preferredOption) {
+        setSelectedMeetingIdx(preferredOption.index);
+      }
     }
   }, [meetingType, midweekMeetingOptions, selectedMeetingIdx, setSelectedMeetingIdx]);
 
@@ -935,7 +1055,10 @@ function MeetingsAssignmentsContent({
 
     const isSelectedVisible = weekendMeetingOptions.some(option => option.index === selectedMeetingIdx);
     if (!isSelectedVisible) {
-      setSelectedMeetingIdx(weekendMeetingOptions[0].index);
+      const preferredOption = getPreferredMeetingOptionFromOptions(weekendMeetingOptions);
+      if (preferredOption) {
+        setSelectedMeetingIdx(preferredOption.index);
+      }
     }
   }, [meetingType, weekendMeetingOptions, selectedMeetingIdx, setSelectedMeetingIdx]);
 
@@ -955,9 +1078,31 @@ function MeetingsAssignmentsContent({
 
   const switchMeetingType = (nextType: 'midweek' | 'weekend') => {
     setMeetingType(nextType);
+
+    if (nextType === 'midweek') {
+      const preferredOption = getPreferredMeetingOption(midweekMeetings);
+      if (preferredOption) {
+        setMidweekMonth(preferredOption.parsedDate.getMonth());
+        setMidweekYear(preferredOption.parsedDate.getFullYear());
+        setSelectedMeetingIdx(preferredOption.index);
+        return;
+      }
+    } else {
+      const preferredOption = getPreferredMeetingOption(weekendMeetings);
+      if (preferredOption) {
+        setWeekendMonth(preferredOption.parsedDate.getMonth());
+        setWeekendYear(preferredOption.parsedDate.getFullYear());
+        setSelectedMeetingIdx(preferredOption.index);
+        return;
+      }
+    }
+
     const nextOptions = nextType === 'midweek' ? midweekMeetingOptions : weekendMeetingOptions;
     if (nextOptions.length > 0) {
-      setSelectedMeetingIdx(nextOptions[0].index);
+      const preferredOption = getPreferredMeetingOptionFromOptions(nextOptions);
+      if (preferredOption) {
+        setSelectedMeetingIdx(preferredOption.index);
+      }
     }
   };
 
@@ -967,13 +1112,22 @@ function MeetingsAssignmentsContent({
       setMidweekMonth(nextPeriod.month);
       setMidweekYear(nextPeriod.year);
 
-      const firstMeetingIndex = midweekMeetings.findIndex((meeting: any) => {
-        const parsed = parseMeetingDate(meeting.date);
-        return parsed && parsed.getMonth() === nextPeriod.month && parsed.getFullYear() === nextPeriod.year;
-      });
+      const nextOptions = midweekMeetings
+        .map((meeting: any, index: number) => ({
+          meeting,
+          index,
+          parsedDate: parseMeetingDate(meeting.date),
+        }))
+        .filter(option => {
+          if (!option.parsedDate) {
+            return false;
+          }
+          return option.parsedDate.getMonth() === nextPeriod.month && option.parsedDate.getFullYear() === nextPeriod.year;
+        });
+      const preferredOption = getPreferredMeetingOptionFromOptions(nextOptions);
 
-      if (meetingType === 'midweek' && firstMeetingIndex >= 0) {
-        setSelectedMeetingIdx(firstMeetingIndex);
+      if (meetingType === 'midweek' && preferredOption) {
+        setSelectedMeetingIdx(preferredOption.index);
       }
 
       return;
@@ -983,20 +1137,30 @@ function MeetingsAssignmentsContent({
     setWeekendMonth(nextPeriod.month);
     setWeekendYear(nextPeriod.year);
 
-    const firstMeetingIndex = weekendMeetings.findIndex((meeting: any) => {
-      const parsed = parseMeetingDate(meeting.date);
-      return parsed && parsed.getMonth() === nextPeriod.month && parsed.getFullYear() === nextPeriod.year;
-    });
+    const nextOptions = weekendMeetings
+      .map((meeting: any, index: number) => ({
+        meeting,
+        index,
+        parsedDate: parseMeetingDate(meeting.date),
+      }))
+      .filter(option => {
+        if (!option.parsedDate) {
+          return false;
+        }
+        return option.parsedDate.getMonth() === nextPeriod.month && option.parsedDate.getFullYear() === nextPeriod.year;
+      });
+    const preferredOption = getPreferredMeetingOptionFromOptions(nextOptions);
 
-    if (meetingType === 'weekend' && firstMeetingIndex >= 0) {
-      setSelectedMeetingIdx(firstMeetingIndex);
+    if (meetingType === 'weekend' && preferredOption) {
+      setSelectedMeetingIdx(preferredOption.index);
     }
   };
 
   if (meetingType === 'midweek') {
+    const fallbackMidweekOption = getPreferredMeetingOptionFromOptions(midweekMeetingOptions);
     const selectedMidweekOption =
       midweekMeetingOptions.find(option => option.index === selectedMeetingIdx)
-      || midweekMeetingOptions[0]
+      || fallbackMidweekOption
       || null;
     const meeting = selectedMidweekOption?.meeting || null;
 
@@ -1245,7 +1409,7 @@ function MeetingsAssignmentsContent({
   // Weekend view
   const selectedWeekendOption =
     weekendMeetingOptions.find(option => option.index === selectedMeetingIdx)
-    || weekendMeetingOptions[0]
+    || getPreferredMeetingOptionFromOptions(weekendMeetingOptions)
     || null;
   const meeting = selectedWeekendOption?.meeting || null;
 

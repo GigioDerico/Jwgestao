@@ -1,13 +1,28 @@
-import { useState, useEffect } from 'react';
-import { Plus, Calendar, Clock, MapPin, ChevronRight, User, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Plus, Clock, ChevronRight, User, RefreshCw, ChevronLeft } from 'lucide-react';
 import { Link } from 'react-router';
 import { api } from '../lib/api';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+
+const MONTHS = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+
+const parseMeetingDate = (date: string) => {
+  const parsed = new Date(`${date}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
+};
 
 export default function Meetings() {
   const [meetings, setMeetings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const today = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(today.getMonth());
+  const [selectedYear, setSelectedYear] = useState(today.getFullYear());
 
   const fetchMeetings = async () => {
     try {
@@ -44,6 +59,35 @@ export default function Meetings() {
     fetchMeetings();
   }, []);
 
+  const filteredMeetings = useMemo(() => {
+    return meetings.filter(meeting => {
+      const parsedDate = parseMeetingDate(meeting.date);
+      if (!parsedDate) {
+        return false;
+      }
+      return parsedDate.getMonth() === selectedMonth && parsedDate.getFullYear() === selectedYear;
+    });
+  }, [meetings, selectedMonth, selectedYear]);
+
+  const moveMonth = (direction: -1 | 1) => {
+    if (direction === -1) {
+      if (selectedMonth === 0) {
+        setSelectedMonth(11);
+        setSelectedYear(current => current - 1);
+        return;
+      }
+      setSelectedMonth(current => current - 1);
+      return;
+    }
+
+    if (selectedMonth === 11) {
+      setSelectedMonth(0);
+      setSelectedYear(current => current + 1);
+      return;
+    }
+    setSelectedMonth(current => current + 1);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -70,6 +114,28 @@ export default function Meetings() {
         </div>
       </div>
 
+      <div className="bg-white rounded-xl border border-gray-100 p-3">
+        <div className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-1 py-1">
+          <button
+            onClick={() => moveMonth(-1)}
+            className="rounded-md p-1.5 text-gray-600 transition-colors hover:bg-white"
+            aria-label="Mês anterior"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <span className="px-2 text-gray-800 font-medium" style={{ fontSize: '0.9rem' }}>
+            {MONTHS[selectedMonth]} {selectedYear}
+          </span>
+          <button
+            onClick={() => moveMonth(1)}
+            className="rounded-md p-1.5 text-gray-600 transition-colors hover:bg-white"
+            aria-label="Próximo mês"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {loading ? (
           <div className="col-span-full py-12 text-center text-gray-500 border border-dashed border-gray-200 rounded-xl">
@@ -79,8 +145,12 @@ export default function Meetings() {
           <div className="col-span-full py-12 text-center text-gray-500 border border-dashed border-gray-200 rounded-xl">
             Nenhuma reunião agendada na base de dados.
           </div>
+        ) : filteredMeetings.length === 0 ? (
+          <div className="col-span-full py-12 text-center text-gray-500 border border-dashed border-gray-200 rounded-xl">
+            Não há reuniões em {MONTHS[selectedMonth]} de {selectedYear}.
+          </div>
         ) : (
-          meetings.map((meeting) => (
+          filteredMeetings.map((meeting) => (
             <div key={meeting.id} className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden flex flex-col">
               <div className={`h-2 ${meeting._type === 'Midweek' ? 'bg-amber-500' : 'bg-blue-500'}`} />
 
