@@ -284,7 +284,11 @@ function formatDatabaseWriteError(context: string, error: any) {
     return `${context}: o banco remoto ainda não tem permissão de escrita para esta tabela. Aplique a migration mais recente do Supabase.`;
   }
 
-  return `${context}: ${error.message}`;
+  // Previne vazamento de mapeamento do banco (A10) na interface do usuário
+  const isDev = import.meta.env.DEV;
+  return isDev 
+    ? `${context}: ${error?.message || 'Erro desconhecido'}` 
+    : `${context}: ocorreu um erro no servidor. Tente novamente mais tarde.`;
 }
 
 function formatShortDate(date: string | null | undefined) {

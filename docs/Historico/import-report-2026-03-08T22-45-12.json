@@ -1,0 +1,36 @@
+{
+  "generatedAt": "2026-03-08T22:45:12.465Z",
+  "mode": "execution",
+  "window": {
+    "start": "2025-04-01",
+    "end": "2026-03-08"
+  },
+  "summary": {
+    "midweek": {
+      "inserted": 0,
+      "updated": 45,
+      "skipped": 2,
+      "invalid": 0
+    },
+    "weekend": {
+      "inserted": 0,
+      "updated": 39,
+      "skipped": 4,
+      "invalid": 0
+    },
+    "audio_video": {
+      "inserted": 0,
+      "updated": 80,
+      "skipped": 4,
+      "invalid": 0
+    }
+  },
+  "notFoundMembers": [
+    "Edison Mano",
+    "Edson J. de Oliveira",
+    "JOÃO",
+    "Maria",
+    "Sebna"
+  ],
+  "parseErrors": []
+}

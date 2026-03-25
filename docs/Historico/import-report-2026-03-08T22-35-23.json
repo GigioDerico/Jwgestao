@@ -1,0 +1,54 @@
+{
+  "generatedAt": "2026-03-08T22:35:23.479Z",
+  "mode": "execution",
+  "window": {
+    "start": "2025-04-01",
+    "end": "2026-03-08"
+  },
+  "summary": {
+    "midweek": {
+      "inserted": 0,
+      "updated": 45,
+      "skipped": 15,
+      "invalid": 0
+    },
+    "weekend": {
+      "inserted": 0,
+      "updated": 39,
+      "skipped": 4,
+      "invalid": 0
+    },
+    "audio_video": {
+      "inserted": 0,
+      "updated": 67,
+      "skipped": 17,
+      "invalid": 0
+    }
+  },
+  "notFoundMembers": [
+    "Ademir",
+    "Andersom Paim",
+    "CARLOS",
+    "Daiani",
+    "Dionas",
+    "Edison Mano",
+    "Edson J. de Oliveira",
+    "Edvan",
+    "Edvan Poscai/Ronaldo Xavier",
+    "Elizabeth Silva",
+    "JOÃO",
+    "JOÃO V.",
+    "Josenildo Novais",
+    "Jossival",
+    "Luciana",
+    "Maria",
+    "Maria Antônia",
+    "MATEUS",
+    "Miguel Santos",
+    "Paloma Brandão",
+    "Sebna",
+    "Sergio Batista",
+    "Silmara"
+  ],
+  "parseErrors": []
+}
