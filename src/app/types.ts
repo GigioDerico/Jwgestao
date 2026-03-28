@@ -45,6 +45,17 @@ export interface Member {
   approvedRovingMic?: boolean;
   approvedIndicadores?: boolean;
   approvedCarrinho?: boolean;
+  // Reunião de Meio de Semana
+  approvedOracao?: boolean;
+  approvedLeituraBiblica?: boolean;
+  approvedDiscursoSala?: boolean;
+  approvedDemonstracao?: boolean;
+  approvedEstudoBiblico?: boolean;
+  approvedLeitorEstudoBiblico?: boolean;
+  // Reunião de Fim de Semana
+  approvedLeitorAtalaia?: boolean;
+  approvedDiscursoPublico?: boolean;
+  approvedPresidenteReuniao?: boolean;
   system_role?: 'coordenador' | 'secretario' | 'designador' | 'publicador';
 }
 

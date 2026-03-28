@@ -58,6 +58,17 @@ export interface CreateMemberInput {
   approved_carrinho?: boolean;
   approved_pioneiro_auxiliar?: boolean;
   approved_pioneiro_regular?: boolean;
+  // Reunião de Meio de Semana
+  approved_oracao?: boolean;
+  approved_leitura_biblica?: boolean;
+  approved_discurso_sala?: boolean;
+  approved_demonstracao?: boolean;
+  approved_estudo_biblico?: boolean;
+  approved_leitor_estudo_biblico?: boolean;
+  // Reunião de Fim de Semana
+  approved_leitor_atalaia?: boolean;
+  approved_discurso_publico?: boolean;
+  approved_presidente_reuniao?: boolean;
   system_role?: Database['public']['Enums']['system_role_enum'];
 }
 
@@ -1004,6 +1015,15 @@ export const api = {
         approved_carrinho: input.approved_carrinho,
         approved_pioneiro_auxiliar: input.approved_pioneiro_auxiliar,
         approved_pioneiro_regular: input.approved_pioneiro_regular,
+        approved_oracao: input.approved_oracao,
+        approved_leitura_biblica: input.approved_leitura_biblica,
+        approved_discurso_sala: input.approved_discurso_sala,
+        approved_demonstracao: input.approved_demonstracao,
+        approved_estudo_biblico: input.approved_estudo_biblico,
+        approved_leitor_estudo_biblico: input.approved_leitor_estudo_biblico,
+        approved_leitor_atalaia: input.approved_leitor_atalaia,
+        approved_discurso_publico: input.approved_discurso_publico,
+        approved_presidente_reuniao: input.approved_presidente_reuniao,
       } as any)
       .eq('id', memberId);
 
@@ -1062,6 +1082,15 @@ export const api = {
         approved_carrinho: input.approved_carrinho || false,
         approved_pioneiro_auxiliar: input.approved_pioneiro_auxiliar || false,
         approved_pioneiro_regular: input.approved_pioneiro_regular || false,
+        approved_oracao: input.approved_oracao || false,
+        approved_leitura_biblica: input.approved_leitura_biblica || false,
+        approved_discurso_sala: input.approved_discurso_sala || false,
+        approved_demonstracao: input.approved_demonstracao || false,
+        approved_estudo_biblico: input.approved_estudo_biblico || false,
+        approved_leitor_estudo_biblico: input.approved_leitor_estudo_biblico || false,
+        approved_leitor_atalaia: input.approved_leitor_atalaia || false,
+        approved_discurso_publico: input.approved_discurso_publico || false,
+        approved_presidente_reuniao: input.approved_presidente_reuniao || false,
       } as any)
       .select('id')
       .single();
