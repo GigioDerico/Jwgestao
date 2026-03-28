@@ -18,6 +18,82 @@ type MemberHistoryStats = {
   byDesignation: Record<string, { label: string; count: number }>;
 };
 
+// Campos de privilégio exigidos por designação (pelo menos um deve ser true)
+const DESIGNATION_PRIVILEGE_FIELDS: Record<string, string[]> = {
+  // Reunião de Meio de Semana
+  president: ['approved_presidente_reuniao'],
+  opening_prayer: ['approved_oracao'],
+  closing_prayer: ['approved_oracao'],
+  treasure_talk: ['approved_discurso_sala'],
+  treasure_gems: ['approved_discurso_sala'],
+  treasure_reading: ['approved_leitura_biblica'],
+  cbs_conductor: ['approved_estudo_biblico'],
+  cbs_reader: ['approved_leitor_estudo_biblico'],
+  ministry_assistant: ['approved_demonstracao'],
+  christian_life_speaker: ['approved_discurso_sala'],
+  // Reunião de Fim de Semana
+  watchtower_conductor: ['approved_presidente_reuniao'],
+  watchtower_reader: ['approved_leitor_atalaia'],
+  // Áudio e Vídeo (chaves de getDesignationIdentity)
+  audio_video_sound: ['approved_sound', 'approved_audio_video'],
+  audio_video_image: ['approved_image', 'approved_audio_video'],
+  audio_video_stage: ['approved_stage', 'approved_audio_video'],
+  audio_video_volantes: ['approved_roving_mic', 'approved_audio_video'],
+  audio_video_indicadores: ['approved_indicadores'],
+};
+
+// Papéis congregacionais exigidos por designação (pelo menos um deve estar em member.roles)
+const DESIGNATION_ROLE_REQUIREMENTS: Record<string, string[]> = {
+  president: ['anciao'],
+  treasure_talk: ['anciao', 'servo_ministerial'],
+  treasure_gems: ['servo_ministerial'],
+  christian_life_speaker: ['anciao', 'servo_ministerial'],
+  cbs_conductor: ['anciao'],
+};
+
+// Chaves de ministry_student que representam um discurso (somente homens)
+function isMinistrySpeakerTalk(designationKey: string): boolean {
+  return designationKey.startsWith('ministry_student_') && normalizeText(designationKey).includes('discurso');
+}
+
+// Retorna os campos de privilégio para uma chave de designação (incluindo chaves dinâmicas de ministry_student)
+function getPrivilegeFieldsForKey(designationKey: string): string[] {
+  if (designationKey.startsWith('ministry_student_')) {
+    return isMinistrySpeakerTalk(designationKey)
+      ? ['approved_discurso_sala']
+      : ['approved_demonstracao'];
+  }
+  return DESIGNATION_PRIVILEGE_FIELDS[designationKey] ?? [];
+}
+
+function memberHasPrivilegeForDesignation(member: any, designationKey: string): boolean {
+  // Verifica status: nunca sugerir inativos ou desassociados
+  const status = member.spiritual_status;
+  if (status === 'inativo' || status === 'desassociado') return false;
+
+  // Verifica campos de privilégio
+  const fields = getPrivilegeFieldsForKey(designationKey);
+  if (fields.length > 0 && !fields.some(f => Boolean(member[f]))) return false;
+
+  // Verifica papel congregacional (ancião/servo ministerial)
+  const requiredRoles = DESIGNATION_ROLE_REQUIREMENTS[designationKey];
+  if (requiredRoles?.length) {
+    const memberRoles: string[] = member.roles ?? [];
+    if (!requiredRoles.some(r => memberRoles.includes(r))) return false;
+  }
+
+  // Discurso de ministério: somente homens
+  if (isMinistrySpeakerTalk(designationKey) && member.gender === 'F') return false;
+
+  return true;
+}
+
+type PerDesignationSuggestion = {
+  key: string;
+  label: string;
+  items: Array<{ id: string; name: string; last90: number; lastDate: string | null; neverAssigned: boolean }>;
+};
+
 type AssignmentHistoryProps = {
   allowedSources?: HistorySource[];
   defaultMonths?: number;
@@ -30,6 +106,7 @@ type AssignmentHistoryProps = {
   defaultSource?: HistorySource;
   enableDesignationFilter?: boolean;
   designationFilterLabel?: string;
+  members?: any[];
 };
 
 const SOURCE_OPTIONS: Array<{ value: HistorySource; label: string }> = [
@@ -84,6 +161,17 @@ function getDesignationIdentity(entry: DesignationHistoryEntry) {
     }
   }
 
+  // Partes de ministério: cada título vira uma designação própria para sugestões precisas
+  if (entry.source === 'midweek' && entry.roleKey === 'ministry_student') {
+    const normalized = normalizeText(entry.roleLabel).replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '').slice(0, 40);
+    return { key: `ministry_student_${normalized}`, label: entry.roleLabel };
+  }
+
+  // Ajudante: agrupa todos sob uma única chave
+  if (entry.source === 'midweek' && entry.roleKey === 'ministry_assistant') {
+    return { key: 'ministry_assistant', label: 'Ajudante (Ministério)' };
+  }
+
   return { key: entry.roleKey, label: entry.roleLabel };
 }
 
@@ -99,6 +187,7 @@ export function AssignmentHistory({
   defaultSource,
   enableDesignationFilter = false,
   designationFilterLabel = 'Designação',
+  members,
 }: AssignmentHistoryProps) {
   const resolvedAllowAllSources = allowAllSources ?? (sourceFilterMode !== 'tabs');
   const [months, setMonths] = useState(defaultMonths);
@@ -317,34 +406,134 @@ export function AssignmentHistory({
     };
   }, [activeEntries.length, memberStats]);
 
+  const eligibleMembers = useMemo(() => {
+    if (!members) return [];
+    return members.filter(
+      m => m.spiritual_status !== 'inativo' && m.spiritual_status !== 'desassociado'
+    );
+  }, [members]);
+
   const suggestions = useMemo(() => {
+    const sortByPriority = (
+      a: { last90: number; lastDate: string | null; memberName: string },
+      b: { last90: number; lastDate: string | null; memberName: string },
+    ) => {
+      if (a.last90 !== b.last90) return a.last90 - b.last90;
+      if (!a.lastDate && b.lastDate) return -1;
+      if (a.lastDate && !b.lastDate) return 1;
+      if ((a.lastDate || '') !== (b.lastDate || '')) return (a.lastDate || '').localeCompare(b.lastDate || '');
+      return a.memberName.localeCompare(b.memberName, 'pt-BR');
+    };
+
+    const usePrivilegeFilter = eligibleMembers.length > 0 && enableDesignationFilter;
+
+    if (usePrivilegeFilter && designationFilter !== 'all') {
+      // Sugestões filtradas por privilégio para a designação selecionada
+      const privilegedIds = new Set(
+        eligibleMembers
+          .filter(m => memberHasPrivilegeForDesignation(m, designationFilter))
+          .map(m => m.id as string)
+      );
+
+      const privilegedStats = memberStats.filter(s => s.memberId && privilegedIds.has(s.memberId));
+      const statsIds = new Set(privilegedStats.map(s => s.memberId!));
+
+      const noHistoryItems: MemberHistoryStats[] = eligibleMembers
+        .filter(m => memberHasPrivilegeForDesignation(m, designationFilter) && !statsIds.has(m.id))
+        .map(m => ({
+          memberId: m.id,
+          memberName: m.full_name,
+          total: 0,
+          last30: 0,
+          last60: 0,
+          last90: 0,
+          lastDate: null,
+          byDesignation: {},
+        }));
+
+      const allEligible = [...noHistoryItems, ...privilegedStats].sort(sortByPriority);
+
+      return {
+        byPriority: allEligible.slice(0, 6),
+        overloaded: privilegedStats
+          .filter(s => s.last60 > 0)
+          .sort((a, b) => b.last60 - a.last60 || b.total - a.total)
+          .slice(0, 6),
+        perDesignation: null as PerDesignationSuggestion[] | null,
+        hasPrivilegeFilter: privilegedIds.size > 0,
+      };
+    }
+
+    if (usePrivilegeFilter && designationFilter === 'all') {
+      // Sugestões por tipo de designação
+      const now = new Date();
+      const cutoff90 = new Date(now);
+      cutoff90.setDate(cutoff90.getDate() - 90);
+
+      const perDesignation: PerDesignationSuggestion[] = designationOptions
+        .filter(opt => DESIGNATION_PRIVILEGE_FIELDS[opt.value] !== undefined)
+        .map(opt => {
+          // Estatísticas por membro apenas para esta designação
+          const desStats = new Map<string, { last90: number; lastDate: string | null }>();
+          for (const entry of sourceFilteredEntries) {
+            if (!entry.memberId) continue;
+            if (getDesignationIdentity(entry).key !== opt.value) continue;
+            const s = desStats.get(entry.memberId) || { last90: 0, lastDate: null };
+            const d = new Date(`${entry.date}T12:00:00`);
+            if (!Number.isNaN(d.getTime()) && d >= cutoff90) s.last90 += 1;
+            if (!s.lastDate || entry.date > s.lastDate) s.lastDate = entry.date;
+            desStats.set(entry.memberId, s);
+          }
+
+          const items = eligibleMembers
+            .filter(m => memberHasPrivilegeForDesignation(m, opt.value))
+            .map(m => {
+              const s = desStats.get(m.id);
+              return {
+                id: m.id as string,
+                name: m.full_name as string,
+                last90: s?.last90 ?? 0,
+                lastDate: s?.lastDate ?? null,
+                neverAssigned: !s,
+              };
+            })
+            .sort((a, b) => {
+              if (a.last90 !== b.last90) return a.last90 - b.last90;
+              if (a.neverAssigned && !b.neverAssigned) return -1;
+              if (!a.neverAssigned && b.neverAssigned) return 1;
+              if ((a.lastDate || '') !== (b.lastDate || '')) return (a.lastDate || '').localeCompare(b.lastDate || '');
+              return a.name.localeCompare(b.name, 'pt-BR');
+            })
+            .slice(0, 4);
+
+          return { key: opt.value, label: opt.label, items };
+        })
+        .filter(des => des.items.length > 0);
+
+      return {
+        byPriority: [],
+        overloaded: [],
+        perDesignation,
+        hasPrivilegeFilter: true,
+      };
+    }
+
+    // Comportamento padrão sem filtro por privilégio
     const byPriority = memberStats
       .filter(item => item.memberId !== null)
-      .sort((a, b) => {
-        if (a.last90 !== b.last90) {
-          return a.last90 - b.last90;
-        }
-        const aLast = a.lastDate || '';
-        const bLast = b.lastDate || '';
-        if (aLast !== bLast) {
-          return aLast.localeCompare(bLast);
-        }
-        return a.memberName.localeCompare(b.memberName, 'pt-BR');
-      })
+      .sort(sortByPriority)
       .slice(0, 6);
 
     const overloaded = memberStats
       .filter(item => item.memberId !== null && item.last60 > 0)
       .sort((a, b) => {
-        if (b.last60 !== a.last60) {
-          return b.last60 - a.last60;
-        }
+        if (b.last60 !== a.last60) return b.last60 - a.last60;
         return b.total - a.total;
       })
       .slice(0, 6);
 
-    return { byPriority, overloaded };
-  }, [memberStats]);
+    return { byPriority, overloaded, perDesignation: null as PerDesignationSuggestion[] | null, hasPrivilegeFilter: false };
+  }, [memberStats, eligibleMembers, designationFilter, designationOptions, enableDesignationFilter, sourceFilteredEntries]);
 
   const recentEntries = useMemo(() => filteredEntries.slice(0, 250), [filteredEntries]);
 
@@ -431,47 +620,85 @@ export function AssignmentHistory({
           </div>
         </div>
 
-        <div className="grid gap-2 md:grid-cols-2">
+        {suggestions.perDesignation ? (
+          // Sugestões agrupadas por tipo de designação (com filtro de privilégio)
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3">
             <p className="text-emerald-900 font-semibold" style={{ fontSize: '0.82rem' }}>
-              Sugestões para próximas designações
+              Sugestões por Designação
             </p>
-            <div className="mt-2 space-y-1.5">
-              {suggestions.byPriority.length === 0 ? (
-                <p className="text-emerald-900/80" style={{ fontSize: '0.78rem' }}>Sem dados suficientes.</p>
-              ) : (
-                suggestions.byPriority.map(item => (
-                  <div key={`priority-${item.memberId || item.memberName}`} className="flex items-center justify-between gap-2">
-                    <span className="text-emerald-900" style={{ fontSize: '0.78rem' }}>{item.memberName}</span>
-                    <span className="text-emerald-900/80" style={{ fontSize: '0.76rem' }}>
-                      90d: {item.last90} • Última: {formatDate(item.lastDate)}
+            {suggestions.perDesignation.length === 0 ? (
+              <p className="mt-2 text-emerald-900/80" style={{ fontSize: '0.78rem' }}>Sem membros com privilégios cadastrados.</p>
+            ) : (
+              <div className="mt-2 divide-y divide-emerald-200">
+                {suggestions.perDesignation.map(des => (
+                  <div key={des.key} className="flex flex-col gap-0.5 py-2 md:flex-row md:gap-3">
+                    <span className="shrink-0 font-medium text-emerald-900 md:min-w-[170px]" style={{ fontSize: '0.78rem' }}>
+                      {des.label}
+                    </span>
+                    <span className="text-emerald-800/90" style={{ fontSize: '0.76rem' }}>
+                      {des.items.map(item =>
+                        item.neverAssigned
+                          ? `${item.name} (sem histórico)`
+                          : `${item.name} · 90d: ${item.last90} · Última: ${formatDate(item.lastDate)}`
+                      ).join('  •  ')}
                     </span>
                   </div>
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
+        ) : (
+          // Sugestões padrão (gerais ou filtradas por designação específica)
+          <div className="grid gap-2 md:grid-cols-2">
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3">
+              <p className="text-emerald-900 font-semibold" style={{ fontSize: '0.82rem' }}>
+                Sugestões para próximas designações
+                {suggestions.hasPrivilegeFilter && (
+                  <span className="ml-1.5 font-normal text-emerald-700" style={{ fontSize: '0.74rem' }}>· com privilégio</span>
+                )}
+              </p>
+              <div className="mt-2 space-y-1.5">
+                {suggestions.byPriority.length === 0 ? (
+                  <p className="text-emerald-900/80" style={{ fontSize: '0.78rem' }}>Sem membros com privilégio para esta designação.</p>
+                ) : (
+                  suggestions.byPriority.map(item => (
+                    <div key={`priority-${item.memberId || item.memberName}`} className="flex items-center justify-between gap-2">
+                      <span className="text-emerald-900" style={{ fontSize: '0.78rem' }}>{item.memberName}</span>
+                      <span className="text-emerald-900/80" style={{ fontSize: '0.76rem' }}>
+                        {item.last90 === 0 && !item.lastDate
+                          ? 'Sem histórico'
+                          : `90d: ${item.last90} • Última: ${formatDate(item.lastDate)}`}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
 
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3">
-            <p className="text-amber-900 font-semibold" style={{ fontSize: '0.82rem' }}>
-              Atenção de carga recente
-            </p>
-            <div className="mt-2 space-y-1.5">
-              {suggestions.overloaded.length === 0 ? (
-                <p className="text-amber-900/80" style={{ fontSize: '0.78rem' }}>Sem dados suficientes.</p>
-              ) : (
-                suggestions.overloaded.map(item => (
-                  <div key={`overloaded-${item.memberId || item.memberName}`} className="flex items-center justify-between gap-2">
-                    <span className="text-amber-900" style={{ fontSize: '0.78rem' }}>{item.memberName}</span>
-                    <span className="text-amber-900/80" style={{ fontSize: '0.76rem' }}>
-                      60d: {item.last60} • Total: {item.total}
-                    </span>
-                  </div>
-                ))
-              )}
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3">
+              <p className="text-amber-900 font-semibold" style={{ fontSize: '0.82rem' }}>
+                Atenção de carga recente
+                {suggestions.hasPrivilegeFilter && (
+                  <span className="ml-1.5 font-normal text-amber-700" style={{ fontSize: '0.74rem' }}>· com privilégio</span>
+                )}
+              </p>
+              <div className="mt-2 space-y-1.5">
+                {suggestions.overloaded.length === 0 ? (
+                  <p className="text-amber-900/80" style={{ fontSize: '0.78rem' }}>Sem dados suficientes.</p>
+                ) : (
+                  suggestions.overloaded.map(item => (
+                    <div key={`overloaded-${item.memberId || item.memberName}`} className="flex items-center justify-between gap-2">
+                      <span className="text-amber-900" style={{ fontSize: '0.78rem' }}>{item.memberName}</span>
+                      <span className="text-amber-900/80" style={{ fontSize: '0.76rem' }}>
+                        60d: {item.last60} • Total: {item.total}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="rounded-xl border border-border bg-card">

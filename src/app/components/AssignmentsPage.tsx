@@ -722,6 +722,7 @@ export function AssignmentsPage() {
           defaultSource="midweek"
           enableDesignationFilter
           designationFilterLabel="Designação"
+          members={allMembers}
         />
       )}
     </div>

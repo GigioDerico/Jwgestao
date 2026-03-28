@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
+import { api } from '../lib/api';
 import { AudioVideoAssignments } from './AudioVideoAssignments';
 import { AssignmentHistory } from './AssignmentHistory';
 import { CartAssignments } from './CartAssignments';
@@ -70,6 +71,7 @@ export function AudioVideoAssignmentsPage() {
   const { user } = useAuth();
   const { can } = usePermissions();
   const [view, setView] = useState<AssignmentInnerView>('scale');
+  const [members, setMembers] = useState<any[]>([]);
   const canManageAssignments = user?.role === 'coordenador' || user?.role === 'designador';
   const canAccess = can('view_assignments') && (
     canManageAssignments ||
@@ -81,6 +83,11 @@ export function AudioVideoAssignmentsPage() {
     Boolean(user?.approved_indicadores)
   );
   const canDownloadAssignments = can('download_assignments');
+
+  useEffect(() => {
+    if (view !== 'history') return;
+    api.getMembers().then(setMembers).catch(() => {});
+  }, [view]);
 
   if (!canAccess) {
     return <Navigate to="/dashboard" replace />;
@@ -106,6 +113,7 @@ export function AudioVideoAssignmentsPage() {
           description="Últimas designações de som, imagem, palco, volantes e indicadores."
           enableDesignationFilter
           designationFilterLabel="Designação"
+          members={members}
         />
       )}
     </AssignmentTypePage>

@@ -331,6 +331,15 @@ export type Database = {
           approved_roving_mic: boolean | null
           approved_sound: boolean | null
           approved_stage: boolean | null
+          approved_oracao: boolean | null
+          approved_leitura_biblica: boolean | null
+          approved_discurso_sala: boolean | null
+          approved_demonstracao: boolean | null
+          approved_estudo_biblico: boolean | null
+          approved_leitor_estudo_biblico: boolean | null
+          approved_leitor_atalaia: boolean | null
+          approved_discurso_publico: boolean | null
+          approved_presidente_reuniao: boolean | null
           avatar_url: string | null
           created_at: string | null
           email: string | null
@@ -361,6 +370,15 @@ export type Database = {
           approved_roving_mic?: boolean | null
           approved_sound?: boolean | null
           approved_stage?: boolean | null
+          approved_oracao?: boolean | null
+          approved_leitura_biblica?: boolean | null
+          approved_discurso_sala?: boolean | null
+          approved_demonstracao?: boolean | null
+          approved_estudo_biblico?: boolean | null
+          approved_leitor_estudo_biblico?: boolean | null
+          approved_leitor_atalaia?: boolean | null
+          approved_discurso_publico?: boolean | null
+          approved_presidente_reuniao?: boolean | null
           avatar_url?: string | null
           created_at?: string | null
           email?: string | null
@@ -391,6 +409,15 @@ export type Database = {
           approved_roving_mic?: boolean | null
           approved_sound?: boolean | null
           approved_stage?: boolean | null
+          approved_oracao?: boolean | null
+          approved_leitura_biblica?: boolean | null
+          approved_discurso_sala?: boolean | null
+          approved_demonstracao?: boolean | null
+          approved_estudo_biblico?: boolean | null
+          approved_leitor_estudo_biblico?: boolean | null
+          approved_leitor_atalaia?: boolean | null
+          approved_discurso_publico?: boolean | null
+          approved_presidente_reuniao?: boolean | null
           avatar_url?: string | null
           created_at?: string | null
           email?: string | null
