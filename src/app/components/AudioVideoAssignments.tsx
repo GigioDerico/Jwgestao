@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye, EyeOff, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../lib/api';
 import { supabase } from '../lib/supabase';
@@ -106,6 +106,7 @@ export function AudioVideoAssignments({
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState<'image' | 'pdf' | null>(null);
   const [nameFilter, setNameFilter] = useState('');
+  const [hiddenDates, setHiddenDates] = useState<Set<string>>(new Set());
   const exportRef = useRef<HTMLDivElement>(null);
 
   const meetingDates = getMeetingDatesForMonth(currentMonth, currentYear);
@@ -148,6 +149,8 @@ export function AudioVideoAssignments({
       return fields.some(value => normalizeFilterText(value || '').includes(normalizedNameFilter));
     })
     : calendarRows;
+  const visibleCalendarRows = filteredCalendarRows.filter(row => !hiddenDates.has(row.date));
+  const exportCalendarRows = calendarRows.filter(row => !hiddenDates.has(row.date));
   const isMonthGenerated = calendarRows.length > 0 && calendarRows.every(row => Boolean(row.assignment));
 
   const currentEditAssignment = editModal ? data.find(item => item.id === editModal.id) || null : null;
@@ -285,6 +288,7 @@ export function AudioVideoAssignments({
 
   useEffect(() => {
     fetchAssignments();
+    setHiddenDates(new Set());
   }, [currentMonth, currentYear]);
 
   const prevMonth = () => {
@@ -323,6 +327,27 @@ export function AudioVideoAssignments({
 
     return value;
   }
+
+  const isRowEmpty = (row: CalendarRow): boolean => {
+    if (!row.assignment) return true;
+    const { sound, image, stage, rovingMic1, rovingMic2, attendants } = row.assignment;
+    return (
+      (!sound || sound === 'A definir') &&
+      (!image || image === 'A definir') &&
+      (!stage || stage === 'A definir') &&
+      (!rovingMic1 || rovingMic1 === 'A definir') &&
+      (!rovingMic2 || rovingMic2 === 'A definir') &&
+      attendants.length === 0
+    );
+  };
+
+  const handleHideRow = (date: string) => {
+    setHiddenDates(prev => new Set([...prev, date]));
+  };
+
+  const handleShowAllRows = () => {
+    setHiddenDates(new Set());
+  };
 
   const findMemberIdByName = (fullName: string) => {
     if (!fullName || fullName === 'A definir') {
@@ -765,10 +790,21 @@ export function AudioVideoAssignments({
       )}
 
       <div className="hidden md:block bg-white rounded-xl border border-gray-100 overflow-hidden shadow-sm">
-        <div className="bg-[#4a9bc7] px-4 py-3">
-          <h4 className="text-center tracking-wide text-white" style={{ fontSize: '14px' }}>
+        <div className="bg-[#4a9bc7] px-4 py-3 flex items-center">
+          <h4 className="flex-1 text-center tracking-wide text-white" style={{ fontSize: '14px' }}>
             Áudio e Vídeo / Indicadores
           </h4>
+          {hiddenDates.size > 0 && (
+            <button
+              type="button"
+              onClick={handleShowAllRows}
+              className="flex items-center gap-1.5 rounded-lg bg-white/20 px-3 py-1 text-white hover:bg-white/30 transition-colors"
+              style={{ fontSize: '13px' }}
+            >
+              <Eye size={14} />
+              {hiddenDates.size} oculta{hiddenDates.size > 1 ? 's' : ''}
+            </button>
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full" style={{ fontSize: '14px' }}>
@@ -784,16 +820,30 @@ export function AudioVideoAssignments({
               </tr>
             </thead>
             <tbody>
-              {filteredCalendarRows.length > 0 ? (
-                filteredCalendarRows.map((row, index) => (
+              {visibleCalendarRows.length > 0 ? (
+                visibleCalendarRows.map((row, index) => (
                   <tr
                     key={row.date}
                     className={`${index % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'} border-b border-gray-200 transition-colors hover:bg-blue-50/70`}
                   >
                     <td className="px-3 py-2.5 text-gray-700">
-                      <div className="font-medium">{formatDate(row.date)}</div>
-                      <div className="text-gray-400" style={{ fontSize: '14px' }}>
-                        {row.weekday} {row.assignment ? '' : '• não gerada'}
+                      <div className="flex items-start gap-1">
+                        <div className="flex-1">
+                          <div className="font-medium">{formatDate(row.date)}</div>
+                          <div className="text-gray-400" style={{ fontSize: '14px' }}>
+                            {row.weekday} {row.assignment ? '' : '• não gerada'}
+                          </div>
+                        </div>
+                        {canEdit && isRowEmpty(row) && (
+                          <button
+                            type="button"
+                            onClick={() => handleHideRow(row.date)}
+                            title="Ocultar linha"
+                            className="mt-0.5 shrink-0 rounded p-0.5 text-gray-300 hover:text-gray-500 transition-colors"
+                          >
+                            <EyeOff size={14} />
+                          </button>
+                        )}
                       </div>
                     </td>
                     <td className="px-2 py-2.5">{renderSingleRoleButton(row, 'sound')}</td>
@@ -809,7 +859,9 @@ export function AudioVideoAssignments({
                   <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                     {nameFilter.trim()
                       ? 'Nenhuma designação encontrada para este nome.'
-                      : 'Nenhuma linha disponível para este mês.'}
+                      : hiddenDates.size > 0
+                        ? 'Todas as linhas estão ocultas.'
+                        : 'Nenhuma linha disponível para este mês.'}
                   </td>
                 </tr>
               )}
@@ -819,16 +871,39 @@ export function AudioVideoAssignments({
       </div>
 
       <div className="space-y-3 md:hidden">
-        {filteredCalendarRows.length > 0 ? (
-          filteredCalendarRows.map(row => (
+        {hiddenDates.size > 0 && (
+          <button
+            type="button"
+            onClick={handleShowAllRows}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-gray-600 shadow-sm hover:bg-gray-50 transition-colors"
+            style={{ fontSize: '14px' }}
+          >
+            <Eye size={15} />
+            Reexibir {hiddenDates.size} linha{hiddenDates.size > 1 ? 's' : ''} oculta{hiddenDates.size > 1 ? 's' : ''}
+          </button>
+        )}
+        {visibleCalendarRows.length > 0 ? (
+          visibleCalendarRows.map(row => (
             <div key={row.date} className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
               <div className="bg-[#4a9bc7] px-4 py-2 flex items-center justify-between">
                 <span className="text-white" style={{ fontSize: '14px' }}>
                   {formatDate(row.date)} • {row.weekday}
                 </span>
-                <span className="text-white/90" style={{ fontSize: '14px' }}>
-                  {row.assignment ? 'gerada' : 'não gerada'}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-white/90" style={{ fontSize: '14px' }}>
+                    {row.assignment ? 'gerada' : 'não gerada'}
+                  </span>
+                  {canEdit && isRowEmpty(row) && (
+                    <button
+                      type="button"
+                      onClick={() => handleHideRow(row.date)}
+                      title="Ocultar linha"
+                      className="rounded p-0.5 text-white/70 hover:text-white transition-colors"
+                    >
+                      <EyeOff size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="space-y-3 p-3">
                 <section className="space-y-2">
@@ -858,7 +933,9 @@ export function AudioVideoAssignments({
           <div className="rounded-xl border border-gray-100 bg-white px-4 py-8 text-center text-gray-500 shadow-sm">
             {nameFilter.trim()
               ? 'Nenhuma designação encontrada para este nome.'
-              : 'Nenhuma linha disponível para este mês.'}
+              : hiddenDates.size > 0
+                ? 'Todas as linhas estão ocultas.'
+                : 'Nenhuma linha disponível para este mês.'}
           </div>
         )}
       </div>
@@ -980,8 +1057,8 @@ export function AudioVideoAssignments({
                 </tr>
               </thead>
               <tbody>
-                {calendarRows.length > 0 ? (
-                  calendarRows.map((row, index) => (
+                {exportCalendarRows.length > 0 ? (
+                  exportCalendarRows.map((row, index) => (
                     <tr
                       key={`export-${row.date}`}
                       className={`${index % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'} border-b border-gray-200`}
