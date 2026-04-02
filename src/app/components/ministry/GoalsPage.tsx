@@ -9,6 +9,7 @@ import {
 import {
   GOAL_PLANNER_ACTIVITY_OPTIONS,
   GOAL_PLANNER_WEEKDAYS,
+  formatDecimalHours,
   formatPlannedDuration,
   getGoalPlannerActivityLabel,
   getGoalPlannerWeekdayLabel,
@@ -59,9 +60,7 @@ type PlannerEditorState =
   }
   | null;
 
-function formatHours(value: number): string {
-  return `${value.toFixed(1)}h`;
-}
+const formatHours = formatDecimalHours;
 
 function capitalizeText(value: string): string {
   if (!value) return value;
@@ -160,6 +159,7 @@ export function GoalsPage() {
   const [plannerSubmitting, setPlannerSubmitting] = useState(false);
   const [applyingTemplate, setApplyingTemplate] = useState(false);
   const [recordsThisMonth, setRecordsThisMonth] = useState<Array<{ hours: number; return_visits: number; bible_studies: number }>>([]);
+  const [activeStudiesCount, setActiveStudiesCount] = useState(0);
   const [serviceOverseer, setServiceOverseer] = useState<{ name: string; phone: string } | null>(null);
   const [sendingReport, setSendingReport] = useState(false);
   const [templateItems, setTemplateItems] = useState<LocalGoalPlannerTemplateItem[]>([]);
@@ -192,11 +192,12 @@ export function GoalsPage() {
 
     try {
       setLoading(true);
-      const [goalData, records, plannerTemplateData, plannerMonthData] = await Promise.all([
+      const [goalData, records, plannerTemplateData, plannerMonthData, activeStudies] = await Promise.all([
         ministryApi.getMonthlyGoal(userId, currentYear, currentMonth),
         ministryApi.getFieldRecords(userId, currentMonth, currentYear),
         ministryApi.getGoalPlannerTemplate(userId),
         ministryApi.getGoalPlannerMonthItems(userId, currentYear, currentMonth),
+        ministryApi.getReturnVisits(userId, 'estudo_iniciado'),
       ]);
 
       setGoal(goalData ? Number(goalData.hours_goal) : 10);
@@ -207,6 +208,7 @@ export function GoalsPage() {
           bible_studies: Number(record.bible_studies || 0),
         })),
       );
+      setActiveStudiesCount(activeStudies.length);
       setTemplateItems(plannerTemplateData);
       setMonthItems(plannerMonthData);
     } catch {
@@ -512,11 +514,9 @@ export function GoalsPage() {
       return;
     }
 
-    const hoursLabel = Number.isInteger(hoursThisMonth)
-      ? `${hoursThisMonth}`
-      : hoursThisMonth.toFixed(1).replace('.', ',');
+    const hoursLabel = formatDecimalHours(hoursThisMonth);
 
-    const message = `Bom dia ${serviceOverseer.name}, tudo bem ?\n\nSegue abaixo meu relatório de serviço ministerial do mês de ${capitalizeText(monthName)}:\n\n${hoursLabel} Horas\n${bibleStudiesThisMonth} Estudos\n${returnVisitsThisMonth} Revisitas`;
+    const message = `Bom dia ${serviceOverseer.name}, tudo bem ?\n\nSegue abaixo meu relatório de serviço ministerial do mês de ${capitalizeText(monthName)}:\n\n${hoursLabel} Horas\n${returnVisitsThisMonth} Revisitas\n${bibleStudiesThisMonth} Estudos no mês\n${activeStudiesCount} Estudos em andamento`;
 
     try {
       setSendingReport(true);

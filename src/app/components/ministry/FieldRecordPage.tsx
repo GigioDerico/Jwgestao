@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useMinistry } from '../../context/MinistryContext';
 import { ministryApi, type LocalFieldRecord, type CreateFieldRecordInput } from '../../lib/ministry-api';
+import { formatDecimalHours } from '../../lib/goal-planner';
 import { toast } from 'sonner';
 import { Plus, Trash2, Edit2, Play, Square, Clock, BookOpen, FileText } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -270,7 +271,7 @@ export function FieldRecordPage() {
                   <div>
                     <p className="font-medium text-foreground">{formatDate(r.date)}</p>
                     <p className="text-sm text-muted-foreground">
-                      {r.hours}h • {r.publications} pub. • {r.videos} vídeos • {r.return_visits} revisitas • {r.bible_studies} estudos
+                      {formatDecimalHours(Number(r.hours))} • {r.publications} pub. • {r.videos} vídeos • {r.return_visits} revisitas • {r.bible_studies} estudos
                     </p>
                   </div>
                   <div className="flex gap-2">

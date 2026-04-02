@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Search, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Search, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, type FieldServiceGroupOption } from '../lib/api';
 import { downloadElementAsImage, downloadElementAsPdf } from '../lib/dom-export';
@@ -325,6 +325,22 @@ export function FieldServiceAssignments({
       toast.success('Grupo adicionado ao domingo.');
     } catch (err: any) {
       toast.error(err.message || 'Erro ao adicionar grupo no domingo.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteRow = async (id: string, category: string) => {
+    if (!canCreate) return;
+    if (!window.confirm('Excluir esta linha?')) return;
+
+    try {
+      setSaving(true);
+      await api.deleteFieldServiceAssignment(id);
+      setData(prev => prev.filter(item => item.id !== id));
+      toast.success(`Linha de ${category} excluída.`);
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao excluir linha.');
     } finally {
       setSaving(false);
     }
@@ -704,30 +720,32 @@ export function FieldServiceAssignments({
                         <thead>
                           {isSunday ? (
                             <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
-                              <th className="px-4 py-1.5 text-left" style={{ width: '33.33%' }}>
+                              <th className="px-4 py-1.5 text-left" style={{ width: '30%' }}>
                                 Grupo
                               </th>
-                              <th className="px-3 py-1.5 text-center" style={{ width: '33.33%' }}>
+                              <th className="px-3 py-1.5 text-center" style={{ width: '30%' }}>
                                 Horário
                               </th>
-                              <th className="px-3 py-1.5 text-center" style={{ width: '33.33%' }}>
+                              <th className="px-3 py-1.5 text-center" style={{ width: '30%' }}>
                                 Local
                               </th>
+                              {canCreate && <th style={{ width: '10%' }} />}
                             </tr>
                           ) : (
                             <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
-                              <th className="px-4 py-1.5 text-left" style={{ width: '25%' }}>
+                              <th className="px-4 py-1.5 text-left" style={{ width: isRural ? '22%' : '25%' }}>
                                 Dia
                               </th>
-                              <th className="px-3 py-1.5 text-center" style={{ width: '25%' }}>
+                              <th className="px-3 py-1.5 text-center" style={{ width: isRural ? '22%' : '25%' }}>
                                 Horário
                               </th>
-                              <th className="px-3 py-1.5 text-left" style={{ width: '25%' }}>
+                              <th className="px-3 py-1.5 text-left" style={{ width: isRural ? '22%' : '25%' }}>
                                 Responsável
                               </th>
-                              <th className="px-3 py-1.5 text-left" style={{ width: '25%' }}>
+                              <th className="px-3 py-1.5 text-left" style={{ width: isRural ? '22%' : '25%' }}>
                                 Local
                               </th>
+                              {isRural && canCreate && <th style={{ width: '12%' }} />}
                             </tr>
                           )}
                         </thead>
@@ -753,6 +771,21 @@ export function FieldServiceAssignments({
                                   <td className="px-3 py-1.5 text-center">
                                     {renderTextButton(row, 'location', 'Local', row.displayLocation, 'Sem local', 'center')}
                                   </td>
+                                  {canCreate && (
+                                    <td className="px-2 py-1.5 text-center">
+                                      {row.assignment && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteRow(row.assignment!.id, 'domingo')}
+                                          disabled={saving}
+                                          className="inline-flex items-center justify-center rounded p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                                          title="Excluir linha"
+                                        >
+                                          <Trash2 size={13} />
+                                        </button>
+                                      )}
+                                    </td>
+                                  )}
                                 </>
                               ) : (
                                 <>
@@ -773,6 +806,21 @@ export function FieldServiceAssignments({
                                   <td className="px-3 py-1.5">
                                     {renderTextButton(row, 'location', 'Local', row.displayLocation, 'Sem local')}
                                   </td>
+                                  {isRural && canCreate && (
+                                    <td className="px-2 py-1.5 text-center">
+                                      {row.assignment && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteRow(row.assignment!.id, 'sábado rural')}
+                                          disabled={saving}
+                                          className="inline-flex items-center justify-center rounded p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                                          title="Excluir linha"
+                                        >
+                                          <Trash2 size={13} />
+                                        </button>
+                                      )}
+                                    </td>
+                                  )}
                                 </>
                               )}
                             </tr>
@@ -788,11 +836,24 @@ export function FieldServiceAssignments({
                             <span className="text-gray-800" style={{ fontSize: MIN_FONT_SIZE }}>
                               {isSunday ? row.groupName : row.dayLabel}
                             </span>
-                            {!row.assignment && (
-                              <span className="text-gray-400" style={{ fontSize: MIN_FONT_SIZE }}>
-                                não gerada
-                              </span>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {!row.assignment && (
+                                <span className="text-gray-400" style={{ fontSize: MIN_FONT_SIZE }}>
+                                  não gerada
+                                </span>
+                              )}
+                              {canCreate && (isSunday || isRural) && row.assignment && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteRow(row.assignment!.id, isSunday ? 'domingo' : 'sábado rural')}
+                                  disabled={saving}
+                                  className="inline-flex items-center justify-center rounded p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                                  title="Excluir linha"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              )}
+                            </div>
                           </div>
                           <div className="space-y-1.5">
                             <div className="flex items-center gap-2">
