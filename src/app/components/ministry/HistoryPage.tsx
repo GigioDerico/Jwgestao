@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ministryApi, type LocalFieldRecord } from '../../lib/ministry-api';
+import { formatDecimalHours } from '../../lib/goal-planner';
 import { downloadElementAsImage, downloadElementAsPdf } from '../../lib/dom-export';
 import { ExportActions } from '../ExportActions';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -114,6 +115,13 @@ export function HistoryPage() {
     return Array.from(ys).sort((a, b) => b - a);
   }, [records]);
 
+  const hoursYAxisFormatter = (value: number) => formatDecimalHours(value);
+
+  const hoursTooltipFormatter = (value: number, name: string) => {
+    if (name === 'Horas') return [formatDecimalHours(value), name];
+    return [value, name];
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -162,8 +170,8 @@ export function HistoryPage() {
                     <BarChart data={monthlyData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="month" />
-                      <YAxis />
-                      <Tooltip />
+                      <YAxis tickFormatter={hoursYAxisFormatter} />
+                      <Tooltip formatter={hoursTooltipFormatter} />
                       <Legend />
                       <Bar dataKey="horas" name="Horas" fill="var(--primary)" />
                       <Bar dataKey="revisitas" name="Revisitas" fill="#22c55e" />
@@ -184,8 +192,8 @@ export function HistoryPage() {
                     <BarChart data={annualData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="ano" />
-                      <YAxis />
-                      <Tooltip />
+                      <YAxis tickFormatter={hoursYAxisFormatter} />
+                      <Tooltip formatter={hoursTooltipFormatter} />
                       <Legend />
                       <Bar dataKey="horas" name="Horas" fill="var(--primary)" />
                       <Bar dataKey="revisitas" name="Revisitas" fill="#22c55e" />

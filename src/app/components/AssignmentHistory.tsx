@@ -42,6 +42,9 @@ const DESIGNATION_PRIVILEGE_FIELDS: Record<string, string[]> = {
   audio_video_indicadores: ['approved_indicadores'],
 };
 
+// Designações que não devem aparecer nas sugestões por tipo (ex: dirigente da sentinela)
+const DESIGNATION_NO_SUGGESTION_KEYS = new Set(['watchtower_conductor']);
+
 // Papéis congregacionais exigidos por designação (pelo menos um deve estar em member.roles)
 const DESIGNATION_ROLE_REQUIREMENTS: Record<string, string[]> = {
   president: ['anciao'],
@@ -107,6 +110,7 @@ type AssignmentHistoryProps = {
   enableDesignationFilter?: boolean;
   designationFilterLabel?: string;
   members?: any[];
+  externalRefreshToken?: number;
 };
 
 const SOURCE_OPTIONS: Array<{ value: HistorySource; label: string }> = [
@@ -188,6 +192,7 @@ export function AssignmentHistory({
   enableDesignationFilter = false,
   designationFilterLabel = 'Designação',
   members,
+  externalRefreshToken,
 }: AssignmentHistoryProps) {
   const resolvedAllowAllSources = allowAllSources ?? (sourceFilterMode !== 'tabs');
   const [months, setMonths] = useState(defaultMonths);
@@ -258,7 +263,7 @@ export function AssignmentHistory({
     };
 
     fetchHistory();
-  }, [months, refreshToken]);
+  }, [months, refreshToken, externalRefreshToken]);
 
   const scopedEntries = useMemo(
     () => entries.filter(entry => allowedSourceSet.has(entry.source)),
@@ -471,7 +476,7 @@ export function AssignmentHistory({
       cutoff90.setDate(cutoff90.getDate() - 90);
 
       const perDesignation: PerDesignationSuggestion[] = designationOptions
-        .filter(opt => DESIGNATION_PRIVILEGE_FIELDS[opt.value] !== undefined)
+        .filter(opt => DESIGNATION_PRIVILEGE_FIELDS[opt.value] !== undefined && !DESIGNATION_NO_SUGGESTION_KEYS.has(opt.value))
         .map(opt => {
           // Estatísticas por membro apenas para esta designação
           const desStats = new Map<string, { last90: number; lastDate: string | null }>();

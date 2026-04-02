@@ -89,6 +89,15 @@ export function MembersList() {
     approved_carrinho: false,
     approved_pioneiro_auxiliar: false,
     approved_pioneiro_regular: false,
+    approved_oracao: false,
+    approved_leitura_biblica: false,
+    approved_discurso_sala: false,
+    approved_demonstracao: false,
+    approved_estudo_biblico: false,
+    approved_leitor_estudo_biblico: false,
+    approved_leitor_atalaia: false,
+    approved_discurso_publico: false,
+    approved_presidente_reuniao: false,
     system_role: 'publicador',
   });
 
@@ -125,6 +134,15 @@ export function MembersList() {
         approvedRovingMic: m.approved_roving_mic || false,
         approvedIndicadores: m.approved_indicadores || false,
         approvedCarrinho: m.approved_carrinho || false,
+        approvedOracao: m.approved_oracao || false,
+        approvedLeituraBiblica: m.approved_leitura_biblica || false,
+        approvedDiscursoSala: m.approved_discurso_sala || false,
+        approvedDemonstracao: m.approved_demonstracao || false,
+        approvedEstudoBiblico: m.approved_estudo_biblico || false,
+        approvedLeitorEstudoBiblico: m.approved_leitor_estudo_biblico || false,
+        approvedLeitorAtalaia: m.approved_leitor_atalaia || false,
+        approvedDiscursoPublico: m.approved_discurso_publico || false,
+        approvedPresidenteReuniao: m.approved_presidente_reuniao || false,
         // Keep snake_case copies too so updateMember/handleOpenEdit can read them
         approved_pioneiro_auxiliar: m.approved_pioneiro_auxiliar || false,
         approved_pioneiro_regular: m.approved_pioneiro_regular || false,
@@ -228,6 +246,15 @@ export function MembersList() {
       approved_carrinho: false,
       approved_pioneiro_auxiliar: false,
       approved_pioneiro_regular: false,
+      approved_oracao: false,
+      approved_leitura_biblica: false,
+      approved_discurso_sala: false,
+      approved_demonstracao: false,
+      approved_estudo_biblico: false,
+      approved_leitor_estudo_biblico: false,
+      approved_leitor_atalaia: false,
+      approved_discurso_publico: false,
+      approved_presidente_reuniao: false,
       system_role: 'publicador',
     });
   };
@@ -306,6 +333,15 @@ export function MembersList() {
       approved_carrinho: member.approvedCarrinho || false,
       approved_pioneiro_auxiliar: (member as any).approved_pioneiro_auxiliar || false,
       approved_pioneiro_regular: (member as any).approved_pioneiro_regular || false,
+      approved_oracao: (member as any).approvedOracao || false,
+      approved_leitura_biblica: (member as any).approvedLeituraBiblica || false,
+      approved_discurso_sala: (member as any).approvedDiscursoSala || false,
+      approved_demonstracao: (member as any).approvedDemonstracao || false,
+      approved_estudo_biblico: (member as any).approvedEstudoBiblico || false,
+      approved_leitor_estudo_biblico: (member as any).approvedLeitorEstudoBiblico || false,
+      approved_leitor_atalaia: (member as any).approvedLeitorAtalaia || false,
+      approved_discurso_publico: (member as any).approvedDiscursoPublico || false,
+      approved_presidente_reuniao: (member as any).approvedPresidenteReuniao || false,
     });
   };
 
@@ -1421,46 +1457,81 @@ export function MembersList() {
                   <span className="text-sky-800 font-medium" style={{ fontSize: '0.85rem' }}>Privilégios</span>
                 </div>
                 <p className="text-gray-500" style={{ fontSize: '0.75rem' }}>Marque os privilégios atribuídos a este membro.</p>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2.5 cursor-pointer group">
-                    <input type="checkbox" checked={newMemberForm.approved_pioneiro_auxiliar || false} onChange={e => setNewMemberForm(f => ({ ...f, approved_pioneiro_auxiliar: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
-                    <Shield size={14} className="text-emerald-500 shrink-0" />
-                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>Pioneiro Auxiliar</span>
-                  </label>
-                  <label className="flex items-center gap-2.5 cursor-pointer group">
-                    <input type="checkbox" checked={newMemberForm.approved_pioneiro_regular || false} onChange={e => setNewMemberForm(f => ({ ...f, approved_pioneiro_regular: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
-                    <Shield size={14} className="text-teal-500 shrink-0" />
-                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>Pioneiro Regular</span>
-                  </label>
+
+                {/* Pioneiro */}
+                <div className="space-y-1.5">
+                  <p className="text-gray-500 font-medium uppercase tracking-wide" style={{ fontSize: '0.7rem' }}>Pioneiro</p>
+                  {[
+                    { key: 'approved_pioneiro_auxiliar', label: 'Pioneiro Auxiliar', icon: <Shield size={13} className="text-emerald-500 shrink-0" /> },
+                    { key: 'approved_pioneiro_regular', label: 'Pioneiro Regular', icon: <Shield size={13} className="text-teal-500 shrink-0" /> },
+                  ].map(({ key, label, icon }) => (
+                    <label key={key} className="flex items-center gap-2.5 cursor-pointer group">
+                      <input type="checkbox" checked={(newMemberForm as any)[key] || false} onChange={e => setNewMemberForm(f => ({ ...f, [key]: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
+                      {icon}
+                      <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>{label}</span>
+                    </label>
+                  ))}
+                </div>
+
+                {/* Reunião de Meio de Semana */}
+                <div className="space-y-1.5">
+                  <p className="text-gray-500 font-medium uppercase tracking-wide" style={{ fontSize: '0.7rem' }}>Reunião de Meio de Semana</p>
+                  {[
+                    { key: 'approved_oracao', label: 'Oração' },
+                    { key: 'approved_leitura_biblica', label: 'Leitura da Bíblia' },
+                    { key: 'approved_discurso_sala', label: 'Discurso em Sala' },
+                    { key: 'approved_demonstracao', label: 'Demonstração' },
+                    { key: 'approved_estudo_biblico', label: 'Estudo Bíblico (condutor)' },
+                    { key: 'approved_leitor_estudo_biblico', label: 'Leitor do Estudo Bíblico' },
+                  ].map(({ key, label }) => (
+                    <label key={key} className="flex items-center gap-2.5 cursor-pointer group">
+                      <input type="checkbox" checked={(newMemberForm as any)[key] || false} onChange={e => setNewMemberForm(f => ({ ...f, [key]: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
+                      <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>{label}</span>
+                    </label>
+                  ))}
+                </div>
+
+                {/* Reunião de Fim de Semana */}
+                <div className="space-y-1.5">
+                  <p className="text-gray-500 font-medium uppercase tracking-wide" style={{ fontSize: '0.7rem' }}>Reunião de Fim de Semana</p>
+                  {[
+                    { key: 'approved_presidente_reuniao', label: 'Presidente da Reunião' },
+                    { key: 'approved_discurso_publico', label: 'Discurso Público' },
+                    { key: 'approved_leitor_atalaia', label: 'Leitor da Sentinela' },
+                    { key: 'approved_oracao', label: 'Oração' },
+                  ].map(({ key, label }) => (
+                    <label key={key} className="flex items-center gap-2.5 cursor-pointer group">
+                      <input type="checkbox" checked={(newMemberForm as any)[key] || false} onChange={e => setNewMemberForm(f => ({ ...f, [key]: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
+                      <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>{label}</span>
+                    </label>
+                  ))}
+                </div>
+
+                {/* Áudio e Vídeo */}
+                <div className="space-y-1.5">
+                  <p className="text-gray-500 font-medium uppercase tracking-wide" style={{ fontSize: '0.7rem' }}>Áudio e Vídeo</p>
+                  {[
+                    { key: 'approved_sound', label: 'Som', icon: <Monitor size={13} className="text-sky-500 shrink-0" /> },
+                    { key: 'approved_image', label: 'Imagem', icon: <Monitor size={13} className="text-cyan-500 shrink-0" /> },
+                    { key: 'approved_stage', label: 'Palco', icon: <Monitor size={13} className="text-emerald-500 shrink-0" /> },
+                    { key: 'approved_roving_mic', label: 'Volantes', icon: <Monitor size={13} className="text-orange-500 shrink-0" /> },
+                    { key: 'approved_indicadores', label: 'Indicadores', icon: <Users size={13} className="text-indigo-500 shrink-0" /> },
+                  ].map(({ key, label, icon }) => (
+                    <label key={key} className="flex items-center gap-2.5 cursor-pointer group">
+                      <input type="checkbox" checked={(newMemberForm as any)[key] || false} onChange={e => setNewMemberForm(f => ({ ...f, [key]: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
+                      {icon}
+                      <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>{label}</span>
+                    </label>
+                  ))}
+                </div>
+
+                {/* Carrinho */}
+                <div className="space-y-1.5">
+                  <p className="text-gray-500 font-medium uppercase tracking-wide" style={{ fontSize: '0.7rem' }}>Pregação</p>
                   <label className="flex items-center gap-2.5 cursor-pointer group">
                     <input type="checkbox" checked={newMemberForm.approved_carrinho || false} onChange={e => setNewMemberForm(f => ({ ...f, approved_carrinho: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
-                    <ShoppingCart size={14} className="text-amber-500 shrink-0" />
+                    <ShoppingCart size={13} className="text-amber-500 shrink-0" />
                     <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>Carrinho</span>
-                  </label>
-                  <label className="flex items-center gap-2.5 cursor-pointer group">
-                    <input type="checkbox" checked={newMemberForm.approved_sound || false} onChange={e => setNewMemberForm(f => ({ ...f, approved_sound: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
-                    <Monitor size={14} className="text-sky-500 shrink-0" />
-                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>Som</span>
-                  </label>
-                  <label className="flex items-center gap-2.5 cursor-pointer group">
-                    <input type="checkbox" checked={newMemberForm.approved_image || false} onChange={e => setNewMemberForm(f => ({ ...f, approved_image: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
-                    <Monitor size={14} className="text-cyan-500 shrink-0" />
-                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>Imagem</span>
-                  </label>
-                  <label className="flex items-center gap-2.5 cursor-pointer group">
-                    <input type="checkbox" checked={newMemberForm.approved_stage || false} onChange={e => setNewMemberForm(f => ({ ...f, approved_stage: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
-                    <Monitor size={14} className="text-emerald-500 shrink-0" />
-                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>Palco</span>
-                  </label>
-                  <label className="flex items-center gap-2.5 cursor-pointer group">
-                    <input type="checkbox" checked={newMemberForm.approved_roving_mic || false} onChange={e => setNewMemberForm(f => ({ ...f, approved_roving_mic: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
-                    <Monitor size={14} className="text-orange-500 shrink-0" />
-                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>Volantes</span>
-                  </label>
-                  <label className="flex items-center gap-2.5 cursor-pointer group">
-                    <input type="checkbox" checked={newMemberForm.approved_indicadores || false} onChange={e => setNewMemberForm(f => ({ ...f, approved_indicadores: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
-                    <Users size={14} className="text-indigo-500 shrink-0" />
-                    <span className="text-gray-700 group-hover:text-[#082c45] transition-colors" style={{ fontSize: '0.85rem' }}>Indicadores</span>
                   </label>
                 </div>
               </div>
@@ -1623,24 +1694,87 @@ export function MembersList() {
               </div>
 
               {/* Privilégios */}
-              <div className="bg-sky-50 border border-sky-100 rounded-xl p-3 space-y-2">
+              <div className="bg-sky-50 border border-sky-100 rounded-xl p-3 space-y-3">
                 <div className="flex items-center gap-2 mb-1"><UserCheck size={14} className="text-sky-600 shrink-0" /><span className="text-sky-800 font-medium" style={{ fontSize: '0.85rem' }}>Privilégios</span></div>
                 <p className="text-gray-500" style={{ fontSize: '0.75rem' }}>Marque os privilégios atribuídos a este membro.</p>
-                {[
-                  { key: 'approved_pioneiro_auxiliar', label: 'Pioneiro Auxiliar' },
-                  { key: 'approved_pioneiro_regular', label: 'Pioneiro Regular' },
-                  { key: 'approved_carrinho', label: 'Carrinho' },
-                  { key: 'approved_sound', label: 'Som' },
-                  { key: 'approved_image', label: 'Imagem' },
-                  { key: 'approved_stage', label: 'Palco' },
-                  { key: 'approved_roving_mic', label: 'Volantes' },
-                  { key: 'approved_indicadores', label: 'Indicadores' },
-                ].map(({ key, label }) => (
-                  <label key={key} className="flex items-center gap-2.5 cursor-pointer">
-                    <input type="checkbox" checked={(editForm as any)[key] || false} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
-                    <span className="text-gray-700" style={{ fontSize: '0.85rem' }}>{label}</span>
-                  </label>
-                ))}
+
+                {/* Pioneiro */}
+                <div className="space-y-1.5">
+                  <p className="text-gray-500 font-medium uppercase tracking-wide" style={{ fontSize: '0.7rem' }}>Pioneiro</p>
+                  {[
+                    { key: 'approved_pioneiro_auxiliar', label: 'Pioneiro Auxiliar' },
+                    { key: 'approved_pioneiro_regular', label: 'Pioneiro Regular' },
+                  ].map(({ key, label }) => (
+                    <label key={key} className="flex items-center gap-2.5 cursor-pointer">
+                      <input type="checkbox" checked={(editForm as any)[key] || false} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
+                      <span className="text-gray-700" style={{ fontSize: '0.85rem' }}>{label}</span>
+                    </label>
+                  ))}
+                </div>
+
+                {/* Reunião de Meio de Semana */}
+                <div className="space-y-1.5">
+                  <p className="text-gray-500 font-medium uppercase tracking-wide" style={{ fontSize: '0.7rem' }}>Reunião de Meio de Semana</p>
+                  {[
+                    { key: 'approved_oracao', label: 'Oração' },
+                    { key: 'approved_leitura_biblica', label: 'Leitura da Bíblia' },
+                    { key: 'approved_discurso_sala', label: 'Discurso em Sala' },
+                    { key: 'approved_demonstracao', label: 'Demonstração' },
+                    { key: 'approved_estudo_biblico', label: 'Estudo Bíblico (condutor)' },
+                    { key: 'approved_leitor_estudo_biblico', label: 'Leitor do Estudo Bíblico' },
+                  ].map(({ key, label }) => (
+                    <label key={key} className="flex items-center gap-2.5 cursor-pointer">
+                      <input type="checkbox" checked={(editForm as any)[key] || false} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
+                      <span className="text-gray-700" style={{ fontSize: '0.85rem' }}>{label}</span>
+                    </label>
+                  ))}
+                </div>
+
+                {/* Reunião de Fim de Semana */}
+                <div className="space-y-1.5">
+                  <p className="text-gray-500 font-medium uppercase tracking-wide" style={{ fontSize: '0.7rem' }}>Reunião de Fim de Semana</p>
+                  {[
+                    { key: 'approved_presidente_reuniao', label: 'Presidente da Reunião' },
+                    { key: 'approved_discurso_publico', label: 'Discurso Público' },
+                    { key: 'approved_leitor_atalaia', label: 'Leitor da Sentinela' },
+                    { key: 'approved_oracao', label: 'Oração' },
+                  ].map(({ key, label }) => (
+                    <label key={key} className="flex items-center gap-2.5 cursor-pointer">
+                      <input type="checkbox" checked={(editForm as any)[key] || false} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
+                      <span className="text-gray-700" style={{ fontSize: '0.85rem' }}>{label}</span>
+                    </label>
+                  ))}
+                </div>
+
+                {/* Áudio e Vídeo */}
+                <div className="space-y-1.5">
+                  <p className="text-gray-500 font-medium uppercase tracking-wide" style={{ fontSize: '0.7rem' }}>Áudio e Vídeo</p>
+                  {[
+                    { key: 'approved_sound', label: 'Som' },
+                    { key: 'approved_image', label: 'Imagem' },
+                    { key: 'approved_stage', label: 'Palco' },
+                    { key: 'approved_roving_mic', label: 'Volantes' },
+                    { key: 'approved_indicadores', label: 'Indicadores' },
+                  ].map(({ key, label }) => (
+                    <label key={key} className="flex items-center gap-2.5 cursor-pointer">
+                      <input type="checkbox" checked={(editForm as any)[key] || false} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
+                      <span className="text-gray-700" style={{ fontSize: '0.85rem' }}>{label}</span>
+                    </label>
+                  ))}
+                </div>
+
+                {/* Pregação */}
+                <div className="space-y-1.5">
+                  <p className="text-gray-500 font-medium uppercase tracking-wide" style={{ fontSize: '0.7rem' }}>Pregação</p>
+                  {[
+                    { key: 'approved_carrinho', label: 'Carrinho' },
+                  ].map(({ key, label }) => (
+                    <label key={key} className="flex items-center gap-2.5 cursor-pointer">
+                      <input type="checkbox" checked={(editForm as any)[key] || false} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.checked }))} className="accent-[#35bdf8] w-4 h-4 rounded" />
+                      <span className="text-gray-700" style={{ fontSize: '0.85rem' }}>{label}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
 
             </div>

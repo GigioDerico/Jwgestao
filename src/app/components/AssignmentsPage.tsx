@@ -187,6 +187,7 @@ export function AssignmentsPage() {
   const [allMembers, setAllMembers] = useState<any[]>([]);
   const [audioVideoAssignments, setAudioVideoAssignments] = useState<AudioVideoRestrictionAssignment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [historyRefreshToken, setHistoryRefreshToken] = useState(0);
 
   const fetchData = async () => {
     try {
@@ -409,7 +410,29 @@ export function AssignmentsPage() {
 
     setShowEditModal(false);
     setEditField(null);
-    await fetchData();
+
+    // Atualiza apenas a reunião afetada, sem ativar o loading global (que desmonta o componente e reseta a seleção)
+    try {
+      if (table === 'weekend_meetings') {
+        const updated = await api.getWeekendMeetingById(rowId);
+        setWeekendMeetings(prev => prev.map(m => m.id === updated.id ? updated : m));
+      } else {
+        let meetingId = rowId;
+        if (table === 'midweek_ministry_parts') {
+          const parent = midweekMeetings.find(m => m.ministry_parts?.some((p: any) => p.id === rowId));
+          if (parent) meetingId = parent.id;
+        } else if (table === 'midweek_christian_life_parts') {
+          const parent = midweekMeetings.find(m => m.christian_life_parts?.some((p: any) => p.id === rowId));
+          if (parent) meetingId = parent.id;
+        }
+        const updated = await api.getMidweekMeetingById(meetingId);
+        setMidweekMeetings(prev => prev.map(m => m.id === updated.id ? updated : m));
+      }
+    } catch {
+      await fetchData();
+    }
+
+    setHistoryRefreshToken(prev => prev + 1);
     toast.success('Designação salva no banco.');
   };
 
@@ -723,6 +746,7 @@ export function AssignmentsPage() {
           enableDesignationFilter
           designationFilterLabel="Designação"
           members={allMembers}
+          externalRefreshToken={historyRefreshToken}
         />
       )}
     </div>

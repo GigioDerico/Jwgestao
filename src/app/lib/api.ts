@@ -1538,6 +1538,15 @@ export const api = {
     return mapFieldServiceAssignment(data);
   },
 
+  async deleteFieldServiceAssignment(id: string) {
+    const { error } = await supabase
+      .from('field_service_assignments')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw new Error(formatDatabaseWriteError('Erro ao excluir saída de campo', error));
+  },
+
   async getCartAssignments(monthIndex: number, year: number) {
     const { data, error } = await supabase
       .from('cart_assignments')
@@ -1909,7 +1918,9 @@ export const api = {
     const now = new Date();
     const startDateObj = new Date(now.getFullYear(), now.getMonth() - (safeMonths - 1), 1);
     const startDate = formatIsoDate(startDateObj);
-    const endDate = formatIsoDate(now);
+    // Inclui datas futuras para que designações já cadastradas (ex: próxima semana) apareçam no histórico
+    const endDateObj = new Date(now.getFullYear(), now.getMonth() + 3, 0);
+    const endDate = formatIsoDate(endDateObj);
 
     const { data: members, error: membersError } = await supabase
       .from('members')
@@ -2416,6 +2427,46 @@ export const api = {
   },
 
   // Weekend Meetings
+  async getWeekendMeetingById(id: string) {
+    const { data, error } = await supabase
+      .from('weekend_meetings')
+      .select(`
+        *,
+        president: members!weekend_meetings_president_id_fkey(full_name, phone),
+          closing_prayer: members!weekend_meetings_closing_prayer_id_fkey(full_name),
+            watchtower_conductor: members!weekend_meetings_watchtower_conductor_id_fkey(full_name),
+              watchtower_reader: members!weekend_meetings_watchtower_reader_id_fkey(full_name, phone)
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async getMidweekMeetingById(id: string) {
+    const { data, error } = await supabase
+      .from('midweek_meetings')
+      .select(`
+        *,
+        president: members!midweek_meetings_president_id_fkey(full_name, phone),
+          opening_prayer: members!midweek_meetings_opening_prayer_id_fkey(full_name),
+            closing_prayer: members!midweek_meetings_closing_prayer_id_fkey(full_name),
+              treasure_talk_speaker: members!midweek_meetings_treasure_talk_speaker_id_fkey(full_name),
+                treasure_gems_speaker: members!midweek_meetings_treasure_gems_speaker_id_fkey(full_name),
+                  treasure_reading_student: members!midweek_meetings_treasure_reading_student_id_fkey(full_name, phone),
+                    cbs_conductor: members!midweek_meetings_cbs_conductor_id_fkey(full_name),
+                      cbs_reader: members!midweek_meetings_cbs_reader_id_fkey(full_name),
+                        ministry_parts: midweek_ministry_parts(*, student: members!midweek_ministry_parts_student_id_fkey(full_name, phone), assistant: members!midweek_ministry_parts_assistant_id_fkey(full_name)),
+                          christian_life_parts: midweek_christian_life_parts(*, speaker: members!midweek_christian_life_parts_speaker_id_fkey(full_name))
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
   async getWeekendMeetings() {
     /* const scheduleResult = await supabase.rpc('get_weekend_meetings_schedule');
     if (!scheduleResult.error && Array.isArray(scheduleResult.data)) {
