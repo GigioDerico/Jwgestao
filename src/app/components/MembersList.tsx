@@ -23,6 +23,8 @@ import {
   ShoppingCart,
   UserCheck,
   Edit2,
+  Share2,
+  Check,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
@@ -47,12 +49,24 @@ export function MembersList() {
   const [savingMember, setSavingMember] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [editForm, setEditForm] = useState<Partial<CreateMemberInput>>({});
+  const [copiedShareLink, setCopiedShareLink] = useState(false);
   const memberCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const memberButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const pendingEditFocusMemberIdRef = useRef<string | null>(null);
 
   const { user: authUser, isAdmin } = useAuth();
   const { can } = usePermissions();
+
+  const handleCopyShareLink = async () => {
+    const url = `${window.location.origin}/cadastro`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedShareLink(true);
+      setTimeout(() => setCopiedShareLink(false), 2500);
+    } catch {
+      toast.error('Não foi possível copiar o link. Copie manualmente: ' + url);
+    }
+  };
 
   const canCreate = can('create_members');
   const canEdit = can('edit_members');
@@ -853,17 +867,33 @@ export function MembersList() {
             {filtered.length} membros encontrados
           </p>
         </div>
-        {canCreate && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-bold rounded-xl hover:opacity-90 transition-colors shadow-sm"
+            onClick={handleCopyShareLink}
+            title="Copiar link de cadastro para compartilhar"
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl border font-medium transition-all shadow-sm text-sm ${
+              copiedShareLink
+                ? 'bg-green-50 border-green-200 text-green-700'
+                : 'bg-card border-border text-muted-foreground hover:border-primary hover:text-primary'
+            }`}
           >
-            <Plus size={16} />
-            <span className="hidden sm:inline" style={{ fontSize: '0.9rem' }}>
-              Novo Membro
+            {copiedShareLink ? <Check size={15} /> : <Share2 size={15} />}
+            <span className="hidden sm:inline">
+              {copiedShareLink ? 'Link copiado!' : 'Link de cadastro'}
             </span>
           </button>
-        )}
+          {canCreate && (
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-bold rounded-xl hover:opacity-90 transition-colors shadow-sm"
+            >
+              <Plus size={16} />
+              <span className="hidden sm:inline" style={{ fontSize: '0.9rem' }}>
+                Novo Membro
+              </span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Search & Filters */}

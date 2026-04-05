@@ -12,6 +12,7 @@ import {
 } from './components/AssignmentTypePages';
 import { SettingsPage } from './components/SettingsPage';
 import { SetupPasswordPage } from './components/SetupPassword';
+import { MemberRegistrationForm } from './components/MemberRegistrationForm';
 import { MinistryLayout } from './components/ministry/MinistryLayout';
 import { FieldRecordPage } from './components/ministry/FieldRecordPage';
 import { GoalsPage } from './components/ministry/GoalsPage';
@@ -35,6 +36,10 @@ export const router = createBrowserRouter([
   {
     path: '/auth/setup-password',
     Component: SetupPasswordPage,
+  },
+  {
+    path: '/cadastro',
+    Component: MemberRegistrationForm,
   },
   {
     path: '/',

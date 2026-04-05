@@ -1588,6 +1588,15 @@ export const api = {
     return mapCartAssignment(data);
   },
 
+  async deleteCartAssignment(id: string) {
+    const { error } = await supabase
+      .from('cart_assignments')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw new Error(formatDatabaseWriteError('Erro ao excluir designação de carrinho', error));
+  },
+
   async deleteCartAssignmentsForMonth(monthIndex: number, year: number) {
     const { error } = await supabase
       .from('cart_assignments')
