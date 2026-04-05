@@ -121,11 +121,18 @@ function normalizeMidweekMeeting(meeting: any): MidweekMeeting {
     },
     christian_life: {
       parts: christianLifeParts,
+      superintendent_visit: meeting.superintendent_visit ?? false,
       congregation_bible_study: {
         time: scheduleTimes.cbsTime,
         duration: cbsDuration,
         conductor: getName(meeting.cbs_conductor) || 'A definir',
         reader: getName(meeting.cbs_reader) || 'A definir',
+      },
+      superintendent_discourse: {
+        time: scheduleTimes.cbsTime,
+        duration: cbsDuration,
+        theme: meeting.superintendent_discourse_theme || 'Tema a definir',
+        speaker: meeting.superintendent_discourse_speaker || 'A definir',
       },
       closing_comments: {
         time: scheduleTimes.closingCommentsTime,
@@ -295,12 +302,21 @@ function MidweekPrintMeetingCard({ meeting }: { meeting: MidweekMeeting }) {
             mainAssignee={part.speaker}
           />
         ))}
-        <MidweekPrintProgramRow
-          time={meeting.christian_life.congregation_bible_study.time}
-          title={`${cbsNumber}. Estudo bíblico de congregação (${meeting.christian_life.congregation_bible_study.duration} min)`}
-          label="Dirigente/leitor:"
-          mainAssignee={`${meeting.christian_life.congregation_bible_study.conductor}/${meeting.christian_life.congregation_bible_study.reader}`}
-        />
+        {meeting.christian_life.superintendent_visit ? (
+          <MidweekPrintProgramRow
+            time={meeting.christian_life.superintendent_discourse.time}
+            title={`${cbsNumber}. ${meeting.christian_life.superintendent_discourse.theme} (${meeting.christian_life.superintendent_discourse.duration} min)`}
+            label="Orador:"
+            mainAssignee={meeting.christian_life.superintendent_discourse.speaker}
+          />
+        ) : (
+          <MidweekPrintProgramRow
+            time={meeting.christian_life.congregation_bible_study.time}
+            title={`${cbsNumber}. Estudo bíblico de congregação (${meeting.christian_life.congregation_bible_study.duration} min)`}
+            label="Dirigente/leitor:"
+            mainAssignee={`${meeting.christian_life.congregation_bible_study.conductor}/${meeting.christian_life.congregation_bible_study.reader}`}
+          />
+        )}
         <MidweekPrintOpeningRow
           time={meeting.christian_life.closing_comments.time}
           text={`Comentários finais (${meeting.christian_life.closing_comments.duration} min)`}
