@@ -101,6 +101,9 @@ export interface CreateMidweekMeetingInput {
   cbs_duration?: number | null;
   cbs_conductor_id?: string;
   cbs_reader_id?: string;
+  superintendent_visit?: boolean;
+  superintendent_discourse_theme?: string;
+  superintendent_discourse_speaker?: string;
   closing_comments_time?: string | null;
   closing_comments_duration?: number | null;
   ministry_parts?: {
@@ -1627,6 +1630,9 @@ export const api = {
         cbs_duration: input.cbs_duration ?? null,
         cbs_conductor_id: input.cbs_conductor_id || null,
         cbs_reader_id: input.cbs_reader_id || null,
+        superintendent_visit: input.superintendent_visit ?? false,
+        superintendent_discourse_theme: input.superintendent_discourse_theme || null,
+        superintendent_discourse_speaker: input.superintendent_discourse_speaker || null,
         closing_comments_time: input.closing_comments_time || null,
         closing_comments_duration: input.closing_comments_duration ?? null,
       })
@@ -1783,6 +1789,9 @@ export const api = {
         cbs_duration: input.cbs_duration ?? null,
         cbs_conductor_id: input.cbs_conductor_id || null,
         cbs_reader_id: input.cbs_reader_id || null,
+        superintendent_visit: input.superintendent_visit ?? false,
+        superintendent_discourse_theme: input.superintendent_discourse_theme || null,
+        superintendent_discourse_speaker: input.superintendent_discourse_speaker || null,
         closing_comments_time: input.closing_comments_time || null,
         closing_comments_duration: input.closing_comments_duration ?? null,
       })

@@ -37,25 +37,47 @@ export async function syncIfOnline(userId: string): Promise<SyncResult> {
     const pendingRecords = await ministryStore.getPendingFieldRecords(userId);
     for (const r of pendingRecords) {
       try {
-        const { data, error } = await supabase
-          .from('personal_field_records')
-          .insert({
-            user_id: userId,
-            date: r.date,
-            hours: Number(r.hours),
-            publications: r.publications,
-            videos: r.videos,
-            return_visits: r.return_visits,
-            bible_studies: r.bible_studies,
-            notes: r.notes || null,
-          })
-          .select('id')
-          .single();
+        if (r.supabase_id) {
+          // Registro já existe no Supabase — atualiza em vez de inserir
+          const { error } = await supabase
+            .from('personal_field_records')
+            .update({
+              date: r.date,
+              hours: Number(r.hours),
+              publications: r.publications,
+              videos: r.videos,
+              return_visits: r.return_visits,
+              bible_studies: r.bible_studies,
+              notes: r.notes || null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', r.supabase_id);
 
-        if (error) throw error;
-        if (data?.id) {
-          await ministryStore.setFieldRecordSynced(r.local_id, data.id);
+          if (error) throw error;
+          await ministryStore.setFieldRecordSynced(r.local_id, r.supabase_id);
           synced += 1;
+        } else {
+          // Novo registro — insere no Supabase
+          const { data, error } = await supabase
+            .from('personal_field_records')
+            .insert({
+              user_id: userId,
+              date: r.date,
+              hours: Number(r.hours),
+              publications: r.publications,
+              videos: r.videos,
+              return_visits: r.return_visits,
+              bible_studies: r.bible_studies,
+              notes: r.notes || null,
+            })
+            .select('id')
+            .single();
+
+          if (error) throw error;
+          if (data?.id) {
+            await ministryStore.setFieldRecordSynced(r.local_id, data.id);
+            synced += 1;
+          }
         }
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);

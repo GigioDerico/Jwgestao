@@ -25,6 +25,15 @@ function formatTimer(seconds: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+function calcHoursFromTimes(start: string, end: string): number | null {
+  if (!start || !end) return null;
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  const diff = (eh * 60 + em) - (sh * 60 + sm);
+  if (diff <= 0) return null;
+  return Math.round(diff) / 60;
+}
+
 export function FieldRecordPage() {
   const { user } = useAuth();
   const userId = user?.id ?? '';
@@ -34,6 +43,8 @@ export function FieldRecordPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editRecord, setEditRecord] = useState<LocalFieldRecord | null>(null);
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
   const [quickDialog, setQuickDialog] = useState<'revisita' | 'estudo' | 'nota' | null>(null);
   const [quickValue, setQuickValue] = useState('');
 
@@ -68,10 +79,22 @@ export function FieldRecordPage() {
     loadRecords();
   }, [userId]);
 
+  useEffect(() => {
+    const h = calcHoursFromTimes(startTime, endTime);
+    if (h !== null) setForm((f) => ({ ...f, hours: h }));
+  }, [startTime, endTime]);
+
   const handleStartTimer = async () => startTimer();
 
   const handleStopTimer = async () => {
     const hours = await stopTimer();
+    const now = new Date();
+    const totalMins = Math.round(hours * 60);
+    const endMins = now.getHours() * 60 + now.getMinutes();
+    const startMins = endMins - totalMins;
+    const pad = (n: number) => String(Math.max(0, n)).padStart(2, '0');
+    setStartTime(`${pad(Math.floor(startMins / 60))}:${pad(startMins % 60)}`);
+    setEndTime(`${pad(now.getHours())}:${pad(now.getMinutes())}`);
     setForm((f) => ({ ...f, hours }));
     setEditRecord(null);
     setDialogOpen(true);
@@ -79,6 +102,8 @@ export function FieldRecordPage() {
 
   const handleOpenNew = () => {
     setEditRecord(null);
+    setStartTime('');
+    setEndTime('');
     setForm({
       date: today,
       hours: 0,
@@ -93,6 +118,8 @@ export function FieldRecordPage() {
 
   const handleOpenEdit = (r: LocalFieldRecord) => {
     setEditRecord(r);
+    setStartTime('');
+    setEndTime('');
     setForm({
       date: r.date,
       hours: r.hours,
@@ -309,18 +336,40 @@ export function FieldRecordPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="hours" className="text-sm font-medium">Horas</Label>
-              <Input
-                id="hours"
-                type="number"
-                step="0.25"
-                min="0"
-                inputMode="decimal"
-                value={form.hours || ''}
-                onChange={(e) => setForm((f) => ({ ...f, hours: parseFloat(e.target.value) || 0 }))}
-                className="h-12 text-lg rounded-xl bg-muted/50 border-transparent focus:bg-background focus:border-primary transition-colors"
-                placeholder="Ex: 2.5"
-              />
+              <Label className="text-sm font-medium">Horário</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">Início</Label>
+                  <Input
+                    type="time"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    className="h-12 rounded-xl bg-muted/50 border-transparent focus:bg-background focus:border-primary transition-colors"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">Término</Label>
+                  <Input
+                    type="time"
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
+                    className="h-12 rounded-xl bg-muted/50 border-transparent focus:bg-background focus:border-primary transition-colors"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2 px-3 py-2 bg-muted/30 rounded-xl">
+                <Clock size={14} className="text-muted-foreground shrink-0" />
+                <span className="text-sm text-muted-foreground">Total:</span>
+                <span className="text-sm font-semibold text-foreground">
+                  {form.hours > 0 ? formatDecimalHours(Number(form.hours)) : '—'}
+                </span>
+                {startTime && endTime && calcHoursFromTimes(startTime, endTime) === null && (
+                  <span className="text-xs text-destructive ml-auto">Horário inválido</span>
+                )}
+                {!startTime && !endTime && editRecord && form.hours > 0 && (
+                  <span className="text-xs text-muted-foreground ml-auto">valor salvo</span>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

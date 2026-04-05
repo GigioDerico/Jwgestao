@@ -542,6 +542,9 @@ export type Database = {
           treasure_talk_time: string | null
           treasure_talk_speaker_id: string | null
           treasure_talk_title: string | null
+          superintendent_visit: boolean | null
+          superintendent_discourse_theme: string | null
+          superintendent_discourse_speaker: string | null
         }
         Insert: {
           bible_reading?: string | null
@@ -576,6 +579,9 @@ export type Database = {
           treasure_talk_time?: string | null
           treasure_talk_speaker_id?: string | null
           treasure_talk_title?: string | null
+          superintendent_visit?: boolean | null
+          superintendent_discourse_theme?: string | null
+          superintendent_discourse_speaker?: string | null
         }
         Update: {
           bible_reading?: string | null
@@ -610,6 +616,9 @@ export type Database = {
           treasure_talk_time?: string | null
           treasure_talk_speaker_id?: string | null
           treasure_talk_title?: string | null
+          superintendent_visit?: boolean | null
+          superintendent_discourse_theme?: string | null
+          superintendent_discourse_speaker?: string | null
         }
         Relationships: [
           {

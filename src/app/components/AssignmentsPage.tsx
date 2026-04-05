@@ -101,6 +101,9 @@ const createEmptyMidweekDraft = () => ({
   cbsDuration: '30',
   cbsConductorId: '',
   cbsReaderId: '',
+  superintendentVisit: false,
+  superintendentDiscourseTheme: '',
+  superintendentDiscourseSpeaker: '',
   closingCommentsTime: '21:05',
   closingCommentsDuration: '3',
   ministryParts: [createEmptyMinistryPartDraft()],
@@ -312,6 +315,9 @@ export function AssignmentsPage() {
       cbsDuration: meeting?.cbs_duration ? String(meeting.cbs_duration) : '30',
       cbsConductorId: meeting?.cbs_conductor_id || '',
       cbsReaderId: meeting?.cbs_reader_id || '',
+      superintendentVisit: meeting?.superintendent_visit ?? false,
+      superintendentDiscourseTheme: meeting?.superintendent_discourse_theme || '',
+      superintendentDiscourseSpeaker: meeting?.superintendent_discourse_speaker || '',
       closingCommentsTime: fallbackTimes.closingCommentsTime,
       closingCommentsDuration: meeting?.closing_comments_duration ? String(meeting.closing_comments_duration) : '3',
       ministryParts,
@@ -481,7 +487,7 @@ export function AssignmentsPage() {
         { label: 'Joias espirituais', value: midweekDraft.gemsTime.trim() },
         { label: 'Leitura da Bíblia', value: midweekDraft.readingTime.trim() },
         { label: 'Cântico do meio', value: midweekDraft.middleSongTime.trim() },
-        { label: 'Estudo bíblico de congregação', value: midweekDraft.cbsTime.trim() },
+        { label: midweekDraft.superintendentVisit ? 'Discurso do superintendente' : 'Estudo bíblico de congregação', value: midweekDraft.cbsTime.trim() },
         { label: 'Comentários finais', value: midweekDraft.closingCommentsTime.trim() },
         { label: 'Cântico final', value: midweekDraft.closingSongTime.trim() },
       ];
@@ -516,7 +522,7 @@ export function AssignmentsPage() {
         { label: 'Tesouros da Palavra de Deus', value: midweekDraft.treasureDuration },
         { label: 'Joias espirituais', value: midweekDraft.gemsDuration },
         { label: 'Leitura da Bíblia', value: midweekDraft.readingDuration },
-        { label: 'Estudo bíblico de congregação', value: midweekDraft.cbsDuration },
+        { label: midweekDraft.superintendentVisit ? 'Discurso do superintendente' : 'Estudo bíblico de congregação', value: midweekDraft.cbsDuration },
         { label: 'Comentários finais', value: midweekDraft.closingCommentsDuration },
       ];
 
@@ -554,8 +560,11 @@ export function AssignmentsPage() {
           treasure_reading_room: MIDWEEK_PRIMARY_ROOM,
           cbs_time: midweekDraft.cbsTime.trim(),
           cbs_duration: Number(midweekDraft.cbsDuration),
-          cbs_conductor_id: midweekDraft.cbsConductorId || undefined,
-          cbs_reader_id: midweekDraft.cbsReaderId || undefined,
+          cbs_conductor_id: midweekDraft.superintendentVisit ? undefined : (midweekDraft.cbsConductorId || undefined),
+          cbs_reader_id: midweekDraft.superintendentVisit ? undefined : (midweekDraft.cbsReaderId || undefined),
+          superintendent_visit: midweekDraft.superintendentVisit,
+          superintendent_discourse_theme: midweekDraft.superintendentVisit ? midweekDraft.superintendentDiscourseTheme.trim() : undefined,
+          superintendent_discourse_speaker: midweekDraft.superintendentVisit ? midweekDraft.superintendentDiscourseSpeaker.trim() : undefined,
           closing_comments_time: midweekDraft.closingCommentsTime.trim(),
           closing_comments_duration: Number(midweekDraft.closingCommentsDuration),
           ministry_parts: ministryParts.map(part => ({
@@ -1404,18 +1413,28 @@ function MeetingsAssignmentsContent({
                 );
               })()
             ))}
-            <AssignmentField
-              label={`${cbsDisplayNumber}. Estudo Bíblico — Dirigente`}
-              value={mappedCbsConductor}
-              onClick={() => openEdit({ label: 'Dirigente EBC', mode: 'member', currentValue: mappedCbsConductor, table: 'midweek_meetings', rowId: meeting.id, column: 'cbs_conductor_id' })}
-              canEdit={canEditAssignments}
-            />
-            <AssignmentField
-              label={`${cbsDisplayNumber}. Estudo Bíblico — Leitor`}
-              value={mappedCbsReader}
-              onClick={() => openEdit({ label: 'Leitor EBC', mode: 'member', currentValue: mappedCbsReader, table: 'midweek_meetings', rowId: meeting.id, column: 'cbs_reader_id' })}
-              canEdit={canEditAssignments}
-            />
+            {meeting.superintendent_visit ? (
+              <AssignmentField
+                label={`${cbsDisplayNumber}. Discurso do superintendente — ${meeting.superintendent_discourse_theme || 'Tema a definir'}`}
+                value={meeting.superintendent_discourse_speaker || 'A definir'}
+                canEdit={false}
+              />
+            ) : (
+              <>
+                <AssignmentField
+                  label={`${cbsDisplayNumber}. Estudo Bíblico — Dirigente`}
+                  value={mappedCbsConductor}
+                  onClick={() => openEdit({ label: 'Dirigente EBC', mode: 'member', currentValue: mappedCbsConductor, table: 'midweek_meetings', rowId: meeting.id, column: 'cbs_conductor_id' })}
+                  canEdit={canEditAssignments}
+                />
+                <AssignmentField
+                  label={`${cbsDisplayNumber}. Estudo Bíblico — Leitor`}
+                  value={mappedCbsReader}
+                  onClick={() => openEdit({ label: 'Leitor EBC', mode: 'member', currentValue: mappedCbsReader, table: 'midweek_meetings', rowId: meeting.id, column: 'cbs_reader_id' })}
+                  canEdit={canEditAssignments}
+                />
+              </>
+            )}
           </AssignmentSection>
         </div>
 
@@ -2019,7 +2038,7 @@ function CreateMeetingModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-5 animate-in fade-in duration-200">
-      <div className="max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl animate-in zoom-in-95 duration-200">
+      <div className="max-h-[90vh] w-full max-w-3xl flex flex-col rounded-2xl border border-border bg-card shadow-2xl animate-in zoom-in-95 duration-200">
         <div className="flex items-start justify-between border-b border-border px-5 py-4">
           <div>
             <h3 className="text-foreground">{mode === 'edit' ? 'Editar Reunião' : 'Nova Reunião'}</h3>
@@ -2034,7 +2053,7 @@ function CreateMeetingModal({
           </button>
         </div>
 
-        <div className="max-h-[calc(90vh-140px)] overflow-y-auto px-5 py-4">
+        <div className="flex-1 overflow-y-auto px-5 py-4">
           <div className="mb-4 rounded-xl border border-border bg-muted p-1">
             <div className="flex gap-1">
               <button
@@ -2295,11 +2314,52 @@ function CreateMeetingModal({
                   ))}
                 </div>
 
+                <div className="mt-4 space-y-4">
+                  <label className="flex items-center gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={midweekDraft.superintendentVisit}
+                      onChange={e => setMidweekDraft(prev => ({ ...prev, superintendentVisit: e.target.checked }))}
+                      className="h-4 w-4 rounded border-border accent-primary"
+                    />
+                    <span className="text-sm font-medium text-foreground">Visita do superintendente de circuito</span>
+                  </label>
+                </div>
+
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  {renderTimeField('Horário do estudo bíblico', midweekDraft.cbsTime, value => setMidweekDraft(prev => ({ ...prev, cbsTime: value })))}
-                  {renderDurationField('Duração do estudo bíblico (min)', midweekDraft.cbsDuration, value => setMidweekDraft(prev => ({ ...prev, cbsDuration: value })))}
-                  {renderMemberSelect(midweekDraft.cbsConductorId, value => setMidweekDraft(prev => ({ ...prev, cbsConductorId: value })), 'Dirigente do EBC')}
-                  {renderMemberSelect(midweekDraft.cbsReaderId, value => setMidweekDraft(prev => ({ ...prev, cbsReaderId: value })), 'Leitor do EBC')}
+                  {midweekDraft.superintendentVisit ? (
+                    <>
+                      {renderTimeField('Horário do discurso', midweekDraft.cbsTime, value => setMidweekDraft(prev => ({ ...prev, cbsTime: value })))}
+                      {renderDurationField('Duração do discurso (min)', midweekDraft.cbsDuration, value => setMidweekDraft(prev => ({ ...prev, cbsDuration: value })))}
+                      <div className="md:col-span-2">
+                        <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Tema do discurso</label>
+                        <input
+                          type="text"
+                          value={midweekDraft.superintendentDiscourseTheme}
+                          onChange={e => setMidweekDraft(prev => ({ ...prev, superintendentDiscourseTheme: e.target.value }))}
+                          placeholder="Ex.: A lealdade a Deus beneficia você"
+                          className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Orador (nome do superintendente)</label>
+                        <input
+                          type="text"
+                          value={midweekDraft.superintendentDiscourseSpeaker}
+                          onChange={e => setMidweekDraft(prev => ({ ...prev, superintendentDiscourseSpeaker: e.target.value }))}
+                          placeholder="Nome do superintendente"
+                          className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {renderTimeField('Horário do estudo bíblico', midweekDraft.cbsTime, value => setMidweekDraft(prev => ({ ...prev, cbsTime: value })))}
+                      {renderDurationField('Duração do estudo bíblico (min)', midweekDraft.cbsDuration, value => setMidweekDraft(prev => ({ ...prev, cbsDuration: value })))}
+                      {renderMemberSelect(midweekDraft.cbsConductorId, value => setMidweekDraft(prev => ({ ...prev, cbsConductorId: value })), 'Dirigente do EBC')}
+                      {renderMemberSelect(midweekDraft.cbsReaderId, value => setMidweekDraft(prev => ({ ...prev, cbsReaderId: value })), 'Leitor do EBC')}
+                    </>
+                  )}
                   {renderTimeField('Horário dos comentários finais', midweekDraft.closingCommentsTime, value => setMidweekDraft(prev => ({ ...prev, closingCommentsTime: value })))}
                   {renderDurationField('Comentários finais (min)', midweekDraft.closingCommentsDuration, value => setMidweekDraft(prev => ({ ...prev, closingCommentsDuration: value })))}
                   <div>
@@ -2391,7 +2451,7 @@ function CreateMeetingModal({
           )}
         </div>
 
-        <div className="flex flex-col-reverse gap-2 border-t border-border px-5 py-4 sm:flex-row sm:justify-end">
+        <div className="flex flex-col-reverse gap-2 border-t border-border px-5 pt-4 pb-5 sm:flex-row sm:justify-end">
           <button
             onClick={onClose}
             className="rounded-lg border border-border px-4 py-2 text-foreground transition-colors hover:bg-muted"

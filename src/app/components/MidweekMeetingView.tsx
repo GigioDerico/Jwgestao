@@ -90,12 +90,21 @@ export function MidweekMeetingView({ meeting }: Props) {
             />
           ))}
 
-          <ProgramRow
-            time={meeting.christian_life.congregation_bible_study.time}
-            title={`${cbsNumber}. Estudo bíblico de congregação (${meeting.christian_life.congregation_bible_study.duration} min)`}
-            label="Dirigente/leitor:"
-            mainAssignee={`${meeting.christian_life.congregation_bible_study.conductor}/${meeting.christian_life.congregation_bible_study.reader}`}
-          />
+          {meeting.christian_life.superintendent_visit ? (
+            <ProgramRow
+              time={meeting.christian_life.superintendent_discourse.time}
+              title={`${cbsNumber}. ${meeting.christian_life.superintendent_discourse.theme} (${meeting.christian_life.superintendent_discourse.duration} min)`}
+              label="Orador:"
+              mainAssignee={meeting.christian_life.superintendent_discourse.speaker}
+            />
+          ) : (
+            <ProgramRow
+              time={meeting.christian_life.congregation_bible_study.time}
+              title={`${cbsNumber}. Estudo bíblico de congregação (${meeting.christian_life.congregation_bible_study.duration} min)`}
+              label="Dirigente/leitor:"
+              mainAssignee={`${meeting.christian_life.congregation_bible_study.conductor}/${meeting.christian_life.congregation_bible_study.reader}`}
+            />
+          )}
 
           <SimpleProgramLine
             time={meeting.christian_life.closing_comments.time}

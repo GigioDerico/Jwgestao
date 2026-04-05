@@ -94,11 +94,18 @@ export interface MidweekMeeting {
   };
   christian_life: {
     parts: { number: number; time: string; title: string; duration: number; speaker: string }[];
+    superintendent_visit: boolean;
     congregation_bible_study: {
       time: string;
       duration: number;
       conductor: string;
       reader: string;
+    };
+    superintendent_discourse: {
+      time: string;
+      duration: number;
+      theme: string;
+      speaker: string;
     };
     closing_comments: {
       time: string;
