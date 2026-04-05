@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
-import { ChevronLeft, ChevronRight, X, Search, MapPin, Clock, Users, Plus, Copy } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Search, MapPin, Clock, Users, Plus, Copy, Edit2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { downloadElementAsImage, downloadElementAsPdf } from '../lib/dom-export';
 import { filterMembersEligibleForAssignments } from '../lib/assignment-member-eligibility';
@@ -85,6 +85,7 @@ export function CartAssignments({
   const [data, setData] = useState<CartAssignment[]>([]);
   const [nameFilter, setNameFilter] = useState('');
   const [editModal, setEditModal] = useState<{ id: string; field: 'publisher1' | 'publisher2'; currentValue: string } | null>(null);
+  const [editRowModal, setEditRowModal] = useState<CartAssignment | null>(null);
   const [members, setMembers] = useState<{ id: string; full_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -178,6 +179,37 @@ export function CartAssignments({
       toast.success('Designação atualizada!');
     } catch (err: any) {
       toast.error(err.message || 'Erro ao atualizar designação de carrinho.');
+    }
+  };
+
+  const handleDeleteRow = async (id: string) => {
+    if (!canEdit) return;
+    if (!window.confirm('Excluir esta designação de carrinho?')) return;
+    try {
+      await api.deleteCartAssignment(id);
+      setData(prev => prev.filter(item => item.id !== id));
+      toast.success('Designação excluída.');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao excluir designação.');
+    }
+  };
+
+  const handleSaveRow = async (updated: CartAssignment) => {
+    try {
+      const saved = await api.updateCartAssignment(updated.id, {
+        week: updated.week,
+        time: updated.time,
+        location: updated.location,
+        publisher1: updated.publisher1,
+        publisher1_member_id: findMemberIdByName(updated.publisher1),
+        publisher2: updated.publisher2,
+        publisher2_member_id: findMemberIdByName(updated.publisher2),
+      } as any);
+      setData(prev => prev.map(item => (item.id === saved.id ? saved : item)).sort((a, b) => a.week - b.week || a.day - b.day));
+      setEditRowModal(null);
+      toast.success('Designação atualizada!');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao atualizar designação.');
     }
   };
 
@@ -628,11 +660,12 @@ export function CartAssignments({
                   <table className="w-full" style={{ fontSize: '0.82rem' }}>
                     <thead>
                       <tr className={`${colors.header} text-white`}>
-                        <th className="px-3 py-2 text-center" style={{ width: '8%' }}>Dia</th>
-                        <th className="px-3 py-2 text-center" style={{ width: '14%' }}>Dia da Semana</th>
-                        <th className="px-3 py-2 text-center" style={{ width: '18%' }}>Hora</th>
-                        <th className="px-3 py-2 text-center" style={{ width: '22%' }}>Local</th>
-                        <th className="px-3 py-2 text-center" colSpan={2} style={{ width: '38%' }}>Publicadores</th>
+                        <th className="px-3 py-2 text-center" style={{ width: '7%' }}>Dia</th>
+                        <th className="px-3 py-2 text-center" style={{ width: '13%' }}>Dia da Semana</th>
+                        <th className="px-3 py-2 text-center" style={{ width: '17%' }}>Hora</th>
+                        <th className="px-3 py-2 text-center" style={{ width: '20%' }}>Local</th>
+                        <th className="px-3 py-2 text-center" colSpan={2} style={{ width: '35%' }}>Publicadores</th>
+                        {!readOnly && <th className="px-2 py-2" style={{ width: '8%' }} />}
                       </tr>
                     </thead>
                     <tbody>
@@ -673,6 +706,26 @@ export function CartAssignments({
                               </button>
                             )}
                           </td>
+                          {!readOnly && (
+                            <td className="px-2 py-2 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  onClick={() => setEditRowModal(item)}
+                                  className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                  title="Editar linha"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteRow(item.id)}
+                                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                  title="Excluir linha"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -721,10 +774,28 @@ export function CartAssignments({
                               {item.weekday.toUpperCase()}
                             </span>
                           </div>
-                          <span className="flex items-center gap-1 text-gray-500" style={{ fontSize: '0.78rem' }}>
-                            <Clock size={12} />
-                            {item.time}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="flex items-center gap-1 text-gray-500" style={{ fontSize: '0.78rem' }}>
+                              <Clock size={12} />
+                              {item.time}
+                            </span>
+                            {!readOnly && (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => setEditRowModal(item)}
+                                  className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteRow(item.id)}
+                                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center gap-1.5 mb-2 text-gray-500" style={{ fontSize: '0.78rem' }}>
                           <MapPin size={12} />
@@ -771,7 +842,7 @@ export function CartAssignments({
         </div>
       )}
 
-      {/* Edit Modal */}
+      {/* Edit publisher modal */}
       {!readOnly && editModal && (
         <MemberSelectModal
           label={editModal.field === 'publisher1' ? 'Publicador 1' : 'Publicador 2'}
@@ -779,6 +850,16 @@ export function CartAssignments({
           onClose={() => setEditModal(null)}
           onSave={handleSave}
           members={members}
+        />
+      )}
+
+      {/* Edit full row modal */}
+      {!readOnly && editRowModal && (
+        <EditRowModal
+          assignment={editRowModal}
+          members={members}
+          onClose={() => setEditRowModal(null)}
+          onSave={handleSaveRow}
         />
       )}
 
@@ -840,6 +921,157 @@ export function CartAssignments({
               </div>
             )}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditRowModal({
+  assignment,
+  members,
+  onClose,
+  onSave,
+}: {
+  assignment: CartAssignment;
+  members: { id: string; full_name: string }[];
+  onClose: () => void;
+  onSave: (updated: CartAssignment) => void;
+}) {
+  const [form, setForm] = useState({ ...assignment });
+  const [pub1Search, setPub1Search] = useState('');
+  const [pub2Search, setPub2Search] = useState('');
+  const [pub1Open, setPub1Open] = useState(false);
+  const [pub2Open, setPub2Open] = useState(false);
+
+  const filteredPub1 = members.filter(m => m.full_name.toLowerCase().includes(pub1Search.toLowerCase()));
+  const filteredPub2 = members.filter(m => m.full_name.toLowerCase().includes(pub2Search.toLowerCase()));
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md flex flex-col max-h-[90vh]">
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+          <div>
+            <h3 className="text-gray-900">Editar Designação</h3>
+            <p className="text-gray-500 mt-0.5" style={{ fontSize: '0.8rem' }}>Dia {assignment.day} — {assignment.weekday}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* Semana */}
+          <div>
+            <label className="block text-gray-600 mb-1" style={{ fontSize: '0.82rem' }}>Semana</label>
+            <select
+              value={form.week}
+              onChange={e => setForm(f => ({ ...f, week: Number(e.target.value) }))}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              style={{ fontSize: '0.9rem' }}
+            >
+              {[1, 2, 3, 4, 5].map(w => (
+                <option key={w} value={w}>Semana {w}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Horário */}
+          <div>
+            <label className="block text-gray-600 mb-1" style={{ fontSize: '0.82rem' }}>Horário</label>
+            <input
+              type="text"
+              value={form.time}
+              onChange={e => setForm(f => ({ ...f, time: e.target.value }))}
+              placeholder="Ex: 09:00 ÀS 11:00"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              style={{ fontSize: '0.9rem' }}
+            />
+          </div>
+
+          {/* Local */}
+          <div>
+            <label className="block text-gray-600 mb-1" style={{ fontSize: '0.82rem' }}>Local</label>
+            <input
+              type="text"
+              value={form.location}
+              onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
+              placeholder="Ex: HOSPITAL"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              style={{ fontSize: '0.9rem' }}
+            />
+          </div>
+
+          {/* Publicador 1 */}
+          <div>
+            <label className="block text-gray-600 mb-1" style={{ fontSize: '0.82rem' }}>Publicador 1</label>
+            <div className="relative">
+              <input
+                type="text"
+                value={pub1Open ? pub1Search : form.publisher1}
+                onFocus={() => { setPub1Open(true); setPub1Search(''); }}
+                onChange={e => setPub1Search(e.target.value)}
+                placeholder="Buscar publicador..."
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                style={{ fontSize: '0.9rem' }}
+              />
+              {pub1Open && (
+                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {filteredPub1.map(m => (
+                    <button
+                      key={m.id}
+                      onMouseDown={() => { setForm(f => ({ ...f, publisher1: m.full_name })); setPub1Open(false); }}
+                      className={`w-full text-left px-3 py-2 transition-colors ${form.publisher1 === m.full_name ? 'bg-amber-50 text-amber-700' : 'hover:bg-gray-50 text-gray-700'}`}
+                      style={{ fontSize: '0.88rem' }}
+                    >
+                      {m.full_name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Publicador 2 */}
+          <div>
+            <label className="block text-gray-600 mb-1" style={{ fontSize: '0.82rem' }}>Publicador 2</label>
+            <div className="relative">
+              <input
+                type="text"
+                value={pub2Open ? pub2Search : form.publisher2}
+                onFocus={() => { setPub2Open(true); setPub2Search(''); }}
+                onChange={e => setPub2Search(e.target.value)}
+                placeholder="Buscar publicador..."
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                style={{ fontSize: '0.9rem' }}
+              />
+              {pub2Open && (
+                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {filteredPub2.map(m => (
+                    <button
+                      key={m.id}
+                      onMouseDown={() => { setForm(f => ({ ...f, publisher2: m.full_name })); setPub2Open(false); }}
+                      className={`w-full text-left px-3 py-2 transition-colors ${form.publisher2 === m.full_name ? 'bg-amber-50 text-amber-700' : 'hover:bg-gray-50 text-gray-700'}`}
+                      style={{ fontSize: '0.88rem' }}
+                    >
+                      {m.full_name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 border-t border-gray-100 flex gap-3 justify-end shrink-0">
+          <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition" style={{ fontSize: '0.9rem' }}>
+            Cancelar
+          </button>
+          <button
+            onClick={() => onSave(form)}
+            className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition"
+            style={{ fontSize: '0.9rem' }}
+          >
+            Salvar
+          </button>
         </div>
       </div>
     </div>
