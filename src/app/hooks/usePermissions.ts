@@ -7,25 +7,25 @@ const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     coordenador: {
         view_members: true, create_members: true, edit_members: true,
         view_meetings: true, create_assignments: true, edit_assignments: true, view_assignments: true,
-        download_assignments: true,
+        download_assignments: true, export_members: true,
         manage_permissions: true, view_reports: true,
     },
     secretario: {
         view_members: true, create_members: true, edit_members: true,
         view_meetings: true, create_assignments: false, edit_assignments: false, view_assignments: true,
-        download_assignments: false,
+        download_assignments: false, export_members: true,
         manage_permissions: false, view_reports: true,
     },
     designador: {
         view_members: true, create_members: false, edit_members: false,
         view_meetings: true, create_assignments: true, edit_assignments: true, view_assignments: true,
-        download_assignments: true,
+        download_assignments: true, export_members: false,
         manage_permissions: false, view_reports: false,
     },
     publicador: {
         view_members: false, create_members: false, edit_members: false,
         view_meetings: true, create_assignments: false, edit_assignments: false, view_assignments: true,
-        download_assignments: false,
+        download_assignments: false, export_members: false,
         manage_permissions: false, view_reports: false,
     },
 };
@@ -42,6 +42,7 @@ function dbRowToMatrix(row: any): Record<string, boolean> {
         view_assignments: row.can_view_assignments,
         download_assignments:
             Boolean(row.can_download_assignment_image) || Boolean(row.can_download_assignment_pdf),
+        export_members: row.can_export_members ?? false,
         manage_permissions: row.can_manage_permissions,
         view_reports: row.can_view_reports,
     };

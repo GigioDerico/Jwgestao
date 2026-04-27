@@ -25,9 +25,12 @@ import {
   Edit2,
   Share2,
   Check,
+  FileDown,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
+import { MemberExportDialog } from './MemberExportDialog';
+import { generateMemberListPdf, generateMemberListExcel } from '../lib/member-export';
 
 type ViewMode = 'list' | 'service_group' | 'family';
 
@@ -43,6 +46,8 @@ export function MembersList() {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [showAddModal, setShowAddModal] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [allMembers, setAllMembers] = useState<Member[]>([]);
   const [fieldServiceGroups, setFieldServiceGroups] = useState<FieldServiceGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -882,6 +887,14 @@ export function MembersList() {
               {copiedShareLink ? 'Link copiado!' : 'Link de cadastro'}
             </span>
           </button>
+          <button
+            onClick={() => setExportDialogOpen(true)}
+            className="flex items-center gap-2 px-3 py-2 bg-card border border-border text-muted-foreground rounded-xl hover:border-primary hover:text-primary font-medium transition-all shadow-sm text-sm"
+            aria-label="Exportar lista de membros"
+          >
+            <FileDown size={16} />
+            <span className="hidden sm:inline">Exportar</span>
+          </button>
           {canCreate && (
             <button
               onClick={() => setShowAddModal(true)}
@@ -1246,6 +1259,37 @@ export function MembersList() {
           )}
         </div>
       )}
+
+      {/* Export Dialog */}
+      <MemberExportDialog
+        open={exportDialogOpen}
+        onClose={() => setExportDialogOpen(false)}
+        members={filtered}
+        groups={fieldServiceGroups}
+        exporting={exporting}
+        onExport={async (options) => {
+          if (filtered.length === 0) {
+            toast.info('Não há membros para exportar.');
+            return;
+          }
+
+          try {
+            setExporting(true);
+            if (options.format === 'pdf') {
+              await generateMemberListPdf(filtered, fieldServiceGroups, options);
+            } else {
+              await generateMemberListExcel(filtered, fieldServiceGroups, options);
+            }
+            setExportDialogOpen(false);
+            toast.success('Exportação concluída com sucesso!');
+          } catch (error) {
+            console.error('Export error:', error);
+            toast.error(error instanceof Error ? error.message : 'Erro ao exportar lista de membros.');
+          } finally {
+            setExporting(false);
+          }
+        }}
+      />
 
       {/* Add Modal */}
       {showAddModal && (

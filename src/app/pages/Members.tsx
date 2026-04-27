@@ -1,15 +1,24 @@
 import { useState, useEffect } from 'react';
-import { Search, SlidersHorizontal, Trash2, UserPlus, RefreshCw } from 'lucide-react';
+import { Search, SlidersHorizontal, Trash2, UserPlus, RefreshCw, FileDown } from 'lucide-react';
 import { api } from '../lib/api';
 import { Database } from '../lib/supabase-types';
+import { usePermissions } from '../hooks/usePermissions';
+import { MemberExportDialog } from '../components/MemberExportDialog';
+import { generateMemberListPdf, generateMemberListExcel } from '../lib/member-export';
+import { toast } from 'sonner';
 
 type MemberRow = Database['public']['Tables']['members']['Row'];
+type FieldServiceGroupRow = Database['public']['Tables']['field_service_groups']['Row'];
 
 export default function Members() {
+  const { can } = usePermissions();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('All');
   const [members, setMembers] = useState<MemberRow[]>([]);
+  const [groups, setGroups] = useState<FieldServiceGroupRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const fetchMembers = async () => {
     try {
@@ -23,8 +32,18 @@ export default function Members() {
     }
   };
 
+  const fetchGroups = async () => {
+    try {
+      const data = await api.getFieldServiceGroups();
+      setGroups(data);
+    } catch (error) {
+      console.error('Error fetching groups:', error);
+    }
+  };
+
   useEffect(() => {
     fetchMembers();
+    fetchGroups();
   }, []);
 
   const filteredMembers = members.filter((member) => {
@@ -53,6 +72,14 @@ export default function Members() {
             disabled={loading}
           >
             <RefreshCw size={18} className={loading ? 'animate-spin opacity-50' : ''} />
+          </button>
+          <button
+            onClick={() => setExportDialogOpen(true)}
+            className="inline-flex items-center gap-2 bg-card hover:bg-muted border border-border text-foreground px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-sm"
+            aria-label="Exportar lista de membros"
+          >
+            <FileDown size={18} />
+            Exportar
           </button>
           <button className="inline-flex items-center gap-2 bg-primary hover:opacity-90 text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-sm">
             <UserPlus size={18} />
@@ -182,6 +209,36 @@ export default function Members() {
           </div>
         </div>
       </div>
+
+      <MemberExportDialog
+        open={exportDialogOpen}
+        onClose={() => setExportDialogOpen(false)}
+        members={filteredMembers}
+        groups={groups}
+        exporting={exporting}
+        onExport={async (options) => {
+          if (filteredMembers.length === 0) {
+            toast.info('Não há membros para exportar.');
+            return;
+          }
+
+          try {
+            setExporting(true);
+            if (options.format === 'pdf') {
+              await generateMemberListPdf(filteredMembers, groups, options);
+            } else {
+              await generateMemberListExcel(filteredMembers, groups, options);
+            }
+            setExportDialogOpen(false);
+            toast.success('Exportação concluída com sucesso!');
+          } catch (error) {
+            console.error('Export error:', error);
+            toast.error(error instanceof Error ? error.message : 'Erro ao exportar lista de membros.');
+          } finally {
+            setExporting(false);
+          }
+        }}
+      />
     </div>
   );
 }
