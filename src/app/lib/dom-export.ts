@@ -624,8 +624,6 @@ function buildPrintDocumentMarkup(element: HTMLElement, filename: string) {
       .print-frame {
         width: 100%;
         margin: 0 auto;
-        break-inside: avoid-page;
-        page-break-inside: avoid;
       }
 
       .print-pdf-page {
