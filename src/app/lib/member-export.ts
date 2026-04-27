@@ -119,11 +119,11 @@ function buildExportTable(members: MemberWithGroup[]): HTMLTableElement {
   const thead = document.createElement('thead');
   const headerRow = document.createElement('tr');
   const headers = [
-    { text: 'Nome', width: '20%' },
-    { text: 'Telefone', width: '12%' },
-    { text: 'Grupo', width: '15%' },
+    { text: 'Nome', width: '16%' },
+    { text: 'Telefone', width: '10%' },
+    { text: 'Grupo', width: '13%' },
     { text: 'Contato de Emergência', width: '20%' },
-    { text: 'Endereço', width: '33%' },
+    { text: 'Endereço', width: '41%' },
   ];
   headers.forEach(({ text, width }) => {
     const th = document.createElement('th');
