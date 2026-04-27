@@ -109,12 +109,10 @@ export function groupMembersByFieldService(
 function buildExportTable(members: MemberWithGroup[]): HTMLTableElement {
   const table = document.createElement('table');
   table.style.width = '100%';
-  table.style.minWidth = '100%';
   table.style.borderCollapse = 'collapse';
   table.style.fontFamily = 'Arial, sans-serif';
   table.style.fontSize = '11px';
   table.style.tableLayout = 'fixed';
-  table.style.overflow = 'visible';
 
   const thead = document.createElement('thead');
   const headerRow = document.createElement('tr');
@@ -171,8 +169,8 @@ function buildExportTable(members: MemberWithGroup[]): HTMLTableElement {
       td.style.fontSize = '11px';
       td.style.lineHeight = '1.3';
       td.style.verticalAlign = 'top';
-      td.style.wordWrap = 'break-word';
-      td.style.wordBreak = 'break-word';
+      td.style.overflowWrap = 'anywhere';
+      td.style.wordBreak = 'normal';
       td.style.whiteSpace = 'normal';
       row.appendChild(td);
     });
@@ -241,32 +239,35 @@ export async function generateMemberListPdf(
   wrapper.dataset.exportPdfMode = 'paged';
   wrapper.dataset.exportPdfPage = 'a4-landscape';
 
-  // Add title
+  // Add header container for title and date
+  const headerContainer = document.createElement('div');
+  headerContainer.style.width = '100%';
+  headerContainer.style.textAlign = 'center';
+  headerContainer.style.pageBreakAfter = 'avoid';
+
   const title = document.createElement('h1');
   title.textContent = 'Congregação Vicente Nunes';
-  title.style.textAlign = 'center';
+  title.style.display = 'inline-block';
   title.style.fontSize = '20px';
   title.style.fontWeight = '700';
   title.style.color = '#082c45';
   title.style.marginBottom = '6px';
   title.style.marginTop = '2mm';
-  title.style.pageBreakAfter = 'avoid';
-  wrapper.appendChild(title);
+  headerContainer.appendChild(title);
 
-  // Add date
   const dateEl = document.createElement('p');
   dateEl.textContent = new Date().toLocaleDateString('pt-BR', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
   });
-  dateEl.style.textAlign = 'center';
   dateEl.style.fontSize = '11px';
   dateEl.style.color = '#64748b';
   dateEl.style.marginBottom = '16px';
   dateEl.style.marginTop = '0';
-  dateEl.style.pageBreakAfter = 'avoid';
-  wrapper.appendChild(dateEl);
+  headerContainer.appendChild(dateEl);
+
+  wrapper.appendChild(headerContainer);
 
   wrapper.appendChild(exportElement);
   document.body.appendChild(wrapper);
