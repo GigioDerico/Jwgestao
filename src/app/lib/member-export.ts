@@ -111,7 +111,7 @@ function buildExportTable(members: MemberWithGroup[]): HTMLTableElement {
   table.style.width = '100%';
   table.style.borderCollapse = 'collapse';
   table.style.fontFamily = 'Arial, sans-serif';
-  table.style.fontSize = '10px';
+  table.style.fontSize = '11px';
   table.style.tableLayout = 'fixed';
 
   const thead = document.createElement('thead');
@@ -128,10 +128,10 @@ function buildExportTable(members: MemberWithGroup[]): HTMLTableElement {
     th.textContent = text;
     th.style.width = width;
     th.style.borderBottom = '1.5px solid #082c45';
-    th.style.padding = '4px 3px';
+    th.style.padding = '6px 4px';
     th.style.textAlign = 'left';
     th.style.fontWeight = '700';
-    th.style.fontSize = '9px';
+    th.style.fontSize = '11px';
     th.style.color = '#082c45';
     th.style.textTransform = 'uppercase';
     th.style.letterSpacing = '0.3px';
@@ -163,10 +163,10 @@ function buildExportTable(members: MemberWithGroup[]): HTMLTableElement {
     cells.forEach(text => {
       const td = document.createElement('td');
       td.textContent = text;
-      td.style.padding = '3px 3px';
+      td.style.padding = '5px 4px';
       td.style.borderBottom = '0.5px solid #e2e8f0';
       td.style.color = '#334155';
-      td.style.fontSize = '9.5px';
+      td.style.fontSize = '11px';
       td.style.lineHeight = '1.3';
       td.style.verticalAlign = 'top';
       td.style.wordWrap = 'break-word';
@@ -185,14 +185,14 @@ function buildGroupedExportTable(
 ): HTMLDivElement {
   const container = document.createElement('div');
   container.style.fontFamily = 'Arial, sans-serif';
-  container.style.fontSize = '10px';
+  container.style.fontSize = '11px';
 
   for (const [groupName, members] of groupedMembers) {
     const groupHeader = document.createElement('h3');
     groupHeader.textContent = groupName;
-    groupHeader.style.marginTop = '12px';
+    groupHeader.style.marginTop = '16px';
     groupHeader.style.marginBottom = '4px';
-    groupHeader.style.fontSize = '11px';
+    groupHeader.style.fontSize = '13px';
     groupHeader.style.fontWeight = '700';
     groupHeader.style.color = '#082c45';
     groupHeader.style.borderBottom = '1.5px solid #35bdf8';
@@ -241,11 +241,11 @@ export async function generateMemberListPdf(
   const title = document.createElement('h1');
   title.textContent = 'Congregação Vicente Nunes';
   title.style.textAlign = 'center';
-  title.style.fontSize = '18px';
+  title.style.fontSize = '20px';
   title.style.fontWeight = '700';
   title.style.color = '#082c45';
   title.style.marginBottom = '6px';
-  title.style.marginTop = '4mm';
+  title.style.marginTop = '2mm';
   title.style.pageBreakAfter = 'avoid';
   wrapper.appendChild(title);
 
@@ -257,9 +257,9 @@ export async function generateMemberListPdf(
     year: 'numeric',
   });
   dateEl.style.textAlign = 'center';
-  dateEl.style.fontSize = '10px';
+  dateEl.style.fontSize = '11px';
   dateEl.style.color = '#64748b';
-  dateEl.style.marginBottom = '12px';
+  dateEl.style.marginBottom = '16px';
   dateEl.style.marginTop = '0';
   dateEl.style.pageBreakAfter = 'avoid';
   wrapper.appendChild(dateEl);
