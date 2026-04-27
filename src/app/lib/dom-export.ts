@@ -564,8 +564,8 @@ function buildPrintDocumentMarkup(element: HTMLElement, filename: string) {
   const fixedPdfPage = getFixedPdfPage(element.dataset.exportPdfPage) || 'a4-portrait';
   const { pageWidthPx, pageHeightPx, printSize } = getFixedPdfPageSize(fixedPdfPage);
   const pageMarginMm = forceSinglePage ? 4 : (pagedMode ? 0 : 12);
-  const bodyPaddingPx = forceSinglePage ? 0 : (pagedMode ? 0 : 16);
-  const printableWidthPx = pageWidthPx - mmToPx(pageMarginMm * 2) - bodyPaddingPx * 2;
+  const bodyPaddingPx = forceSinglePage ? 0 : (pagedMode ? mmToPx(12) : 16);
+  const printableWidthPx = pageWidthPx - mmToPx(pageMarginMm * 2);
   const printableHeightPx = pageHeightPx - mmToPx(pageMarginMm * 2) - bodyPaddingPx * 2;
   const scale = forceSinglePage
     ? Math.min(
@@ -613,7 +613,7 @@ function buildPrintDocumentMarkup(element: HTMLElement, filename: string) {
       }
 
       body {
-        padding: ${bodyPaddingPx}px;
+        padding: ${bodyPaddingPx}px 0;
       }
 
       .print-frame {
