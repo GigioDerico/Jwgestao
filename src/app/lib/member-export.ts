@@ -231,13 +231,13 @@ export async function generateMemberListPdf(
   }
 
   // Create a wrapper for proper PDF rendering
-  // Use page width with padding to hide browser print headers/footers
-  // @page margin is 0, so padding creates visual margins instead
+  // Wrapper width matches printable area: A4 landscape (297mm) - .print-frame padding (20mm) = 277mm
+  // This ensures cloneNodeWithInlineStyles copies correct computed pixel widths for table cells
   const wrapper = document.createElement('div');
-  wrapper.style.padding = '0 10mm';
+  wrapper.style.padding = '0';
   wrapper.style.backgroundColor = '#ffffff';
-  wrapper.style.width = '297mm';
-  wrapper.style.maxWidth = '297mm';
+  wrapper.style.width = '277mm';
+  wrapper.style.maxWidth = '277mm';
   wrapper.style.boxSizing = 'border-box';
   wrapper.dataset.exportPdfMode = 'paged';
   wrapper.dataset.exportPdfPage = 'a4-landscape';
