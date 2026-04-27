@@ -109,19 +109,21 @@ export function groupMembersByFieldService(
 function buildExportTable(members: MemberWithGroup[]): HTMLTableElement {
   const table = document.createElement('table');
   table.style.width = '100%';
+  table.style.minWidth = '100%';
   table.style.borderCollapse = 'collapse';
   table.style.fontFamily = 'Arial, sans-serif';
   table.style.fontSize = '11px';
   table.style.tableLayout = 'fixed';
+  table.style.overflow = 'visible';
 
   const thead = document.createElement('thead');
   const headerRow = document.createElement('tr');
   const headers = [
-    { text: 'Nome', width: '22%' },
-    { text: 'Telefone', width: '14%' },
-    { text: 'Grupo', width: '18%' },
-    { text: 'Contato de Emergência', width: '22%' },
-    { text: 'Endereço', width: '24%' },
+    { text: 'Nome', width: '20%' },
+    { text: 'Telefone', width: '12%' },
+    { text: 'Grupo', width: '15%' },
+    { text: 'Contato de Emergência', width: '20%' },
+    { text: 'Endereço', width: '33%' },
   ];
   headers.forEach(({ text, width }) => {
     const th = document.createElement('th');
@@ -170,6 +172,8 @@ function buildExportTable(members: MemberWithGroup[]): HTMLTableElement {
       td.style.lineHeight = '1.3';
       td.style.verticalAlign = 'top';
       td.style.wordWrap = 'break-word';
+      td.style.wordBreak = 'break-word';
+      td.style.whiteSpace = 'normal';
       row.appendChild(td);
     });
 
