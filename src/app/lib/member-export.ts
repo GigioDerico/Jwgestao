@@ -235,7 +235,7 @@ export async function generateMemberListPdf(
   wrapper.style.width = '100%';
   wrapper.style.boxSizing = 'border-box';
   wrapper.dataset.exportPdfMode = 'paged';
-  wrapper.dataset.exportPdfPage = 'a4-portrait';
+  wrapper.dataset.exportPdfPage = 'a4-landscape';
 
   // Add title
   const title = document.createElement('h1');
