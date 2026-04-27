@@ -234,7 +234,7 @@ export async function generateMemberListPdf(
   // Use page width with padding to hide browser print headers/footers
   // @page margin is 0, so padding creates visual margins instead
   const wrapper = document.createElement('div');
-  wrapper.style.padding = '10mm';
+  wrapper.style.padding = '0 10mm';
   wrapper.style.backgroundColor = '#ffffff';
   wrapper.style.width = '297mm';
   wrapper.style.maxWidth = '297mm';
