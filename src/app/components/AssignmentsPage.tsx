@@ -120,6 +120,9 @@ const createEmptyWeekendDraft = () => ({
   watchtowerConductorId: '',
   watchtowerReaderId: '',
   closingPrayerId: '',
+  superintendentVisit: false,
+  superintendentDiscourseTheme: '',
+  closingPrayerName: '',
 });
 
 type MidweekDraft = ReturnType<typeof createEmptyMidweekDraft>;
@@ -338,6 +341,9 @@ export function AssignmentsPage() {
       watchtowerConductorId: meeting?.watchtower_conductor_id || '',
       watchtowerReaderId: meeting?.watchtower_reader_id || '',
       closingPrayerId: meeting?.closing_prayer_id || '',
+      superintendentVisit: meeting?.superintendent_visit ?? false,
+      superintendentDiscourseTheme: meeting?.superintendent_discourse_theme || '',
+      closingPrayerName: meeting?.closing_prayer_name || '',
     });
   };
 
@@ -613,15 +619,18 @@ export function AssignmentsPage() {
       const payload = {
         date: weekendDraft.date,
         president_id: weekendDraft.presidentId || undefined,
-        closing_prayer_id: weekendDraft.closingPrayerId || undefined,
+        closing_prayer_id: weekendDraft.superintendentVisit ? undefined : (weekendDraft.closingPrayerId || undefined),
+        closing_prayer_name: weekendDraft.superintendentVisit ? weekendDraft.closingPrayerName.trim() : undefined,
         talk_theme: weekendDraft.talkTheme.trim() || undefined,
         talk_speaker_name: weekendDraft.talkSpeakerName.trim(),
         talk_congregation: serializeWeekendSpeakerCongregation(
           weekendDraft.talkCongregation,
           weekendDraft.talkCongregationCity,
         ),
-        watchtower_conductor_id: weekendDraft.watchtowerConductorId || undefined,
-        watchtower_reader_id: weekendDraft.watchtowerReaderId || undefined,
+        watchtower_conductor_id: weekendDraft.superintendentVisit ? undefined : (weekendDraft.watchtowerConductorId || undefined),
+        watchtower_reader_id: weekendDraft.superintendentVisit ? undefined : (weekendDraft.watchtowerReaderId || undefined),
+        superintendent_visit: weekendDraft.superintendentVisit,
+        superintendent_discourse_theme: weekendDraft.superintendentVisit ? weekendDraft.superintendentDiscourseTheme.trim() : undefined,
       };
 
       const targetMeeting = meetingFormMode === 'edit' ? weekendMeetings[selectedMeetingIdx] : null;
@@ -1605,26 +1614,53 @@ function MeetingsAssignmentsContent({
           />
         </AssignmentSection>
 
-        <AssignmentSection title="Estudo de A Sentinela" color="bg-[#1a5fb4]">
-          <AssignmentField label="Dirigente" value={meeting.watchtower_conductor?.full_name || 'A definir'} onClick={() => openEdit({ label: 'Dirigente', mode: 'member', currentValue: meeting.watchtower_conductor?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'watchtower_conductor_id' })} canEdit={canEditAssignments} />
-          <AssignmentField label="Leitor" value={meeting.watchtower_reader?.full_name || 'A definir'} onClick={() => openEdit({ label: 'Leitor', mode: 'member', currentValue: meeting.watchtower_reader?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'watchtower_reader_id' })} canEdit={canEditAssignments} />
-          {renderWhatsAppButton(
-            meeting.watchtower_reader?.phone
-              ? {
-                studentName: meeting.watchtower_reader.full_name,
-                date: new Date(meeting.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-                partNumber: 'Leitor da Sentinela',
-                assignmentLabel: 'Designação',
-                meetingTitle: 'DESIGNAÇÃO PARA A REUNIÃO DE FIM DE SEMANA',
-                location: MIDWEEK_PRIMARY_ROOM,
-                phone: meeting.watchtower_reader.phone,
-              }
-              : null
-          )}
-        </AssignmentSection>
+        {meeting.superintendent_visit ? (
+          <AssignmentSection title="Discurso do Superintendente" color="bg-[#1a5fb4]">
+            <AssignmentField
+              label="Tema"
+              value={meeting.superintendent_discourse_theme || 'Não definido'}
+              canEdit={false}
+            />
+          </AssignmentSection>
+        ) : (
+          <AssignmentSection title="Estudo de A Sentinela" color="bg-[#1a5fb4]">
+            <AssignmentField label="Dirigente" value={meeting.watchtower_conductor?.full_name || 'A definir'} onClick={() => openEdit({ label: 'Dirigente', mode: 'member', currentValue: meeting.watchtower_conductor?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'watchtower_conductor_id' })} canEdit={canEditAssignments} />
+            <AssignmentField label="Leitor" value={meeting.watchtower_reader?.full_name || 'A definir'} onClick={() => openEdit({ label: 'Leitor', mode: 'member', currentValue: meeting.watchtower_reader?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'watchtower_reader_id' })} canEdit={canEditAssignments} />
+            {renderWhatsAppButton(
+              meeting.watchtower_reader?.phone
+                ? {
+                  studentName: meeting.watchtower_reader.full_name,
+                  date: new Date(meeting.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+                  partNumber: 'Leitor da Sentinela',
+                  assignmentLabel: 'Designação',
+                  meetingTitle: 'DESIGNAÇÃO PARA A REUNIÃO DE FIM DE SEMANA',
+                  location: MIDWEEK_PRIMARY_ROOM,
+                  phone: meeting.watchtower_reader.phone,
+                }
+                : null
+            )}
+          </AssignmentSection>
+        )}
 
         <AssignmentSection title="Encerramento" color="bg-gray-700">
-          <AssignmentField label="Oração Final" value={meeting.closing_prayer?.full_name || 'A definir'} onClick={() => openEdit({ label: 'Oração Final', mode: 'member', currentValue: meeting.closing_prayer?.full_name || '', table: 'weekend_meetings', rowId: meeting.id, column: 'closing_prayer_id' })} canEdit={canEditAssignments} />
+          <AssignmentField
+            label="Oração Final"
+            value={meeting.superintendent_visit
+              ? (meeting.closing_prayer_name || 'A definir')
+              : (meeting.closing_prayer?.full_name || 'A definir')
+            }
+            onClick={() => openEdit({
+              label: 'Oração Final',
+              mode: meeting.superintendent_visit ? 'text' : 'member',
+              currentValue: meeting.superintendent_visit
+                ? (meeting.closing_prayer_name || '')
+                : (meeting.closing_prayer?.full_name || ''),
+              table: 'weekend_meetings',
+              rowId: meeting.id,
+              column: meeting.superintendent_visit ? 'closing_prayer_name' : 'closing_prayer_id',
+            })}
+            canEdit={canEditAssignments}
+          />
         </AssignmentSection>
       </div>
 
@@ -2393,6 +2429,17 @@ function CreateMeetingModal({
                 weekendPresidentOptions,
               )}
               <div className="md:col-span-2">
+                <label className="flex items-center gap-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={weekendDraft.superintendentVisit}
+                    onChange={e => setWeekendDraft(prev => ({ ...prev, superintendentVisit: e.target.checked }))}
+                    className="h-4 w-4 rounded border-border accent-primary"
+                  />
+                  <span className="text-sm font-medium text-foreground">Visita do superintendente de circuito</span>
+                </label>
+              </div>
+              <div className="md:col-span-2">
                 <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Tema da Conferência</label>
                 <input
                   type="text"
@@ -2429,23 +2476,51 @@ function CreateMeetingModal({
                 />
               </div>
               <div />
-              {renderMemberSelect(
-                weekendDraft.watchtowerConductorId,
-                value => setWeekendDraft(prev => ({ ...prev, watchtowerConductorId: value })),
-                'Dirigente da Sentinela',
-                weekendMaleMemberOptions,
+              {weekendDraft.superintendentVisit ? (
+                <div className="md:col-span-2">
+                  <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Tema do discurso do superintendente</label>
+                  <input
+                    type="text"
+                    value={weekendDraft.superintendentDiscourseTheme}
+                    onChange={e => setWeekendDraft(prev => ({ ...prev, superintendentDiscourseTheme: e.target.value }))}
+                    placeholder="Ex.: A lealdade a Deus beneficia você"
+                    className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              ) : (
+                <>
+                  {renderMemberSelect(
+                    weekendDraft.watchtowerConductorId,
+                    value => setWeekendDraft(prev => ({ ...prev, watchtowerConductorId: value })),
+                    'Dirigente da Sentinela',
+                    weekendMaleMemberOptions,
+                  )}
+                  {renderMemberSelect(
+                    weekendDraft.watchtowerReaderId,
+                    value => setWeekendDraft(prev => ({ ...prev, watchtowerReaderId: value })),
+                    'Leitor da Sentinela',
+                    weekendReaderOptions,
+                  )}
+                </>
               )}
-              {renderMemberSelect(
-                weekendDraft.watchtowerReaderId,
-                value => setWeekendDraft(prev => ({ ...prev, watchtowerReaderId: value })),
-                'Leitor da Sentinela',
-                weekendReaderOptions,
-              )}
-              {renderMemberSelect(
-                weekendDraft.closingPrayerId,
-                value => setWeekendDraft(prev => ({ ...prev, closingPrayerId: value })),
-                'Oração Final',
-                weekendMaleMemberOptions,
+              {weekendDraft.superintendentVisit ? (
+                <div className="md:col-span-2">
+                  <label className="mb-1 block text-muted-foreground" style={{ fontSize: '0.8rem' }}>Oração Final (nome do superintendente)</label>
+                  <input
+                    type="text"
+                    value={weekendDraft.closingPrayerName}
+                    onChange={e => setWeekendDraft(prev => ({ ...prev, closingPrayerName: e.target.value }))}
+                    placeholder="Nome do superintendente"
+                    className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              ) : (
+                renderMemberSelect(
+                  weekendDraft.closingPrayerId,
+                  value => setWeekendDraft(prev => ({ ...prev, closingPrayerId: value })),
+                  'Oração Final',
+                  weekendMaleMemberOptions,
+                )
               )}
             </div>
           )}

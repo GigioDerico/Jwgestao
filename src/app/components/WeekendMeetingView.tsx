@@ -46,14 +46,28 @@ export function WeekendMeetingView({ meeting }: Props) {
           </div>
         </div>
 
-        {/* Watchtower Study */}
-        <div className="bg-blue-50/30 px-3 py-3 sm:px-4 md:px-5">
-          <p className="mb-2 text-blue-600" style={{ fontSize: '0.9rem', letterSpacing: '0.05em' }}>ESTUDO DE A SENTINELA</p>
-          <div className="space-y-2">
-            <InfoRow label="Dirigente:" value={meeting.watchtower_study.conductor} compact />
-            <InfoRow label="Leitor:" value={meeting.watchtower_study.reader} valueClass="text-red-600" compact />
+        {meeting.superintendent_visit ? (
+          <div className="bg-blue-50/30 px-3 py-3 sm:px-4 md:px-5">
+            <p className="mb-2 text-blue-600" style={{ fontSize: '0.9rem', letterSpacing: '0.05em' }}>DISCURSO DO SUPERINTENDENTE</p>
+            <div className="space-y-2">
+              <InfoRow
+                label="Tema:"
+                value={meeting.superintendent_discourse?.theme || 'A definir'}
+                valueClass="text-green-700 italic"
+                compact
+              />
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Watchtower Study */
+          <div className="bg-blue-50/30 px-3 py-3 sm:px-4 md:px-5">
+            <p className="mb-2 text-blue-600" style={{ fontSize: '0.9rem', letterSpacing: '0.05em' }}>ESTUDO DE A SENTINELA</p>
+            <div className="space-y-2">
+              <InfoRow label="Dirigente:" value={meeting.watchtower_study.conductor} compact />
+              <InfoRow label="Leitor:" value={meeting.watchtower_study.reader} valueClass="text-red-600" compact />
+            </div>
+          </div>
+        )}
 
         {/* Closing prayer */}
         <InfoRow label="Oração Final:" value={meeting.closing_prayer} icon={<Mic size={14} />} />

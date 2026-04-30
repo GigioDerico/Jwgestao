@@ -158,7 +158,14 @@ function normalizeWeekendMeeting(meeting: any): WeekendMeeting {
       conductor: getName(meeting.watchtower_conductor) || 'A definir',
       reader: getName(meeting.watchtower_reader) || 'A definir',
     },
-    closing_prayer: getName(meeting.closing_prayer) || 'A definir',
+    closing_prayer: meeting.superintendent_visit
+      ? (meeting.closing_prayer_name || 'A definir')
+      : (getName(meeting.closing_prayer) || 'A definir'),
+    superintendent_visit: meeting.superintendent_visit ?? false,
+    superintendent_discourse: meeting.superintendent_visit ? {
+      theme: meeting.superintendent_discourse_theme || 'Tema a definir',
+      speaker: meeting.superintendent_discourse_speaker || 'A definir',
+    } : undefined,
   };
 }
 
@@ -546,11 +553,11 @@ function WeekendExportDocument({ meetings }: { meetings: WeekendMeeting[] }) {
             e
           </p>
           <p className="text-[0.875rem] font-bold leading-tight">
-            Estudo de &quot;A Sentinela&quot; - {monthLabel}
+            Estudo de "A Sentinela" - {monthLabel}
           </p>
         </div>
       </div>
-      <div className="mt-1.5 space-y-1.5">
+      <div className="mt-1 space-y-0.5">
         {meetings.length > 0 ? (
           meetings.map(meeting => (
             <WeekendExportMeetingCard key={meeting.id} meeting={meeting} />
@@ -577,28 +584,37 @@ function WeekendExportMeetingCard({ meeting }: { meeting: WeekendMeeting }) {
 
   return (
     <div className="h-full overflow-hidden rounded-lg border border-[#d4deea] bg-white shadow-[0_1px_0_rgba(15,47,83,0.08)]">
-      <div className="bg-[#1a5fb4] px-2.5 py-1 text-center text-white">
+      <div className="bg-[#1a5fb4] px-2.5 py-0.5 text-center text-white">
         <h4 className="text-[0.875rem] font-semibold leading-tight">{dateFormatted}</h4>
       </div>
-      <div className="space-y-0.5 px-2 py-1.5 text-[0.875rem] leading-tight">
+      <div className="space-y-0 px-2 py-1 text-[0.875rem] leading-tight">
         <WeekendExportField
           label="Presidente"
           value={meeting.president}
         />
-        <div className="rounded-md bg-blue-50/30 px-2 py-1">
+        <div className="rounded-md bg-blue-50/30 px-2 py-0.5">
           <p className="mb-0 text-[0.875rem] font-semibold tracking-[0.02em] text-blue-600">CONFERÊNCIA PÚBLICA</p>
           <div className="space-y-0">
             <WeekendExportField label="Tema" value={meeting.public_talk.theme} compact valueClass="text-green-700 italic" />
             <WeekendExportField label="Orador" value={speakerLabel} compact />
           </div>
         </div>
-        <div className="rounded-md bg-blue-50/30 px-2 py-1">
-          <p className="mb-0 text-[0.875rem] font-semibold tracking-[0.02em] text-blue-600">ESTUDO DE A SENTINELA</p>
-          <div className="space-y-0">
-            <WeekendExportField label="Dirigente" value={meeting.watchtower_study.conductor} compact />
-            <WeekendExportField label="Leitor" value={meeting.watchtower_study.reader} compact valueClass="text-red-600" />
+        {meeting.superintendent_visit ? (
+          <div className="rounded-md bg-blue-50/30 px-2 py-0.5">
+            <p className="mb-0 text-[0.875rem] font-semibold tracking-[0.02em] text-blue-600">DISCURSO DO SUPERINTENDENTE</p>
+            <div className="space-y-0">
+              <WeekendExportField label="Tema" value={meeting.superintendent_discourse?.theme || 'Tema a definir'} compact valueClass="text-green-700 italic" />
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="rounded-md bg-blue-50/30 px-2 py-0.5">
+            <p className="mb-0 text-[0.875rem] font-semibold tracking-[0.02em] text-blue-600">ESTUDO DE A SENTINELA</p>
+            <div className="space-y-0">
+              <WeekendExportField label="Dirigente" value={meeting.watchtower_study.conductor} compact />
+              <WeekendExportField label="Leitor" value={meeting.watchtower_study.reader} compact valueClass="text-red-600" />
+            </div>
+          </div>
+        )}
         <WeekendExportField
           label="Oração Final"
           value={meeting.closing_prayer}

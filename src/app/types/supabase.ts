@@ -772,10 +772,14 @@ export type Database = {
       weekend_meetings: {
         Row: {
           closing_prayer_id: string | null
+          closing_prayer_name: string | null
           created_at: string | null
           date: string
           id: string
           president_id: string | null
+          superintendent_discourse_speaker: string | null
+          superintendent_discourse_theme: string | null
+          superintendent_visit: boolean | null
           talk_congregation: string | null
           talk_speaker_name: string
           talk_theme: string | null
@@ -784,10 +788,14 @@ export type Database = {
         }
         Insert: {
           closing_prayer_id?: string | null
+          closing_prayer_name?: string | null
           created_at?: string | null
           date: string
           id?: string
           president_id?: string | null
+          superintendent_discourse_speaker?: string | null
+          superintendent_discourse_theme?: string | null
+          superintendent_visit?: boolean | null
           talk_congregation?: string | null
           talk_speaker_name: string
           talk_theme?: string | null
@@ -796,10 +804,14 @@ export type Database = {
         }
         Update: {
           closing_prayer_id?: string | null
+          closing_prayer_name?: string | null
           created_at?: string | null
           date?: string
           id?: string
           president_id?: string | null
+          superintendent_discourse_speaker?: string | null
+          superintendent_discourse_theme?: string | null
+          superintendent_visit?: boolean | null
           talk_congregation?: string | null
           talk_speaker_name?: string
           talk_theme?: string | null

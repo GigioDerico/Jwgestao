@@ -126,11 +126,15 @@ export interface CreateWeekendMeetingInput {
   date: string;
   president_id?: string;
   closing_prayer_id?: string;
+  closing_prayer_name?: string;
   talk_theme?: string;
   talk_speaker_name: string;
   talk_congregation?: string;
   watchtower_conductor_id?: string;
   watchtower_reader_id?: string;
+  superintendent_visit?: boolean;
+  superintendent_discourse_theme?: string;
+  superintendent_discourse_speaker?: string;
 }
 
 export interface CreateAudioVideoAssignmentInput {
@@ -793,7 +797,8 @@ export const api = {
         president_id,
         watchtower_conductor_id,
         watchtower_reader_id,
-        closing_prayer_id
+        closing_prayer_id,
+        superintendent_visit
       `)
       .eq('id', meetingId)
       .maybeSingle();
@@ -810,17 +815,17 @@ export const api = {
       },
       {
         slotKey: 'watchtower_conductor_id',
-        memberId: data.watchtower_conductor_id,
+        memberId: data.superintendent_visit ? null : data.watchtower_conductor_id,
         message: `Você foi designado para Dirigente da Sentinela em ${dateLabel}.`,
       },
       {
         slotKey: 'watchtower_reader_id',
-        memberId: data.watchtower_reader_id,
+        memberId: data.superintendent_visit ? null : data.watchtower_reader_id,
         message: `Você foi designado para Leitor da Sentinela em ${dateLabel}.`,
       },
       {
         slotKey: 'closing_prayer_id',
-        memberId: data.closing_prayer_id,
+        memberId: data.superintendent_visit ? null : data.closing_prayer_id,
         message: `Você foi designado para Oração final em ${dateLabel}.`,
       },
     ];
@@ -1730,11 +1735,15 @@ export const api = {
         date: input.date,
         president_id: input.president_id || null,
         closing_prayer_id: input.closing_prayer_id || null,
+        closing_prayer_name: input.closing_prayer_name || null,
         talk_theme: input.talk_theme || null,
         talk_speaker_name: input.talk_speaker_name,
         talk_congregation: input.talk_congregation || null,
         watchtower_conductor_id: input.watchtower_conductor_id || null,
         watchtower_reader_id: input.watchtower_reader_id || null,
+        superintendent_visit: input.superintendent_visit ?? false,
+        superintendent_discourse_theme: input.superintendent_discourse_theme || null,
+        superintendent_discourse_speaker: input.superintendent_discourse_speaker || null,
       })
       .select(`
         *,
@@ -1909,11 +1918,15 @@ export const api = {
         date: input.date,
         president_id: input.president_id || null,
         closing_prayer_id: input.closing_prayer_id || null,
+        closing_prayer_name: input.closing_prayer_name || null,
         talk_theme: input.talk_theme || null,
         talk_speaker_name: input.talk_speaker_name,
         talk_congregation: input.talk_congregation || null,
         watchtower_conductor_id: input.watchtower_conductor_id || null,
         watchtower_reader_id: input.watchtower_reader_id || null,
+        superintendent_visit: input.superintendent_visit ?? false,
+        superintendent_discourse_theme: input.superintendent_discourse_theme || null,
+        superintendent_discourse_speaker: input.superintendent_discourse_speaker || null,
       })
       .eq('id', meetingId)
       .select(`

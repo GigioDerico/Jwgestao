@@ -128,6 +128,11 @@ export interface WeekendMeeting {
     reader: string;
   };
   closing_prayer: string;
+  superintendent_visit: boolean;
+  superintendent_discourse?: {
+    theme: string;
+    speaker: string;
+  };
 }
 
 export interface AudioVideoAssignment {
