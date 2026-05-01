@@ -57,7 +57,7 @@ const FIXED_CATEGORIES: Array<'Segunda-feira' | 'Terça-feira' | 'Quarta-feira' 
   'Sexta-feira',
 ];
 
-const FIXED_RESPONSIBLE_OPTIONS = ['Irmãs Pioneiras'] as const;
+const FIXED_RESPONSIBLE_OPTIONS = ['Irmãs Pioneiras', 'Superintendente'] as const;
 const FIELD_SERVICE_FONT_FAMILY = 'Calibri, Arial, sans-serif';
 const MIN_FONT_SIZE = '0.875rem';
 
