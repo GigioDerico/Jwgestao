@@ -158,10 +158,12 @@ export function GoalsPage() {
   const [savingGoal, setSavingGoal] = useState(false);
   const [plannerSubmitting, setPlannerSubmitting] = useState(false);
   const [applyingTemplate, setApplyingTemplate] = useState(false);
-  const [recordsThisMonth, setRecordsThisMonth] = useState<Array<{ hours: number; return_visits: number; bible_studies: number }>>([]);
-  const [activeStudiesCount, setActiveStudiesCount] = useState(0);
+  const [recordsThisMonth, setRecordsThisMonth] = useState<Array<{ hours: number; bible_studies: number }>>([]);
   const [serviceOverseer, setServiceOverseer] = useState<{ name: string; phone: string } | null>(null);
   const [sendingReport, setSendingReport] = useState(false);
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const [reportHours, setReportHours] = useState('');
+  const [reportStudies, setReportStudies] = useState('0');
   const [templateItems, setTemplateItems] = useState<LocalGoalPlannerTemplateItem[]>([]);
   const [monthItems, setMonthItems] = useState<LocalGoalPlannerMonthItem[]>([]);
   const [lastGoalToast, setLastGoalToast] = useState<number | null>(null);
@@ -174,7 +176,6 @@ export function GoalsPage() {
   const activeTemplateItems = templateItems.filter((item) => item.is_active);
   const activeMonthItems = monthItems.filter((item) => item.is_active);
   const hoursThisMonth = recordsThisMonth.reduce((sum, record) => sum + Number(record.hours), 0);
-  const returnVisitsThisMonth = recordsThisMonth.reduce((sum, record) => sum + Number(record.return_visits || 0), 0);
   const bibleStudiesThisMonth = recordsThisMonth.reduce((sum, record) => sum + Number(record.bible_studies || 0), 0);
   const goalProgressPercent = goal > 0 ? Math.min(100, (hoursThisMonth / goal) * 100) : 0;
   const remainingHours = Math.max(goal - hoursThisMonth, 0);
@@ -192,23 +193,20 @@ export function GoalsPage() {
 
     try {
       setLoading(true);
-      const [goalData, records, plannerTemplateData, plannerMonthData, activeStudies] = await Promise.all([
+      const [goalData, records, plannerTemplateData, plannerMonthData] = await Promise.all([
         ministryApi.getMonthlyGoal(userId, currentYear, currentMonth),
         ministryApi.getFieldRecords(userId, currentMonth, currentYear),
         ministryApi.getGoalPlannerTemplate(userId),
         ministryApi.getGoalPlannerMonthItems(userId, currentYear, currentMonth),
-        ministryApi.getReturnVisits(userId, 'estudo_iniciado'),
       ]);
 
       setGoal(goalData ? Number(goalData.hours_goal) : 10);
       setRecordsThisMonth(
         records.map((record) => ({
           hours: Number(record.hours || 0),
-          return_visits: Number(record.return_visits || 0),
           bible_studies: Number(record.bible_studies || 0),
         })),
       );
-      setActiveStudiesCount(activeStudies.length);
       setTemplateItems(plannerTemplateData);
       setMonthItems(plannerMonthData);
     } catch {
@@ -508,15 +506,37 @@ export function GoalsPage() {
     setSelectedMonthDate((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1));
   };
 
+  const monthName = new Date(currentYear, currentMonth - 1, 1).toLocaleDateString('pt-BR', { month: 'long' });
+
+  const handleOpenReportDialog = () => {
+    setReportHours(hoursThisMonth > 0 ? String(hoursThisMonth) : '');
+    setReportStudies(String(bibleStudiesThisMonth));
+    setIsReportDialogOpen(true);
+  };
+
   const handleSendReport = async () => {
     if (!serviceOverseer?.phone) {
       toast.error('Não foi possível encontrar o WhatsApp do dirigente de serviço.');
       return;
     }
 
-    const hoursLabel = formatDecimalHours(hoursThisMonth);
+    const parsedHours = reportHours.trim() === '' ? 0 : Number(reportHours);
+    const parsedStudies = reportStudies.trim() === '' ? 0 : Number(reportStudies);
 
-    const message = `Bom dia ${serviceOverseer.name}, tudo bem ?\n\nSegue abaixo meu relatório de serviço ministerial do mês de ${capitalizeText(monthName)}:\n\n${hoursLabel} Horas\n${returnVisitsThisMonth} Revisitas\n${bibleStudiesThisMonth} Estudos no mês\n${activeStudiesCount} Estudos em andamento`;
+    if (!Number.isFinite(parsedHours) || parsedHours < 0) {
+      toast.error('Horas inválidas.');
+      return;
+    }
+
+    if (!Number.isFinite(parsedStudies) || parsedStudies < 0) {
+      toast.error('Estudos inválidos.');
+      return;
+    }
+
+    const hoursLabel = parsedHours > 0 ? `${formatDecimalHours(parsedHours)} Horas` : 'Participei no serviço de campo neste mês.';
+    const studiesLabel = `${Math.trunc(parsedStudies)} Estudos no mês`;
+
+    const message = `Bom dia ${serviceOverseer.name}, tudo bem ?\n\nSegue abaixo meu relatório de serviço ministerial do mês de ${capitalizeText(monthName)}:\n\n${hoursLabel}\n${studiesLabel}`;
 
     try {
       setSendingReport(true);
@@ -525,6 +545,7 @@ export function GoalsPage() {
         text: message,
       });
       toast.success('Relatório enviado com sucesso.');
+      setIsReportDialogOpen(false);
     } catch (error) {
       const messageText = error instanceof Error ? error.message : 'Erro ao enviar relatório.';
       toast.error(messageText);
@@ -532,8 +553,6 @@ export function GoalsPage() {
       setSendingReport(false);
     }
   };
-
-  const monthName = new Date(currentYear, currentMonth - 1, 1).toLocaleDateString('pt-BR', { month: 'long' });
 
   let plannerMessage = 'Planejamento alinhado com o saldo restante.';
   if (remainingHours === 0) {
@@ -554,7 +573,7 @@ export function GoalsPage() {
           <p className="text-sm text-muted-foreground">Acompanhe sua meta e organize um plano prático para cumpri-la</p>
         </div>
         <Button
-          onClick={handleSendReport}
+          onClick={handleOpenReportDialog}
           disabled={loading || sendingReport}
           className="bg-[#1f7a45] text-white hover:bg-[#19673a]"
         >
@@ -980,6 +999,53 @@ export function GoalsPage() {
           </p>
         </CardContent>
       </Card>
+
+      <Dialog open={isReportDialogOpen} onOpenChange={setIsReportDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Revisar relatório de {capitalizeText(monthName)}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Horas</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.5"
+                placeholder="Opcional"
+                value={reportHours}
+                onChange={(event) => setReportHours(event.target.value)}
+                className="mt-1"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Se deixar vazio, o relatório enviará apenas que você participou no serviço de campo.
+              </p>
+            </div>
+
+            <div>
+              <Label>Estudos no mês</Label>
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                value={reportStudies}
+                onChange={(event) => setReportStudies(event.target.value)}
+                className="mt-1"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsReportDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSendReport} disabled={sendingReport} className="bg-[#1f7a45] text-white hover:bg-[#19673a]">
+              {sendingReport ? 'Enviando...' : 'Enviar relatório'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={Boolean(editor)} onOpenChange={(open) => { if (!open) closeEditor(); }}>
         <DialogContent className="max-w-md">
