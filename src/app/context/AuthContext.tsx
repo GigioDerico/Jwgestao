@@ -67,19 +67,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const profile = profileRows?.[0];
+
+      let resolvedMemberId: string | undefined = profile?.member_id || undefined;
+
+      if (!resolvedMemberId && phoneDigits) {
+        const { data: memberByPhone } = await supabase
+          .from('members')
+          .select('id')
+          .eq('phone', phoneDigits)
+          .maybeSingle();
+
+        if (memberByPhone?.id) {
+          resolvedMemberId = memberByPhone.id;
+          await supabase
+            .from('user_profiles')
+            .update({ member_id: resolvedMemberId })
+            .eq('id', supaUser.id);
+        }
+      }
+
       const baseUser: AuthUser = {
         id: supaUser.id,
         phone: phoneDigits,
         role: profile?.system_role || 'publicador',
         name: 'Usuário',
-        member_id: profile?.member_id || undefined,
+        member_id: resolvedMemberId,
       };
 
-      if (profile?.member_id) {
+      if (resolvedMemberId) {
         const { data: memberRows, error: memberError } = await supabase
           .from('members')
           .select('full_name, gender, spiritual_status, group_id, avatar_url, approved_audio_video, approved_sound, approved_image, approved_stage, approved_roving_mic, approved_indicadores, approved_carrinho')
-          .eq('id', profile.member_id)
+          .eq('id', resolvedMemberId)
           .limit(1);
 
         if (memberError) {

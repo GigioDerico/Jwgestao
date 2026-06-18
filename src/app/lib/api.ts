@@ -538,7 +538,6 @@ export const api = {
       .select('*')
       .eq('member_id', memberId)
       .neq('status', 'revoked')
-      .neq('status', 'hidden')
       .order('assignment_date', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false });
 

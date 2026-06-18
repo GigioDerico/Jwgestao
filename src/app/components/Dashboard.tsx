@@ -128,6 +128,7 @@ export function Dashboard() {
   const [configuredWeekendTime, setConfiguredWeekendTime] = useState('');
   const [recentMembers, setRecentMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAllNotifications, setShowAllNotifications] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -196,28 +197,36 @@ export function Dashboard() {
     });
   }, [notifications]);
 
+  // listNotifications: excludes hidden — used in "Minhas Designações" panel
+  const listNotifications = useMemo(
+    () => visibleNotifications.filter(n => n.status !== 'hidden'),
+    [visibleNotifications]
+  );
+
+  const displayedListNotifications = useMemo(
+    () => showAllNotifications ? listNotifications : listNotifications.slice(0, 3),
+    [listNotifications, showAllNotifications]
+  );
+
+  // cardNotifications: includes hidden — used in meeting cards so X never removes from card
   const nextMidweekNotifications = useMemo(
-    () => visibleNotifications.filter(
-      notification =>
-        notification.category === 'midweek' &&
-        notification.assignmentDate === nextMidweekDate
-    ),
+    () => nextMidweekDate
+      ? visibleNotifications.filter(n => n.assignmentDate === nextMidweekDate)
+      : [],
     [visibleNotifications, nextMidweekDate]
   );
 
   const nextWeekendNotifications = useMemo(
-    () => visibleNotifications.filter(
-      notification =>
-        notification.category === 'weekend' &&
-        notification.assignmentDate === nextWeekendDate
-    ),
+    () => nextWeekendDate
+      ? visibleNotifications.filter(n => n.assignmentDate === nextWeekendDate)
+      : [],
     [visibleNotifications, nextWeekendDate]
   );
 
   const notificationGroups = useMemo(() => {
-    const groups = new Map<string, { label: string; items: typeof visibleNotifications }>();
+    const groups = new Map<string, { label: string; items: typeof displayedListNotifications }>();
 
-    for (const notification of visibleNotifications) {
+    for (const notification of displayedListNotifications) {
       if (!notification.assignmentDate) {
         const existing = groups.get('no-date');
         if (existing) {
@@ -253,7 +262,7 @@ export function Dashboard() {
         return aKey.localeCompare(bKey);
       })
       .map(([, group]) => group);
-  }, [visibleNotifications]);
+  }, [displayedListNotifications]);
 
   const stats = [
     { label: 'Membros', value: loading ? '...' : membersCount, icon: Users, color: 'bg-blue-500', path: '/members' },
@@ -303,7 +312,7 @@ export function Dashboard() {
           </h3>
         </div>
 
-        {visibleNotifications.length > 0 ? (
+        {listNotifications.length > 0 ? (
           <div>
             {notificationGroups.map((group, groupIndex) => (
               <div key={group.label} className={groupIndex > 0 ? 'border-t border-border' : ''}>
@@ -380,6 +389,19 @@ export function Dashboard() {
                 </div>
               </div>
             ))}
+            {listNotifications.length > 3 && (
+              <div className="px-4 md:px-5 py-3 border-t border-border">
+                <button
+                  onClick={() => setShowAllNotifications(prev => !prev)}
+                  className="text-primary font-medium hover:underline"
+                  style={{ fontSize: '0.85rem' }}
+                >
+                  {showAllNotifications
+                    ? 'Ver menos'
+                    : `Ver mais (${listNotifications.length - 3} restante${listNotifications.length - 3 > 1 ? 's' : ''})`}
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="p-8 text-center bg-card">
@@ -419,78 +441,49 @@ export function Dashboard() {
 
           <div className="mt-4 space-y-2">
             {nextMidweekNotifications.length > 0 ? (
-              nextMidweekNotifications.map(notification => (
-                <div
-                  key={notification.id}
-                  className={`rounded-lg border px-3 py-2 ${notification.status === 'pending_confirmation'
-                    ? 'border-red-300 bg-red-500/10'
-                    : 'border-emerald-300 bg-emerald-500/10'
-                    }`}
-                >
-                  <p
-                    className={`font-medium ${notification.status === 'pending_confirmation' ? 'text-red-100' : 'text-emerald-100'}`}
-                    style={{ fontSize: '0.8rem' }}
+              nextMidweekNotifications.map(notification => {
+                const isPending = notification.status === 'pending_confirmation';
+                return (
+                  <div
+                    key={notification.id}
+                    className={`rounded-lg border px-3 py-2 ${isPending
+                      ? 'border-red-300 bg-red-500/10'
+                      : 'border-emerald-300 bg-emerald-500/10'
+                      }`}
                   >
-                    {getAssignmentDesignationLabel(notification.message)}
-                  </p>
-                  <p
-                    className={notification.status === 'pending_confirmation' ? 'text-red-100/90' : 'text-emerald-100/90'}
-                    style={{ fontSize: '0.74rem' }}
-                  >
-                    {notification.status === 'pending_confirmation'
-                      ? 'Aguardando sua confirmação'
-                      : 'Designação já confirmada'}
-                  </p>
-                  {notification.status === 'pending_confirmation' && (
-                    <div className="flex gap-2 items-center mt-2">
-                      <button
-                        onClick={async () => {
-                          try {
-                            await confirm(notification.id);
-                          } catch (error: any) {
-                            console.error(error);
-                            toast.error(error?.message || 'Erro ao confirmar designação.');
-                          }
-                        }}
-                        className="rounded-full bg-white/15 px-3 py-1 text-white transition-colors hover:bg-white/25"
-                        style={{ fontSize: '0.72rem' }}
-                      >
-                        Confirmar
-                      </button>
-                      <button
-                        onClick={async () => {
-                          try {
-                            await hideNotification(notification.id);
-                          } catch (e) {
-                            toast.error('Erro ao ocultar');
-                          }
-                        }}
-                        className="p-1 rounded-full text-white/70 hover:bg-white/20 transition-colors"
-                        title="Ocultar do painel"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  )}
-                  {notification.status !== 'pending_confirmation' && (
-                    <div className="flex items-center justify-end mt-1">
-                      <button
-                        onClick={async () => {
-                          try {
-                            await hideNotification(notification.id);
-                          } catch (e) {
-                            toast.error('Erro ao ocultar');
-                          }
-                        }}
-                        className="p-1 rounded-full text-emerald-600 hover:bg-emerald-500/20 transition-colors"
-                        title="Ocultar do painel"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))
+                    <p
+                      className={`font-medium ${isPending ? 'text-red-100' : 'text-emerald-100'}`}
+                      style={{ fontSize: '0.8rem' }}
+                    >
+                      {getAssignmentDesignationLabel(notification.message)}
+                    </p>
+                    <p
+                      className={isPending ? 'text-red-100/90' : 'text-emerald-100/90'}
+                      style={{ fontSize: '0.74rem' }}
+                    >
+                      {isPending ? 'Aguardando sua confirmação' : 'Designação confirmada'}
+                    </p>
+                    {isPending && (
+                      <div className="flex gap-2 items-center mt-2">
+                        <button
+                          onClick={async () => {
+                            try {
+                              await confirm(notification.id);
+                            } catch (error: any) {
+                              console.error(error);
+                              toast.error(error?.message || 'Erro ao confirmar designação.');
+                            }
+                          }}
+                          className="rounded-full bg-white/15 px-3 py-1 text-white transition-colors hover:bg-white/25"
+                          style={{ fontSize: '0.72rem' }}
+                        >
+                          Confirmar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             ) : (
               <p className="text-white/70" style={{ fontSize: '0.78rem' }}>
                 Você não tem designação na próxima reunião.
@@ -527,78 +520,49 @@ export function Dashboard() {
 
           <div className="mt-4 space-y-2">
             {nextWeekendNotifications.length > 0 ? (
-              nextWeekendNotifications.map(notification => (
-                <div
-                  key={notification.id}
-                  className={`rounded-lg border px-3 py-2 ${notification.status === 'pending_confirmation'
-                    ? 'border-red-300 bg-red-50'
-                    : 'border-emerald-300 bg-emerald-50'
-                    }`}
-                >
-                  <p
-                    className={`font-medium ${notification.status === 'pending_confirmation' ? 'text-red-700' : 'text-emerald-700'}`}
-                    style={{ fontSize: '0.8rem' }}
+              nextWeekendNotifications.map(notification => {
+                const isPending = notification.status === 'pending_confirmation';
+                return (
+                  <div
+                    key={notification.id}
+                    className={`rounded-lg border px-3 py-2 ${isPending
+                      ? 'border-red-300 bg-red-50'
+                      : 'border-emerald-300 bg-emerald-50'
+                      }`}
                   >
-                    {getAssignmentDesignationLabel(notification.message)}
-                  </p>
-                  <p
-                    className={notification.status === 'pending_confirmation' ? 'text-red-700/80' : 'text-emerald-700/80'}
-                    style={{ fontSize: '0.74rem' }}
-                  >
-                    {notification.status === 'pending_confirmation'
-                      ? 'Aguardando sua confirmação'
-                      : 'Designação já confirmada'}
-                  </p>
-                  {notification.status === 'pending_confirmation' && (
-                    <div className="flex gap-2 items-center mt-2">
-                      <button
-                        onClick={async () => {
-                          try {
-                            await confirm(notification.id);
-                          } catch (error: any) {
-                            console.error(error);
-                            toast.error(error?.message || 'Erro ao confirmar designação.');
-                          }
-                        }}
-                        className="rounded-full bg-red-100 px-3 py-1 text-red-700 transition-colors hover:bg-red-200"
-                        style={{ fontSize: '0.72rem' }}
-                      >
-                        Confirmar
-                      </button>
-                      <button
-                        onClick={async () => {
-                          try {
-                            await hideNotification(notification.id);
-                          } catch (e) {
-                            toast.error('Erro ao ocultar');
-                          }
-                        }}
-                        className="p-1 rounded-full text-red-700/70 hover:bg-red-200 transition-colors"
-                        title="Ocultar do painel"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  )}
-                  {notification.status !== 'pending_confirmation' && (
-                    <div className="flex items-center justify-end mt-1">
-                      <button
-                        onClick={async () => {
-                          try {
-                            await hideNotification(notification.id);
-                          } catch (e) {
-                            toast.error('Erro ao ocultar');
-                          }
-                        }}
-                        className="p-1 rounded-full text-emerald-700/70 hover:bg-emerald-200 transition-colors"
-                        title="Ocultar do painel"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))
+                    <p
+                      className={`font-medium ${isPending ? 'text-red-700' : 'text-emerald-700'}`}
+                      style={{ fontSize: '0.8rem' }}
+                    >
+                      {getAssignmentDesignationLabel(notification.message)}
+                    </p>
+                    <p
+                      className={isPending ? 'text-red-700/80' : 'text-emerald-700/80'}
+                      style={{ fontSize: '0.74rem' }}
+                    >
+                      {isPending ? 'Aguardando sua confirmação' : 'Designação confirmada'}
+                    </p>
+                    {isPending && (
+                      <div className="flex gap-2 items-center mt-2">
+                        <button
+                          onClick={async () => {
+                            try {
+                              await confirm(notification.id);
+                            } catch (error: any) {
+                              console.error(error);
+                              toast.error(error?.message || 'Erro ao confirmar designação.');
+                            }
+                          }}
+                          className="rounded-full bg-red-100 px-3 py-1 text-red-700 transition-colors hover:bg-red-200"
+                          style={{ fontSize: '0.72rem' }}
+                        >
+                          Confirmar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             ) : (
               <p className="text-[#082c45]/70" style={{ fontSize: '0.78rem' }}>
                 Você não tem designação na próxima reunião.
