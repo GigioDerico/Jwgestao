@@ -86,6 +86,7 @@ export function FieldServiceAssignments({
     currentValue: string;
   } | null>(null);
   const [addSundayGroupModal, setAddSundayGroupModal] = useState(false);
+  const [addSaturdayModal, setAddSaturdayModal] = useState(false);
   const [addRuralSaturdayModal, setAddRuralSaturdayModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [groupsLoaded, setGroupsLoaded] = useState(false);
@@ -285,6 +286,13 @@ export function FieldServiceAssignments({
   );
   const availableSundayGroups = groups.filter(group => !currentSundayNames.has(group.name));
   const saturdays = getSaturdaysForMonth(currentMonth, currentYear);
+  const currentSaturdayLabels = new Set(
+    data
+      .filter(item => item.category === 'Sábado')
+      .map(item => item.weekday)
+      .filter(Boolean)
+  );
+  const availableSaturdays = saturdays.filter(saturday => !currentSaturdayLabels.has(saturday.label));
   const currentRuralSaturdayLabels = new Set(
     data
       .filter(item => item.category === 'Sábado - Rural')
@@ -341,6 +349,33 @@ export function FieldServiceAssignments({
       toast.success(`Linha de ${category} excluída.`);
     } catch (err: any) {
       toast.error(err.message || 'Erro ao excluir linha.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddSaturday = async (weekday: string) => {
+    if (!canCreate) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const created = await api.createFieldServiceAssignment({
+        month: currentMonth + 1,
+        year: currentYear,
+        weekday,
+        time: '16:30',
+        responsible: 'A definir',
+        responsible_member_id: null,
+        location: 'Salão do Reino',
+        category: 'Sábado',
+      });
+      setData(prev => [...prev, created]);
+      setAddSaturdayModal(false);
+      toast.success('Linha de sábado adicionada.');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao adicionar sábado.');
     } finally {
       setSaving(false);
     }
@@ -409,42 +444,24 @@ export function FieldServiceAssignments({
     }
 
     const saturdayItems = data.filter(item => item.category === 'Sábado');
-    const matchedSaturdayIds = new Set<string>();
-    const saturdayRows: FieldServiceTemplateRow[] = saturdays.map(saturday => {
-      const assignment = saturdayItems.find(item => item.weekday === saturday.label) || null;
-
-      if (assignment) {
-        matchedSaturdayIds.add(assignment.id);
-      }
-
-      return {
-        key: assignment?.id || `placeholder-${saturday.label}`,
+    const saturdayOrder = new Map(saturdays.map((saturday, index) => [saturday.label, index]));
+    const saturdayRows: FieldServiceTemplateRow[] = saturdayItems
+      .slice()
+      .sort((a, b) => (saturdayOrder.get(a.weekday) ?? 99) - (saturdayOrder.get(b.weekday) ?? 99))
+      .map(item => ({
+        key: item.id,
         category: 'Sábado',
-        assignment,
-        dayLabel: assignment?.weekday || saturday.label,
-        displayTime: assignment?.time || '16:30',
-        displayResponsible: assignment?.responsible || 'A definir',
-        displayLocation: assignment?.location || 'Salão do Reino',
-      };
-    });
-
-    saturdayItems
-      .filter(item => !matchedSaturdayIds.has(item.id))
-      .forEach(item => {
-        saturdayRows.push({
-          key: item.id,
-          category: 'Sábado',
-          assignment: item,
-          dayLabel: item.weekday,
-          displayTime: item.time,
-          displayResponsible: item.responsible,
-          displayLocation: item.location,
-        });
-      });
+        assignment: item,
+        dayLabel: item.weekday,
+        displayTime: item.time,
+        displayResponsible: item.responsible,
+        displayLocation: item.location,
+      }));
 
     renderedGroups.push({
       category: 'Sábado',
       rows: saturdayRows,
+      emptyMessage: saturdayRows.length === 0 ? 'Nenhuma linha de sábado adicionada neste mês.' : undefined,
     });
 
     const ruralItems = data.filter(item => item.category === 'Sábado - Rural');
@@ -463,46 +480,24 @@ export function FieldServiceAssignments({
     });
 
     const sundayItems = data.filter(item => item.category === 'Domingo');
-    const matchedSundayIds = new Set<string>();
-    const sundayRows: FieldServiceTemplateRow[] = groups.map(group => {
-      const assignment = sundayItems.find(item => item.responsible === group.name) || null;
-
-      if (assignment) {
-        matchedSundayIds.add(assignment.id);
-      }
-
-      return {
-        key: assignment?.id || `placeholder-sunday-${group.id}`,
-        category: 'Domingo',
-        assignment,
-        dayLabel: 'Domingo',
-        displayTime: assignment?.time || '08:30 / 08:45',
-        displayResponsible: assignment?.responsible || group.name,
-        displayLocation: assignment?.location || '',
-        groupName: assignment?.responsible || group.name,
-      };
-    });
-
-    sundayItems
-      .filter(item => !matchedSundayIds.has(item.id))
+    const sundayRows: FieldServiceTemplateRow[] = sundayItems
+      .slice()
       .sort((a, b) => a.responsible.localeCompare(b.responsible))
-      .forEach(item => {
-        sundayRows.push({
-          key: item.id,
-          category: 'Domingo',
-          assignment: item,
-          dayLabel: 'Domingo',
-          displayTime: item.time,
-          displayResponsible: item.responsible,
-          displayLocation: item.location,
-          groupName: item.responsible,
-        });
-      });
+      .map(item => ({
+        key: item.id,
+        category: 'Domingo',
+        assignment: item,
+        dayLabel: 'Domingo',
+        displayTime: item.time,
+        displayResponsible: item.responsible,
+        displayLocation: item.location,
+        groupName: item.responsible,
+      }));
 
     renderedGroups.push({
       category: 'Domingo',
       rows: sundayRows,
-      emptyMessage: groups.length === 0 ? 'Nenhum grupo de serviço cadastrado.' : undefined,
+      emptyMessage: sundayRows.length === 0 ? 'Nenhum grupo adicionado ao domingo neste mês.' : undefined,
     });
 
     return renderedGroups;
@@ -670,7 +665,9 @@ export function FieldServiceAssignments({
           {renderedGroups.map(group => {
             const colors = CATEGORY_COLORS[group.category];
             const isSunday = group.category === 'Domingo';
+            const isSaturday = group.category === 'Sábado';
             const isRural = group.category === 'Sábado - Rural';
+            const hasActionsColumn = isRural || isSaturday;
 
             return (
               <div key={group.category} className={`bg-white rounded-xl border ${colors.border} overflow-hidden`}>
@@ -678,7 +675,7 @@ export function FieldServiceAssignments({
                   <h4 className="text-center text-white tracking-wide" style={{ fontSize: MIN_FONT_SIZE }}>
                     {group.category}
                   </h4>
-                  {canCreate && (isSunday || isRural) && (
+                  {canCreate && (isSunday || isSaturday || isRural) && (
                     <div className="absolute inset-y-0 right-4 flex items-center">
                       <button
                         type="button"
@@ -689,6 +686,15 @@ export function FieldServiceAssignments({
                               return;
                             }
                             setAddSundayGroupModal(true);
+                            return;
+                          }
+
+                          if (isSaturday) {
+                            if (availableSaturdays.length === 0) {
+                              toast.error('Todos os sábados deste mês já foram adicionados.');
+                              return;
+                            }
+                            setAddSaturdayModal(true);
                             return;
                           }
 
@@ -733,19 +739,19 @@ export function FieldServiceAssignments({
                             </tr>
                           ) : (
                             <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
-                              <th className="px-4 py-1.5 text-left" style={{ width: isRural ? '22%' : '25%' }}>
+                              <th className="px-4 py-1.5 text-left" style={{ width: hasActionsColumn ? '22%' : '25%' }}>
                                 Dia
                               </th>
-                              <th className="px-3 py-1.5 text-center" style={{ width: isRural ? '22%' : '25%' }}>
+                              <th className="px-3 py-1.5 text-center" style={{ width: hasActionsColumn ? '22%' : '25%' }}>
                                 Horário
                               </th>
-                              <th className="px-3 py-1.5 text-left" style={{ width: isRural ? '22%' : '25%' }}>
+                              <th className="px-3 py-1.5 text-left" style={{ width: hasActionsColumn ? '22%' : '25%' }}>
                                 Responsável
                               </th>
-                              <th className="px-3 py-1.5 text-left" style={{ width: isRural ? '22%' : '25%' }}>
+                              <th className="px-3 py-1.5 text-left" style={{ width: hasActionsColumn ? '22%' : '25%' }}>
                                 Local
                               </th>
-                              {isRural && canCreate && <th style={{ width: '12%' }} />}
+                              {hasActionsColumn && canCreate && <th style={{ width: '12%' }} />}
                             </tr>
                           )}
                         </thead>
@@ -806,12 +812,12 @@ export function FieldServiceAssignments({
                                   <td className="px-3 py-1.5">
                                     {renderTextButton(row, 'location', 'Local', row.displayLocation, 'Sem local')}
                                   </td>
-                                  {isRural && canCreate && (
+                                  {hasActionsColumn && canCreate && (
                                     <td className="px-2 py-1.5 text-center">
                                       {row.assignment && (
                                         <button
                                           type="button"
-                                          onClick={() => handleDeleteRow(row.assignment!.id, 'sábado rural')}
+                                          onClick={() => handleDeleteRow(row.assignment!.id, isSaturday ? 'sábado' : 'sábado rural')}
                                           disabled={saving}
                                           className="inline-flex items-center justify-center rounded p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
                                           title="Excluir linha"
@@ -842,10 +848,10 @@ export function FieldServiceAssignments({
                                   não gerada
                                 </span>
                               )}
-                              {canCreate && (isSunday || isRural) && row.assignment && (
+                              {canCreate && (isSunday || isSaturday || isRural) && row.assignment && (
                                 <button
                                   type="button"
-                                  onClick={() => handleDeleteRow(row.assignment!.id, isSunday ? 'domingo' : 'sábado rural')}
+                                  onClick={() => handleDeleteRow(row.assignment!.id, isSunday ? 'domingo' : isSaturday ? 'sábado' : 'sábado rural')}
                                   disabled={saving}
                                   className="inline-flex items-center justify-center rounded p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
                                   title="Excluir linha"
@@ -921,6 +927,15 @@ export function FieldServiceAssignments({
           groups={availableSundayGroups}
           onClose={() => setAddSundayGroupModal(false)}
           onSave={handleAddSundayGroup}
+          saving={saving}
+        />
+      )}
+
+      {canCreate && addSaturdayModal && (
+        <SaturdaySelectModal
+          options={availableSaturdays.map(saturday => saturday.label)}
+          onClose={() => setAddSaturdayModal(false)}
+          onSave={handleAddSaturday}
           saving={saving}
         />
       )}
