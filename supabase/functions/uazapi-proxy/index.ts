@@ -8,6 +8,7 @@ const ALLOWED_ENDPOINTS: Record<string, 'GET' | 'POST'> = {
     '/instance/connect': 'POST',
     '/instance/status': 'GET',
     '/instance/disconnect': 'POST',
+    '/proxy-managed/cities': 'GET',
 }
 
 Deno.serve(async (req) => {

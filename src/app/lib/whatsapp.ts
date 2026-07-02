@@ -139,10 +139,35 @@ function parseInstanceStatus(data: any): InstanceStatus {
     };
 }
 
-export async function connectInstance(phone?: string): Promise<InstanceStatus> {
+export interface ProxyCity {
+    value: string;
+    label: string;
+    state?: string;
+    state_label?: string;
+}
+
+export async function listProxyCities(): Promise<ProxyCity[]> {
+    const data = await callUazapiProxy('/proxy-managed/cities');
+    const cities = Array.isArray(data?.cities) ? data.cities : [];
+    return cities.map((c: any) => ({
+        value: c.value,
+        label: c.label || c.value,
+        state: c.state || undefined,
+        state_label: c.state_label || undefined,
+    }));
+}
+
+export async function connectInstance(phone?: string, proxyCity?: ProxyCity): Promise<InstanceStatus> {
     const payload: Record<string, unknown> = {};
     if (phone) {
         payload.phone = formatPhoneForWhatsApp(phone);
+    }
+    if (proxyCity?.value) {
+        payload.proxy_managed_country = 'br';
+        payload.proxy_managed_city = proxyCity.value;
+        if (proxyCity.state) {
+            payload.proxy_managed_state = proxyCity.state;
+        }
     }
     const data = await callUazapiProxy('/instance/connect', payload);
     return parseInstanceStatus(data);

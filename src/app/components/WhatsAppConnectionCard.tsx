@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, QrCode, RefreshCw, Smartphone, Unplug, X } from 'lucide-react';
+import { Loader2, MapPin, QrCode, RefreshCw, Smartphone, Unplug, X } from 'lucide-react';
 import {
     connectInstance,
     disconnectInstance,
     getInstanceStatus,
+    listProxyCities,
     InstanceConnectionState,
     InstanceStatus,
+    ProxyCity,
 } from '../lib/whatsapp';
 
 interface WhatsAppConnectionCardProps {
@@ -43,6 +45,9 @@ export function WhatsAppConnectionCard({ hasCredentials }: WhatsAppConnectionCar
     const [expired, setExpired] = useState(false);
     const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
     const [disconnecting, setDisconnecting] = useState(false);
+    const [cities, setCities] = useState<ProxyCity[]>([]);
+    const [selectedCity, setSelectedCity] = useState('');
+    const [loadingCities, setLoadingCities] = useState(false);
     const pollRef = useRef<number | null>(null);
     const pollGenRef = useRef(0);
 
@@ -106,11 +111,13 @@ export function WhatsAppConnectionCard({ hasCredentials }: WhatsAppConnectionCar
 
     useEffect(() => stopPolling, [stopPolling]);
 
-    const beginConnect = async (phone?: string) => {
+    const beginConnect = async (phone?: string, cityValue?: string) => {
         setConnecting(true);
         setExpired(false);
         try {
-            const s = await connectInstance(phone);
+            const effectiveCity = cityValue !== undefined ? cityValue : selectedCity;
+            const city = cities.find(c => c.value === effectiveCity);
+            const s = await connectInstance(phone, city);
             setQrcode(s.qrcode || null);
             setPaircode(s.paircode || null);
             setStatus(s);
@@ -122,6 +129,18 @@ export function WhatsAppConnectionCard({ hasCredentials }: WhatsAppConnectionCar
         }
     };
 
+    const loadCities = useCallback(async () => {
+        if (cities.length > 0) return;
+        setLoadingCities(true);
+        try {
+            setCities(await listProxyCities());
+        } catch {
+            // proxy regional é opcional: falha silenciosa, conexão segue sem cidade
+        } finally {
+            setLoadingCities(false);
+        }
+    }, [cities.length]);
+
     const openConnectModal = () => {
         setConnectTab('qr');
         setQrcode(null);
@@ -129,6 +148,7 @@ export function WhatsAppConnectionCard({ hasCredentials }: WhatsAppConnectionCar
         setPhoneInput('');
         setExpired(false);
         setShowConnectModal(true);
+        loadCities();
         beginConnect();
     };
 
@@ -136,6 +156,16 @@ export function WhatsAppConnectionCard({ hasCredentials }: WhatsAppConnectionCar
         stopPolling();
         setShowConnectModal(false);
         refreshStatus(true);
+    };
+
+    const handleCityChange = (value: string) => {
+        setSelectedCity(value);
+        if (connectTab === 'qr') {
+            stopPolling();
+            setQrcode(null);
+            setExpired(false);
+            beginConnect(undefined, value);
+        }
     };
 
     const switchTab = (tab: 'qr' | 'code') => {
@@ -225,6 +255,28 @@ export function WhatsAppConnectionCard({ hasCredentials }: WhatsAppConnectionCar
                             <button onClick={closeConnectModal} className="text-muted-foreground hover:text-foreground">
                                 <X className="h-5 w-5" />
                             </button>
+                        </div>
+                        <div className="mb-4">
+                            <label className="mb-1 flex items-center gap-1 text-muted-foreground" style={{ fontSize: '0.8rem' }}>
+                                <MapPin className="h-3.5 w-3.5" /> Região da conexão (opcional)
+                            </label>
+                            <select
+                                value={selectedCity}
+                                onChange={e => handleCityChange(e.target.value)}
+                                disabled={loadingCities}
+                                className="w-full rounded-lg border border-border bg-card px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
+                                style={{ fontSize: '0.85rem' }}
+                            >
+                                <option value="">{loadingCities ? 'Carregando cidades...' : 'Sem proxy regional (padrão)'}</option>
+                                {cities.map(c => (
+                                    <option key={c.value} value={c.value}>
+                                        {c.label}{c.state_label ? ` - ${c.state_label}` : ''}
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="mt-1 text-muted-foreground" style={{ fontSize: '0.72rem' }}>
+                                Escolher uma cidade próxima faz a conexão sair de um IP brasileiro regional, reduzindo bloqueios de segurança do WhatsApp.
+                            </p>
                         </div>
                         <div className="mb-4 flex gap-2 border-b border-border">
                             <button
