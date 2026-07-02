@@ -8,6 +8,7 @@ const ALLOWED_ENDPOINTS: Record<string, 'GET' | 'POST'> = {
     '/instance/connect': 'POST',
     '/instance/status': 'GET',
     '/instance/disconnect': 'POST',
+    '/instance/wa_messages_limits': 'GET',
     '/proxy-managed/cities': 'GET',
 }
 

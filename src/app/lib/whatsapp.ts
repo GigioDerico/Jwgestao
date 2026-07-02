@@ -29,6 +29,25 @@ export interface InstanceStatus {
     paircode?: string;
 }
 
+// Quando a Edge Function responde não-2xx, o supabase-js popula `error`
+// (FunctionsHttpError) e o corpo real da resposta fica em `error.context`.
+// Extrai daí a mensagem/status verdadeiros do WhatsApp (ex: erro 463).
+async function extractProxyError(error: any): Promise<{ message: string; status?: number }> {
+    try {
+        const ctx = error?.context;
+        if (ctx && typeof ctx.json === 'function') {
+            const body = await ctx.json();
+            return { message: body?.error || error?.message || 'Erro na requisição UAZAPI', status: body?.status ?? ctx.status };
+        }
+        if (ctx && typeof ctx.status === 'number') {
+            return { message: error?.message || 'Erro na requisição UAZAPI', status: ctx.status };
+        }
+    } catch {
+        // corpo ilegível: cai no fallback de mensagem abaixo
+    }
+    return { message: error?.message || 'Erro na requisição UAZAPI' };
+}
+
 async function callUazapiProxy(endpoint: string, payload?: Record<string, unknown>): Promise<any> {
     const instance = await api.getAppSetting('uazapi_instance');
     const token = await api.getAppSetting('uazapi_token');
@@ -39,22 +58,40 @@ async function callUazapiProxy(endpoint: string, payload?: Record<string, unknow
 
     const body: Record<string, unknown> = { instance, token, endpoint, payload, isFallback: false };
 
-    let { data: responseData, error: responseError } = await supabase.functions.invoke('uazapi-proxy', { body });
+    const { data, error } = await supabase.functions.invoke('uazapi-proxy', { body });
 
-    if (responseError || (responseData && responseData.error && responseData.status === 404)) {
-        const { data: fallbackData, error: fallbackError } = await supabase.functions.invoke('uazapi-proxy', {
-            body: { ...body, isFallback: true }
-        });
-
-        if (fallbackError || (fallbackData && fallbackData.error)) {
-            throw new Error(fallbackData?.error || fallbackError?.message || 'Falha na requisição UAZAPI Proxy Fallback');
-        }
-        return fallbackData;
-    } else if (responseData && responseData.error) {
-        throw new Error(responseData.error);
+    if (!error && !(data && data.error)) {
+        return data;
     }
 
-    return responseData;
+    let errMessage: string;
+    let errStatus: number | undefined;
+    if (error) {
+        const extracted = await extractProxyError(error);
+        errMessage = extracted.message;
+        errStatus = extracted.status;
+    } else {
+        errMessage = data.error;
+        errStatus = data.status;
+    }
+
+    // Fallback só quando o host principal não tem o recurso (404, ex: endpoint
+    // movido de domínio). Erros reais do WhatsApp (463, etc) são propagados —
+    // o token é dedicado ao host principal, tentar o free só geraria 401 falso.
+    if (errStatus === 404) {
+        const { data: fbData, error: fbError } = await supabase.functions.invoke('uazapi-proxy', {
+            body: { ...body, isFallback: true }
+        });
+        if (!fbError && !(fbData && fbData.error)) {
+            return fbData;
+        }
+        if (fbError) {
+            throw new Error((await extractProxyError(fbError)).message);
+        }
+        throw new Error(fbData.error);
+    }
+
+    throw new Error(errMessage);
 }
 
 async function sendWhatsAppText(number: string, text: string): Promise<boolean> {
@@ -180,4 +217,19 @@ export async function getInstanceStatus(): Promise<InstanceStatus> {
 
 export async function disconnectInstance(): Promise<void> {
     await callUazapiProxy('/instance/disconnect');
+}
+
+export interface MessageLimits {
+    canSendNew: boolean | null;
+    reachable: boolean;
+    message?: string;
+}
+
+export async function getMessageLimits(): Promise<MessageLimits> {
+    const data = await callUazapiProxy('/instance/wa_messages_limits');
+    return {
+        canSendNew: typeof data?.can_send_new_messages === 'boolean' ? data.can_send_new_messages : null,
+        reachable: Boolean(data?.reachable),
+        message: data?.provider_message_ptbr || data?.message_ptbr || undefined,
+    };
 }

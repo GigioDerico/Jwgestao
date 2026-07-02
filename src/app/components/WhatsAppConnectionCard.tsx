@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, MapPin, QrCode, RefreshCw, Smartphone, Unplug, X } from 'lucide-react';
+import { AlertTriangle, Loader2, MapPin, QrCode, RefreshCw, Smartphone, Unplug, X } from 'lucide-react';
 import {
     connectInstance,
     disconnectInstance,
     getInstanceStatus,
+    getMessageLimits,
     listProxyCities,
     InstanceConnectionState,
     InstanceStatus,
+    MessageLimits,
     ProxyCity,
 } from '../lib/whatsapp';
 
@@ -35,6 +37,7 @@ const POLL_INTERVAL_MS = 3000;
 
 export function WhatsAppConnectionCard({ hasCredentials }: WhatsAppConnectionCardProps) {
     const [status, setStatus] = useState<InstanceStatus | null>(null);
+    const [limits, setLimits] = useState<MessageLimits | null>(null);
     const [loadingStatus, setLoadingStatus] = useState(false);
     const [showConnectModal, setShowConnectModal] = useState(false);
     const [connectTab, setConnectTab] = useState<'qr' | 'code'>('qr');
@@ -57,6 +60,15 @@ export function WhatsAppConnectionCard({ hasCredentials }: WhatsAppConnectionCar
         try {
             const s = await getInstanceStatus();
             setStatus(s);
+            if (s.state === 'connected') {
+                try {
+                    setLimits(await getMessageLimits());
+                } catch {
+                    // limites são informativos: falha não bloqueia o status
+                }
+            } else {
+                setLimits(null);
+            }
         } catch (err: any) {
             if (!silent) toast.error(err.message || 'Erro ao consultar status do WhatsApp.');
         } finally {
@@ -245,6 +257,19 @@ export function WhatsAppConnectionCard({ hasCredentials }: WhatsAppConnectionCar
                     </span>
                 )}
             </div>
+
+            {/* Aviso de restrição de novas conversas (erro 463) */}
+            {isConnected && limits && limits.canSendNew === false && (
+                <div className="mt-3 flex items-start gap-2 rounded-lg border border-yellow-300 bg-yellow-50 p-3 text-yellow-800">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div style={{ fontSize: '0.8rem' }}>
+                        <p className="font-medium">Envio de novas conversas restrito pelo WhatsApp</p>
+                        <p className="mt-0.5">
+                            {limits.message || 'A conta está sob restrição temporária para iniciar novas conversas (volume/qualidade). Reduza a cadência de envios e aguarde a liberação.'}
+                        </p>
+                    </div>
+                </div>
+            )}
 
             {/* Modal de conexão */}
             {showConnectModal && (
