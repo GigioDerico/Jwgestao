@@ -44,6 +44,7 @@ export function WhatsAppConnectionCard({ hasCredentials }: WhatsAppConnectionCar
     const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
     const [disconnecting, setDisconnecting] = useState(false);
     const pollRef = useRef<number | null>(null);
+    const pollGenRef = useRef(0);
 
     const refreshStatus = useCallback(async (silent = false) => {
         if (!hasCredentials) return;
@@ -63,17 +64,21 @@ export function WhatsAppConnectionCard({ hasCredentials }: WhatsAppConnectionCar
     }, [refreshStatus]);
 
     const stopPolling = useCallback(() => {
+        pollGenRef.current += 1;
         if (pollRef.current !== null) {
-            window.clearInterval(pollRef.current);
+            window.clearTimeout(pollRef.current);
             pollRef.current = null;
         }
     }, []);
 
     const startPolling = useCallback(() => {
         stopPolling();
-        pollRef.current = window.setInterval(async () => {
+        const myGen = pollGenRef.current;
+
+        const tick = async () => {
             try {
                 const s = await getInstanceStatus();
+                if (pollGenRef.current !== myGen) return;
                 setStatus(s);
                 if (s.qrcode) setQrcode(s.qrcode);
                 if (s.paircode) setPaircode(s.paircode);
@@ -81,14 +86,22 @@ export function WhatsAppConnectionCard({ hasCredentials }: WhatsAppConnectionCar
                     stopPolling();
                     setShowConnectModal(false);
                     toast.success('WhatsApp conectado com sucesso!');
+                    return;
                 } else if (s.state === 'disconnected') {
                     stopPolling();
                     setExpired(true);
+                    return;
                 }
             } catch {
                 // erro transitório de poll: ignora, próxima iteração tenta de novo
+                if (pollGenRef.current !== myGen) return;
             }
-        }, POLL_INTERVAL_MS);
+            if (pollGenRef.current === myGen) {
+                pollRef.current = window.setTimeout(tick, POLL_INTERVAL_MS);
+            }
+        };
+
+        pollRef.current = window.setTimeout(tick, POLL_INTERVAL_MS);
     }, [stopPolling]);
 
     useEffect(() => stopPolling, [stopPolling]);
