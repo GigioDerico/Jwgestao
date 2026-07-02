@@ -18,7 +18,18 @@ export interface PlainWhatsAppMessageData {
     text: string;
 }
 
-async function sendWhatsAppText(number: string, text: string): Promise<boolean> {
+export type InstanceConnectionState = 'disconnected' | 'connecting' | 'connected' | 'hibernated' | 'unknown';
+
+export interface InstanceStatus {
+    state: InstanceConnectionState;
+    connected: boolean;
+    loggedIn: boolean;
+    profileName?: string;
+    qrcode?: string;
+    paircode?: string;
+}
+
+async function callUazapiProxy(endpoint: string, payload?: Record<string, unknown>): Promise<any> {
     const instance = await api.getAppSetting('uazapi_instance');
     const token = await api.getAppSetting('uazapi_token');
 
@@ -26,35 +37,28 @@ async function sendWhatsAppText(number: string, text: string): Promise<boolean> 
         throw new Error('Credenciais da UAZAPI não configuradas nas Settings.');
     }
 
-    const payload = { number, text };
+    const body: Record<string, unknown> = { instance, token, endpoint, payload, isFallback: false };
 
-    let { data: responseData, error: responseError } = await supabase.functions.invoke('uazapi-proxy', {
-        body: {
-            instance,
-            token,
-            payload,
-            isFallback: false
-        }
-    });
+    let { data: responseData, error: responseError } = await supabase.functions.invoke('uazapi-proxy', { body });
 
     if (responseError || (responseData && responseData.error && responseData.status === 404)) {
         const { data: fallbackData, error: fallbackError } = await supabase.functions.invoke('uazapi-proxy', {
-            body: {
-                instance,
-                token,
-                payload,
-                isFallback: true
-            }
+            body: { ...body, isFallback: true }
         });
 
         if (fallbackError || (fallbackData && fallbackData.error)) {
             throw new Error(fallbackData?.error || fallbackError?.message || 'Falha na requisição UAZAPI Proxy Fallback');
         }
-        return true;
+        return fallbackData;
     } else if (responseData && responseData.error) {
         throw new Error(responseData.error);
     }
 
+    return responseData;
+}
+
+async function sendWhatsAppText(number: string, text: string): Promise<boolean> {
+    await callUazapiProxy('/send/text', { number, text });
     return true;
 }
 
@@ -118,4 +122,37 @@ export async function sendTextWhatsApp(data: PlainWhatsAppMessageData): Promise<
         console.error('Error sending WhatsApp text message:', error);
         throw error;
     }
+}
+
+function parseInstanceStatus(data: any): InstanceStatus {
+    const inst = data?.instance || {};
+    const st = data?.status || {};
+    const rawState = inst.status as string | undefined;
+    const validStates: InstanceConnectionState[] = ['disconnected', 'connecting', 'connected', 'hibernated'];
+    return {
+        state: validStates.includes(rawState as InstanceConnectionState) ? (rawState as InstanceConnectionState) : 'unknown',
+        connected: Boolean(st.connected ?? data?.connected),
+        loggedIn: Boolean(st.loggedIn ?? data?.loggedIn),
+        profileName: inst.profileName || undefined,
+        qrcode: inst.qrcode || undefined,
+        paircode: inst.paircode || undefined,
+    };
+}
+
+export async function connectInstance(phone?: string): Promise<InstanceStatus> {
+    const payload: Record<string, unknown> = {};
+    if (phone) {
+        payload.phone = formatPhoneForWhatsApp(phone);
+    }
+    const data = await callUazapiProxy('/instance/connect', payload);
+    return parseInstanceStatus(data);
+}
+
+export async function getInstanceStatus(): Promise<InstanceStatus> {
+    const data = await callUazapiProxy('/instance/status');
+    return parseInstanceStatus(data);
+}
+
+export async function disconnectInstance(): Promise<void> {
+    await callUazapiProxy('/instance/disconnect');
 }
