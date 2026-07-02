@@ -3,31 +3,55 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const ALLOWED_ENDPOINTS: Record<string, 'GET' | 'POST'> = {
+    '/send/text': 'POST',
+    '/instance/connect': 'POST',
+    '/instance/status': 'GET',
+    '/instance/disconnect': 'POST',
+}
+
 Deno.serve(async (req) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders })
     }
 
     try {
-        const { instance, token, payload, isFallback } = await req.json()
+        const { instance, token, payload, endpoint, isFallback } = await req.json()
 
-        if (!instance || !token || !payload) {
+        if (!instance || !token) {
             return new Response(
-                JSON.stringify({ error: 'Missing required fields: instance, token, or payload' }),
+                JSON.stringify({ error: 'Missing required fields: instance or token' }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+            )
+        }
+
+        const targetEndpoint = endpoint || '/send/text'
+        const method = ALLOWED_ENDPOINTS[targetEndpoint]
+
+        if (!method) {
+            return new Response(
+                JSON.stringify({ error: `Endpoint not allowed: ${targetEndpoint}` }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+            )
+        }
+
+        if (targetEndpoint === '/send/text' && !payload) {
+            return new Response(
+                JSON.stringify({ error: 'Missing required field: payload' }),
                 { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
             )
         }
 
         const domain = isFallback ? 'free.uazapi.com' : 'whatsapparteinovacao.uazapi.com'
-        const url = `https://${domain}/send/text`
+        const url = `https://${domain}${targetEndpoint}`
 
         const response = await fetch(url, {
-            method: 'POST',
+            method,
             headers: {
                 'Content-Type': 'application/json',
                 'token': token,
             },
-            body: JSON.stringify(payload),
+            body: method === 'GET' ? undefined : JSON.stringify(payload || {}),
         })
 
         const data = await response.json().catch(() => null)
