@@ -6,6 +6,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { api } from '../lib/api';
 import { DEFAULT_CONGREGATION_NAME, isValidTimeValue } from '../lib/midweek-schedule';
 import { supabase } from '../lib/supabase';
+import { WhatsAppConnectionCard } from './WhatsAppConnectionCard';
 
 const roles = [
   { key: 'coordenador', label: 'Coordenador' },
@@ -349,6 +350,8 @@ export function SettingsPage() {
           </div>
         </div>
       </div>
+
+      <WhatsAppConnectionCard hasCredentials={Boolean(uazapiInstance.trim() && uazapiToken.trim())} />
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-border mb-4">
