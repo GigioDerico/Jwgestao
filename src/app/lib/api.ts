@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+import { readThroughCache } from './offline-cache';
 import { Database } from './supabase-types';
 import { getMeetingDatesForMonth } from './audio-video-calendar';
 import { getSaturdaysForMonth } from './field-service-calendar';
@@ -507,14 +508,16 @@ async function upsertAssignmentNotificationSlot(input: {
 
 export const api = {
   async getAppSetting(key: string) {
-    const { data, error } = await supabase
-      .from('app_settings')
-      .select('value')
-      .eq('key', key)
-      .maybeSingle();
+    return readThroughCache(`app_setting:${key}`, async () => {
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', key)
+        .maybeSingle();
 
-    if (error) throw new Error(`Erro ao buscar configuração: ${error.message}`);
-    return data?.value || null;
+      if (error) throw new Error(`Erro ao buscar configuração: ${error.message}`);
+      return data?.value || null;
+    });
   },
 
   async setAppSetting(key: string, value: string) {
@@ -953,25 +956,27 @@ export const api = {
 
   // Members (includes system_role from user_profiles via join)
   async getMembers() {
-    const { data, error } = await supabase
-      .from('members')
-      .select('*, user_profiles(system_role), member_privileges(role)')
-      .order('full_name');
+    return readThroughCache('members', async () => {
+      const { data, error } = await supabase
+        .from('members')
+        .select('*, user_profiles(system_role), member_privileges(role)')
+        .order('full_name');
 
-    if (error) throw error;
+      if (error) throw error;
 
-    // Flatten system_role from the joined user_profiles onto each member
-    return (data || []).map((m: any) => ({
-      ...m,
-      roles: Array.isArray(m.member_privileges)
-        ? m.member_privileges.map((p: any) => p.role).filter(Boolean)
-        : [],
-      system_role: Array.isArray(m.user_profiles)
-        ? m.user_profiles[0]?.system_role ?? 'publicador'
-        : m.user_profiles?.system_role ?? 'publicador',
-      member_privileges: undefined,
-      user_profiles: undefined,
-    }));
+      // Flatten system_role from the joined user_profiles onto each member
+      return (data || []).map((m: any) => ({
+        ...m,
+        roles: Array.isArray(m.member_privileges)
+          ? m.member_privileges.map((p: any) => p.role).filter(Boolean)
+          : [],
+        system_role: Array.isArray(m.user_profiles)
+          ? m.user_profiles[0]?.system_role ?? 'publicador'
+          : m.user_profiles?.system_role ?? 'publicador',
+        member_privileges: undefined,
+        user_profiles: undefined,
+      }));
+    });
   },
 
   async updateMember(memberId: string, input: Partial<CreateMemberInput>) {
@@ -2428,11 +2433,7 @@ export const api = {
 
   // Midweek Meetings 
   async getMidweekMeetings() {
-    /* const scheduleResult = await supabase.rpc('get_midweek_meetings_schedule');
-    if (!scheduleResult.error && Array.isArray(scheduleResult.data)) {
-      return scheduleResult.data;
-    } */
-
+    return readThroughCache('midweek_meetings', async () => {
     const { data, error } = await supabase
       .from('midweek_meetings')
       .select(`
@@ -2454,6 +2455,7 @@ export const api = {
       throw error;
     }
     return data;
+    });
   },
 
   // Weekend Meetings
@@ -2498,11 +2500,7 @@ export const api = {
   },
 
   async getWeekendMeetings() {
-    /* const scheduleResult = await supabase.rpc('get_weekend_meetings_schedule');
-    if (!scheduleResult.error && Array.isArray(scheduleResult.data)) {
-      return scheduleResult.data;
-    } */
-
+    return readThroughCache('weekend_meetings', async () => {
     const { data, error } = await supabase
       .from('weekend_meetings')
       .select(`
@@ -2518,5 +2516,6 @@ export const api = {
       throw error;
     }
     return data;
+    });
   }
 };
