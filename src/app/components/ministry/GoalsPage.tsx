@@ -541,14 +541,14 @@ export function GoalsPage() {
     return `Bom dia ${serviceOverseer.name}, tudo bem ?\n\nSegue abaixo meu relatório de serviço ministerial do mês de ${capitalizeText(monthName)}:\n\n${hoursLabel}\n${studiesLabel}`;
   };
 
-  const handleOpenReportOnMyWhatsApp = () => {
+  const handleOpenReportOnMyWhatsApp = async () => {
     const message = buildReportMessage();
     if (!message || !serviceOverseer?.phone) {
       return;
     }
 
     try {
-      openTextInWhatsApp({ phone: serviceOverseer.phone, text: message });
+      await openTextInWhatsApp({ phone: serviceOverseer.phone, text: message });
       setIsReportDialogOpen(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao abrir o WhatsApp.');

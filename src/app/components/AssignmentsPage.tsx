@@ -823,9 +823,9 @@ function MeetingsAssignmentsContent({
     }
   };
 
-  const openDesignationOnMyWhatsApp = (payload: Parameters<typeof sendDesignationWhatsApp>[0]) => {
+  const openDesignationOnMyWhatsApp = async (payload: Parameters<typeof sendDesignationWhatsApp>[0]) => {
     try {
-      openDesignationInWhatsApp(payload);
+      await openDesignationInWhatsApp(payload);
     } catch (err: any) {
       toast.error(err.message || 'Erro ao abrir o WhatsApp.');
     }
