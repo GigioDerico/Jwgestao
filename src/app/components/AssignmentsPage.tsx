@@ -20,7 +20,7 @@ import {
 import { filterMembersEligibleForAssignments } from '../lib/assignment-member-eligibility';
 import { Plus, X, ChevronDown, BookOpen, MessageCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
-import { sendDesignationWhatsApp } from '../lib/whatsapp';
+import { sendDesignationWhatsApp, openDesignationInWhatsApp } from '../lib/whatsapp';
 import { AssignmentHistory } from './AssignmentHistory';
 
 type MeetingEditField = {
@@ -823,13 +823,28 @@ function MeetingsAssignmentsContent({
     }
   };
 
+  const openDesignationOnMyWhatsApp = (payload: Parameters<typeof sendDesignationWhatsApp>[0]) => {
+    try {
+      openDesignationInWhatsApp(payload);
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao abrir o WhatsApp.');
+    }
+  };
+
   const renderWhatsAppButton = (payload: Parameters<typeof sendDesignationWhatsApp>[0] | null) => {
     if (!payload?.phone) {
       return null;
     }
 
     return (
-      <div className="flex justify-end pr-3 pt-1">
+      <div className="flex justify-end gap-2 pr-3 pt-1">
+        <button
+          onClick={() => openDesignationOnMyWhatsApp(payload)}
+          className="flex items-center gap-1.5 text-[0.8rem] font-medium text-emerald-700 hover:text-emerald-800 bg-white hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors border border-emerald-200"
+        >
+          <MessageCircle size={15} />
+          Pelo meu WhatsApp
+        </button>
         <button
           onClick={() => sendWhatsAppDesignation(payload)}
           className="flex items-center gap-1.5 text-[0.8rem] font-medium text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors border border-green-100"

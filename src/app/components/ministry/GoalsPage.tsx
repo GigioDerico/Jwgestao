@@ -37,7 +37,7 @@ import {
   SelectValue,
 } from '../ui/select';
 import { supabase } from '../../lib/supabase';
-import { sendTextWhatsApp } from '../../lib/whatsapp';
+import { sendTextWhatsApp, openTextInWhatsApp } from '../../lib/whatsapp';
 
 const BIBLE_VERSES = [
   'O amor não busca seus próprios interesses. — 1 Coríntios 13:5',
@@ -514,10 +514,12 @@ export function GoalsPage() {
     setIsReportDialogOpen(true);
   };
 
-  const handleSendReport = async () => {
+  // Valida os campos do diálogo e monta a mensagem do relatório.
+  // Retorna null (com toast de erro) quando algo impede o envio.
+  const buildReportMessage = (): string | null => {
     if (!serviceOverseer?.phone) {
       toast.error('Não foi possível encontrar o WhatsApp do dirigente de serviço.');
-      return;
+      return null;
     }
 
     const parsedHours = reportHours.trim() === '' ? 0 : Number(reportHours);
@@ -525,18 +527,39 @@ export function GoalsPage() {
 
     if (!Number.isFinite(parsedHours) || parsedHours < 0) {
       toast.error('Horas inválidas.');
-      return;
+      return null;
     }
 
     if (!Number.isFinite(parsedStudies) || parsedStudies < 0) {
       toast.error('Estudos inválidos.');
-      return;
+      return null;
     }
 
     const hoursLabel = parsedHours > 0 ? `${formatDecimalHours(parsedHours)} Horas` : 'Participei no serviço de campo neste mês.';
     const studiesLabel = `${Math.trunc(parsedStudies)} Estudos no mês`;
 
-    const message = `Bom dia ${serviceOverseer.name}, tudo bem ?\n\nSegue abaixo meu relatório de serviço ministerial do mês de ${capitalizeText(monthName)}:\n\n${hoursLabel}\n${studiesLabel}`;
+    return `Bom dia ${serviceOverseer.name}, tudo bem ?\n\nSegue abaixo meu relatório de serviço ministerial do mês de ${capitalizeText(monthName)}:\n\n${hoursLabel}\n${studiesLabel}`;
+  };
+
+  const handleOpenReportOnMyWhatsApp = () => {
+    const message = buildReportMessage();
+    if (!message || !serviceOverseer?.phone) {
+      return;
+    }
+
+    try {
+      openTextInWhatsApp({ phone: serviceOverseer.phone, text: message });
+      setIsReportDialogOpen(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao abrir o WhatsApp.');
+    }
+  };
+
+  const handleSendReport = async () => {
+    const message = buildReportMessage();
+    if (!message || !serviceOverseer?.phone) {
+      return;
+    }
 
     try {
       setSendingReport(true);
@@ -1039,6 +1062,14 @@ export function GoalsPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsReportDialogOpen(false)}>
               Cancelar
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleOpenReportOnMyWhatsApp}
+              disabled={sendingReport}
+              className="border-[#1f7a45] text-[#1f7a45] hover:bg-[#1f7a45]/10"
+            >
+              Pelo meu WhatsApp
             </Button>
             <Button onClick={handleSendReport} disabled={sendingReport} className="bg-[#1f7a45] text-white hover:bg-[#19673a]">
               {sendingReport ? 'Enviando...' : 'Enviar relatório'}

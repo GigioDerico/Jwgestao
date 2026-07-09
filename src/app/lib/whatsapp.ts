@@ -107,23 +107,18 @@ function formatPhoneForWhatsApp(phone: string) {
     return formattedPhone;
 }
 
-export async function sendDesignationWhatsApp(data: DesignationMessageData): Promise<boolean> {
-    try {
-        if (!data.phone) {
-            throw new Error('Número de telefone do estudante não encontrado.');
-        }
+function buildDesignationMessage(data: DesignationMessageData): string {
+    const title = data.meetingTitle || 'DESIGNAÇÃO PARA A REUNIÃO NOSSA VIDA E MINISTÉRIO CRISTÃO';
+    const assignmentLabel =
+        data.assignmentLabel ||
+        (typeof data.partNumber === 'number' ? 'Número da parte' : 'Designação');
+    const observationText = data.observationText || (
+        title === 'DESIGNAÇÃO PARA A REUNIÃO NOSSA VIDA E MINISTÉRIO CRISTÃO'
+            ? 'A lição e a fonte de matéria para a sua designação estão na *Apostila da Reunião Vida e Ministério*. Veja as instruções para a parte que estão nas *Instruções para a Reunião Nossa Vida e Ministério Cristão (S-38)*.'
+            : 'Se houver algum imprevisto, informe com antecedência ao responsável pelas designações.'
+    );
 
-        const title = data.meetingTitle || 'DESIGNAÇÃO PARA A REUNIÃO NOSSA VIDA E MINISTÉRIO CRISTÃO';
-        const assignmentLabel =
-            data.assignmentLabel ||
-            (typeof data.partNumber === 'number' ? 'Número da parte' : 'Designação');
-        const observationText = data.observationText || (
-            title === 'DESIGNAÇÃO PARA A REUNIÃO NOSSA VIDA E MINISTÉRIO CRISTÃO'
-                ? 'A lição e a fonte de matéria para a sua designação estão na *Apostila da Reunião Vida e Ministério*. Veja as instruções para a parte que estão nas *Instruções para a Reunião Nossa Vida e Ministério Cristão (S-38)*.'
-                : 'Se houver algum imprevisto, informe com antecedência ao responsável pelas designações.'
-        );
-
-        const messageTemplate = `Olá *${data.studentName}*, tudo bem?
+    return `Olá *${data.studentName}*, tudo bem?
 
 Segue sua designação para a reunião:
 
@@ -135,8 +130,43 @@ ${assignmentLabel}: ${data.partNumber}
 Local: ${data.location}
 
 Observação: ${observationText}`;
+}
 
-        return sendWhatsAppText(formatPhoneForWhatsApp(data.phone), messageTemplate);
+// Link "click to chat" oficial: abre o WhatsApp do próprio usuário (app ou
+// WhatsApp Web) com a conversa e o texto pré-preenchidos — o envio é manual.
+export function buildWaMeLink(phone: string, text: string): string {
+    return `https://wa.me/${formatPhoneForWhatsApp(phone)}?text=${encodeURIComponent(text)}`;
+}
+
+function openWaMeLink(phone: string, text: string): void {
+    window.open(buildWaMeLink(phone, text), '_blank', 'noopener,noreferrer');
+}
+
+export function openDesignationInWhatsApp(data: DesignationMessageData): void {
+    if (!data.phone) {
+        throw new Error('Número de telefone do estudante não encontrado.');
+    }
+    openWaMeLink(data.phone, buildDesignationMessage(data));
+}
+
+export function openTextInWhatsApp(data: PlainWhatsAppMessageData): void {
+    if (!data.phone) {
+        throw new Error('Número de telefone não encontrado.');
+    }
+    const message = (data.text || '').trim();
+    if (!message) {
+        throw new Error('Mensagem vazia.');
+    }
+    openWaMeLink(data.phone, message);
+}
+
+export async function sendDesignationWhatsApp(data: DesignationMessageData): Promise<boolean> {
+    try {
+        if (!data.phone) {
+            throw new Error('Número de telefone do estudante não encontrado.');
+        }
+
+        return sendWhatsAppText(formatPhoneForWhatsApp(data.phone), buildDesignationMessage(data));
     } catch (error: any) {
         console.error('Error sending WhatsApp message:', error);
         throw error;
