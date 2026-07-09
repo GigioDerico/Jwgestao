@@ -11,10 +11,12 @@ export async function initCapacitorPlugins(): Promise<void> {
         return;
     }
 
+    // CSS global usa esta classe pra reservar a área da status bar
+    // (Android 15+ força edge-to-edge; overlay é o único modo consistente)
+    document.documentElement.classList.add('cap-native');
+
     try {
-        // WebView abaixo da status bar — Android não aplica safe-area-inset,
-        // então overlay faria o header ficar atrás do relógio/bateria
-        await StatusBar.setOverlaysWebView({ overlay: false });
+        await StatusBar.setOverlaysWebView({ overlay: true });
 
         // Style.Dark = ícones claros, para o fundo azul escuro
         await StatusBar.setStyle({ style: Style.Dark });
