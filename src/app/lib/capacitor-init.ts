@@ -12,11 +12,12 @@ export async function initCapacitorPlugins(): Promise<void> {
     }
 
     try {
-        // Make the WebView extend behind the status bar
-        await StatusBar.setOverlaysWebView({ overlay: true });
+        // WebView abaixo da status bar — Android não aplica safe-area-inset,
+        // então overlay faria o header ficar atrás do relógio/bateria
+        await StatusBar.setOverlaysWebView({ overlay: false });
 
-        // Dark icons on light backgrounds, light icons on dark backgrounds
-        await StatusBar.setStyle({ style: Style.Light });
+        // Style.Dark = ícones claros, para o fundo azul escuro
+        await StatusBar.setStyle({ style: Style.Dark });
 
         // Set the status bar background to the sidebar/header dark blue
         await StatusBar.setBackgroundColor({ color: '#082c45' });

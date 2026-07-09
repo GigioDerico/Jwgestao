@@ -53,6 +53,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Última versão do perfil montado, por usuário — usada como fallback
+  // quando as consultas ao Supabase falham (ex: offline em território rural).
+  const authUserCacheKey = (userId: string) => `auth_user_cache:${userId}`;
+
+  const readCachedAuthUser = (userId: string): AuthUser | null => {
+    try {
+      const raw = localStorage.getItem(authUserCacheKey(userId));
+      return raw ? (JSON.parse(raw) as AuthUser) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const writeCachedAuthUser = (authUser: AuthUser) => {
+    try {
+      localStorage.setItem(authUserCacheKey(authUser.id), JSON.stringify(authUser));
+    } catch {
+      // cache indisponível não pode quebrar o login
+    }
+  };
+
   const buildAuthUser = useCallback(async (supaUser: User): Promise<AuthUser> => {
     const phoneDigits = supaUser.email?.replace(`@${PHONE_EMAIL_DOMAIN}`, '') || '';
     try {
@@ -103,12 +124,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (memberError) {
           console.warn('[Auth] Falha ao buscar membro do usuario autenticado:', memberError);
-          return baseUser;
+          return readCachedAuthUser(supaUser.id) ?? baseUser;
         }
 
         const member = memberRows?.[0];
 
-        return {
+        const fullUser: AuthUser = {
           ...baseUser,
           name: member?.full_name || baseUser.name,
           gender: member?.gender || undefined,
@@ -123,11 +144,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           approved_indicadores: Boolean((member as any)?.approved_indicadores),
           approved_carrinho: Boolean((member as any)?.approved_carrinho),
         };
+        writeCachedAuthUser(fullUser);
+        return fullUser;
       }
 
+      writeCachedAuthUser(baseUser);
       return baseUser;
     } catch {
-      return {
+      // Offline ou Supabase indisponível: usa o último perfil conhecido
+      // pra manter nome, papel e permissões do usuário.
+      return readCachedAuthUser(supaUser.id) ?? {
         id: supaUser.id,
         phone: phoneDigits,
         role: 'publicador',
@@ -223,6 +249,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    if (user?.id) {
+      try {
+        localStorage.removeItem(authUserCacheKey(user.id));
+      } catch {
+        // ignora falha ao limpar cache local
+      }
+    }
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
