@@ -49,6 +49,7 @@ as $$
 declare
   normalized_names text[];
   normalized_ids uuid[];
+  has_unmatched_ids boolean;
 begin
   p_attendants := coalesce(p_attendants, '{}'::text[]);
   p_attendants_member_ids := coalesce(
@@ -127,11 +128,6 @@ begin
     ),
     unmatched_ids as (
       select
-        cardinality(p_attendants) + row_number() over (
-          order by ids.source_ordinality
-        ) as output_ordinality,
-        ids.full_name as member_name,
-        ids.member_id,
         ids.source_ordinality
       from id_positions ids
       where not exists (
@@ -139,23 +135,30 @@ begin
         from aligned_names aligned
         where aligned.source_ordinality = ids.source_ordinality
       )
-    ),
-    combined as (
-      select * from aligned_names
-      union all
-      select * from unmatched_ids
     )
     select
       coalesce(
-        array_agg(combined.member_name order by combined.output_ordinality),
+        array_agg(
+          aligned.member_name
+          order by aligned.output_ordinality
+        ),
         '{}'::text[]
       ),
       coalesce(
-        array_agg(combined.member_id order by combined.output_ordinality),
+        array_agg(
+          aligned.member_id
+          order by aligned.output_ordinality
+        ),
         '{}'::uuid[]
-      )
-    into normalized_names, normalized_ids
-    from combined;
+      ),
+      exists (select 1 from unmatched_ids)
+    into normalized_names, normalized_ids, has_unmatched_ids
+    from aligned_names aligned;
+
+    if has_unmatched_ids then
+      raise exception
+        'Não foi possível alinhar indicadores ambíguos. Corrija manualmente enviando NULLs posicionais.';
+    end if;
   end if;
 
   return query select normalized_names, normalized_ids;
@@ -164,6 +167,36 @@ $$;
 
 revoke all on function private.normalize_audio_video_attendants(text[], uuid[])
   from public, anon, authenticated, service_role;
+
+do $$
+declare
+  assignment record;
+  problematic_ids uuid[] := '{}'::uuid[];
+begin
+  for assignment in
+    select a.id, a.attendants, a.attendants_member_ids
+    from public.audio_video_assignments a
+    where cardinality(coalesce(a.attendants, '{}'::text[])) <>
+      cardinality(coalesce(a.attendants_member_ids, '{}'::uuid[]))
+  loop
+    begin
+      perform private.normalize_audio_video_attendants(
+        assignment.attendants,
+        assignment.attendants_member_ids
+      );
+    exception
+      when raise_exception then
+        problematic_ids := array_append(problematic_ids, assignment.id);
+    end;
+  end loop;
+
+  if cardinality(problematic_ids) > 0 then
+    raise exception
+      'Não foi possível alinhar indicadores nas designações: %. Corrija manualmente enviando NULLs posicionais.',
+      array_to_string(problematic_ids, ', ');
+  end if;
+end;
+$$;
 
 -- Existing rows predate member IDs. Rebuild attendant arrays without guessing:
 -- unresolved names receive an explicit NULL and authoritative IDs are retained.

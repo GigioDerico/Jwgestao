@@ -1567,25 +1567,14 @@ select results_eq(
   'normalization preserves a legacy name and nulls its orphan member ID'
 );
 
-select results_eq(
-  $$select attendants, attendants_member_ids
-    from private.normalize_audio_video_attendants(
-      array['Nome Ambíguo RPC', 'Nome Ambíguo RPC'],
-      array['21000000-0000-0000-0000-000000000008'::uuid]
-    )$$,
-  $$values (
-    array[
-      'Nome Ambíguo RPC',
-      'Nome Ambíguo RPC',
-      'Nome Ambíguo RPC'
-    ]::text[],
-    array[
-      null::uuid,
-      null::uuid,
-      '21000000-0000-0000-0000-000000000008'::uuid
-    ]
+select throws_ok(
+  $$select * from private.normalize_audio_video_attendants(
+    array['Nome Ambíguo RPC', 'Nome Ambíguo RPC'],
+    array['21000000-0000-0000-0000-000000000008'::uuid]
   )$$,
-  'compressed ID for duplicate names is appended without inferring a position'
+  'P0001',
+  'Não foi possível alinhar indicadores ambíguos. Corrija manualmente enviando NULLs posicionais.',
+  'compressed ID for duplicate names is rejected instead of creating a slot'
 );
 
 select results_eq(
