@@ -959,23 +959,51 @@ export const api = {
     return readThroughCache('members', async () => {
       const { data, error } = await supabase
         .from('members')
-        .select('*, user_profiles(system_role), member_privileges(role)')
+        .select(`
+          *,
+          user_profiles(system_role, is_active),
+          member_privileges(role),
+          member_transfers!member_transfers_member_id_fkey(
+            id, transferred_at, destination_congregation, created_at, cancelled_at
+          )
+        `)
         .order('full_name');
 
       if (error) throw error;
 
       // Flatten system_role from the joined user_profiles onto each member
-      return (data || []).map((m: any) => ({
-        ...m,
-        roles: Array.isArray(m.member_privileges)
-          ? m.member_privileges.map((p: any) => p.role).filter(Boolean)
-          : [],
-        system_role: Array.isArray(m.user_profiles)
-          ? m.user_profiles[0]?.system_role ?? 'publicador'
-          : m.user_profiles?.system_role ?? 'publicador',
-        member_privileges: undefined,
-        user_profiles: undefined,
-      }));
+      return (data || []).map((m: any) => {
+        const transfers = Array.isArray(m.member_transfers)
+          ? m.member_transfers
+          : m.member_transfers
+            ? [m.member_transfers]
+            : [];
+        const activeTransfer = transfers.find((transfer: any) => transfer.cancelled_at === null);
+        const {
+          member_privileges: memberPrivileges,
+          member_transfers: _memberTransfers,
+          user_profiles: userProfiles,
+          ...member
+        } = m;
+
+        return {
+          ...member,
+          roles: Array.isArray(memberPrivileges)
+            ? memberPrivileges.map((p: any) => p.role).filter(Boolean)
+            : [],
+          system_role: Array.isArray(userProfiles)
+            ? userProfiles[0]?.system_role ?? 'publicador'
+            : userProfiles?.system_role ?? 'publicador',
+          ...(activeTransfer ? {
+            activeTransfer: {
+              id: activeTransfer.id,
+              transferredAt: activeTransfer.transferred_at,
+              destinationCongregation: activeTransfer.destination_congregation,
+              createdAt: activeTransfer.created_at,
+            },
+          } : {}),
+        };
+      });
     });
   },
 

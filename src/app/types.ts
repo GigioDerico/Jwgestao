@@ -1,3 +1,5 @@
+import type { ActiveMemberTransfer } from './lib/member-transfer';
+
 // Domain types for the congregation management app
 // Canonical type definitions used across all components
 
@@ -57,6 +59,7 @@ export interface Member {
   approvedDiscursoPublico?: boolean;
   approvedPresidenteReuniao?: boolean;
   system_role?: 'coordenador' | 'secretario' | 'designador' | 'publicador';
+  activeTransfer?: ActiveMemberTransfer;
 }
 
 export interface MidweekMeeting {
