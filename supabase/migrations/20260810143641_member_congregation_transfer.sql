@@ -1485,6 +1485,170 @@ grant execute on function private.cancel_member_transfer(uuid)
 grant execute on function public.cancel_member_transfer(uuid)
   to authenticated;
 
+create or replace function private.reject_ineligible_assignment()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  row_data jsonb := pg_catalog.to_jsonb(new);
+  column_name text;
+  candidate_id uuid;
+  assignment_is_future boolean;
+begin
+  assignment_is_future := case tg_table_name
+    when 'midweek_meetings' then
+      ((row_data ->> 'date')::date >= current_date)
+    when 'weekend_meetings' then
+      ((row_data ->> 'date')::date >= current_date)
+    when 'audio_video_assignments' then
+      ((row_data ->> 'date')::date >= current_date)
+    when 'field_service_assignments' then
+      (
+        pg_catalog.make_date(
+          (row_data ->> 'year')::integer,
+          (row_data ->> 'month')::integer,
+          1
+        ) >= pg_catalog.date_trunc('month', current_date)::date
+      )
+    when 'cart_assignments' then
+      (
+        pg_catalog.make_date(
+          (row_data ->> 'year')::integer,
+          (row_data ->> 'month')::integer,
+          (row_data ->> 'day')::integer
+        ) >= current_date
+      )
+    when 'midweek_ministry_parts' then exists (
+      select 1
+      from public.midweek_meetings meeting
+      where meeting.id = (row_data ->> 'meeting_id')::uuid
+        and meeting.date >= current_date
+    )
+    when 'midweek_christian_life_parts' then exists (
+      select 1
+      from public.midweek_meetings meeting
+      where meeting.id = (row_data ->> 'meeting_id')::uuid
+        and meeting.date >= current_date
+    )
+    else true
+  end;
+
+  if not assignment_is_future then
+    return new;
+  end if;
+
+  foreach column_name in array tg_argv loop
+    if pg_catalog.jsonb_typeof(row_data -> column_name) = 'array' then
+      for candidate_id in
+        select nullif(array_value.value, '')::uuid
+        from pg_catalog.jsonb_array_elements_text(row_data -> column_name)
+          array_value(value)
+      loop
+        if candidate_id is not null and exists (
+          select 1
+          from public.members member
+          where member.id = candidate_id
+            and member.spiritual_status in ('inativo', 'desassociado')
+        ) then
+          raise exception 'Membro inativo não pode receber designações.';
+        end if;
+      end loop;
+    else
+      candidate_id := nullif(row_data ->> column_name, '')::uuid;
+
+      if candidate_id is not null and exists (
+        select 1
+        from public.members member
+        where member.id = candidate_id
+          and member.spiritual_status in ('inativo', 'desassociado')
+      ) then
+        raise exception 'Membro inativo não pode receber designações.';
+      end if;
+    end if;
+  end loop;
+
+  return new;
+end;
+$$;
+
+revoke all on function private.reject_ineligible_assignment()
+  from public, anon, authenticated, service_role;
+
+drop trigger if exists reject_ineligible_midweek_meetings
+  on public.midweek_meetings;
+create trigger reject_ineligible_midweek_meetings
+before insert or update on public.midweek_meetings
+for each row execute function private.reject_ineligible_assignment(
+  'president_id',
+  'opening_prayer_id',
+  'closing_prayer_id',
+  'treasure_talk_speaker_id',
+  'treasure_gems_speaker_id',
+  'treasure_reading_student_id',
+  'cbs_conductor_id',
+  'cbs_reader_id'
+);
+
+drop trigger if exists reject_ineligible_midweek_ministry_parts
+  on public.midweek_ministry_parts;
+create trigger reject_ineligible_midweek_ministry_parts
+before insert or update on public.midweek_ministry_parts
+for each row execute function private.reject_ineligible_assignment(
+  'student_id',
+  'assistant_id'
+);
+
+drop trigger if exists reject_ineligible_midweek_christian_life_parts
+  on public.midweek_christian_life_parts;
+create trigger reject_ineligible_midweek_christian_life_parts
+before insert or update on public.midweek_christian_life_parts
+for each row execute function private.reject_ineligible_assignment(
+  'speaker_id'
+);
+
+drop trigger if exists reject_ineligible_weekend_meetings
+  on public.weekend_meetings;
+create trigger reject_ineligible_weekend_meetings
+before insert or update on public.weekend_meetings
+for each row execute function private.reject_ineligible_assignment(
+  'president_id',
+  'closing_prayer_id',
+  'watchtower_conductor_id',
+  'watchtower_reader_id'
+);
+
+drop trigger if exists reject_ineligible_audio_video_assignments
+  on public.audio_video_assignments;
+create trigger reject_ineligible_audio_video_assignments
+before insert or update on public.audio_video_assignments
+for each row execute function private.reject_ineligible_assignment(
+  'sound_member_id',
+  'image_member_id',
+  'stage_member_id',
+  'roving_mic_1_member_id',
+  'roving_mic_2_member_id',
+  'attendants_member_ids'
+);
+
+drop trigger if exists reject_ineligible_field_service_assignments
+  on public.field_service_assignments;
+create trigger reject_ineligible_field_service_assignments
+before insert or update on public.field_service_assignments
+for each row execute function private.reject_ineligible_assignment(
+  'responsible_member_id'
+);
+
+drop trigger if exists reject_ineligible_cart_assignments
+  on public.cart_assignments;
+create trigger reject_ineligible_cart_assignments
+before insert or update on public.cart_assignments
+for each row execute function private.reject_ineligible_assignment(
+  'publisher1_member_id',
+  'publisher2_member_id'
+);
+
 revoke all on function private.has_role_permission(text) from public, anon, service_role;
 grant execute on function private.has_role_permission(text) to authenticated;
 

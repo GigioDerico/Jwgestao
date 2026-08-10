@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(163);
+select plan(197);
 
 select has_table('public', 'member_transfers', 'member_transfers exists');
 select has_table('public', 'member_transfer_assignment_audit', 'assignment audit exists');
@@ -2274,6 +2274,542 @@ select is(
   '21000000-0000-0000-0000-000000000006'::uuid,
   'rollback preserves the assignment that failed to clear'
 );
+
+-- Database-level assignment eligibility guards.
+select has_function(
+  'private',
+  'reject_ineligible_assignment',
+  array[]::text[],
+  'generic assignment eligibility trigger function exists'
+);
+
+select is_empty(
+  $test$
+    select function_definition.oid
+    from pg_catalog.pg_proc function_definition
+    where function_definition.oid =
+      pg_catalog.to_regprocedure('private.reject_ineligible_assignment()')
+      and (
+        not function_definition.prosecdef
+        or function_definition.proconfig is distinct from
+          array['search_path=""']::text[]
+      )
+  $test$,
+  'assignment eligibility function is a definer with an empty search path'
+);
+
+select is(
+  (
+    with client_role(role_name) as (
+      values ('public'), ('anon'), ('authenticated'), ('service_role')
+    )
+    select count(*)
+    from client_role
+    where has_function_privilege(
+      client_role.role_name,
+      pg_catalog.to_regprocedure('private.reject_ineligible_assignment()'),
+      'execute'
+    )
+  ),
+  0::bigint,
+  'client roles cannot execute the private trigger function directly'
+);
+
+select is_empty(
+  $test$
+    with expected(table_name, trigger_name) as (
+      values
+        ('midweek_meetings', 'reject_ineligible_midweek_meetings'),
+        ('midweek_ministry_parts', 'reject_ineligible_midweek_ministry_parts'),
+        ('midweek_christian_life_parts', 'reject_ineligible_midweek_christian_life_parts'),
+        ('weekend_meetings', 'reject_ineligible_weekend_meetings'),
+        ('audio_video_assignments', 'reject_ineligible_audio_video_assignments'),
+        ('field_service_assignments', 'reject_ineligible_field_service_assignments'),
+        ('cart_assignments', 'reject_ineligible_cart_assignments')
+    )
+    select expected.trigger_name
+    from expected
+    where not exists (
+      select 1
+      from pg_catalog.pg_trigger trigger_definition
+      where trigger_definition.tgrelid =
+          pg_catalog.to_regclass('public.' || expected.table_name)
+        and trigger_definition.tgname = expected.trigger_name
+        and not trigger_definition.tgisinternal
+        and trigger_definition.tgenabled = 'O'
+        and (trigger_definition.tgtype & 1) = 1
+        and (trigger_definition.tgtype & 2) = 2
+        and (trigger_definition.tgtype & 4) = 4
+        and (trigger_definition.tgtype & 16) = 16
+        and trigger_definition.tgfoid =
+          pg_catalog.to_regprocedure('private.reject_ineligible_assignment()')
+    )
+  $test$,
+  'all seven eligibility triggers are enabled for row-level BEFORE INSERT/UPDATE'
+);
+
+select is_empty(
+  $test$
+    with expected(table_name, trigger_name, column_name) as (
+      values
+        ('midweek_meetings', 'reject_ineligible_midweek_meetings', 'president_id'),
+        ('midweek_meetings', 'reject_ineligible_midweek_meetings', 'opening_prayer_id'),
+        ('midweek_meetings', 'reject_ineligible_midweek_meetings', 'closing_prayer_id'),
+        ('midweek_meetings', 'reject_ineligible_midweek_meetings', 'treasure_talk_speaker_id'),
+        ('midweek_meetings', 'reject_ineligible_midweek_meetings', 'treasure_gems_speaker_id'),
+        ('midweek_meetings', 'reject_ineligible_midweek_meetings', 'treasure_reading_student_id'),
+        ('midweek_meetings', 'reject_ineligible_midweek_meetings', 'cbs_conductor_id'),
+        ('midweek_meetings', 'reject_ineligible_midweek_meetings', 'cbs_reader_id'),
+        ('midweek_ministry_parts', 'reject_ineligible_midweek_ministry_parts', 'student_id'),
+        ('midweek_ministry_parts', 'reject_ineligible_midweek_ministry_parts', 'assistant_id'),
+        ('midweek_christian_life_parts', 'reject_ineligible_midweek_christian_life_parts', 'speaker_id'),
+        ('weekend_meetings', 'reject_ineligible_weekend_meetings', 'president_id'),
+        ('weekend_meetings', 'reject_ineligible_weekend_meetings', 'closing_prayer_id'),
+        ('weekend_meetings', 'reject_ineligible_weekend_meetings', 'watchtower_conductor_id'),
+        ('weekend_meetings', 'reject_ineligible_weekend_meetings', 'watchtower_reader_id'),
+        ('audio_video_assignments', 'reject_ineligible_audio_video_assignments', 'sound_member_id'),
+        ('audio_video_assignments', 'reject_ineligible_audio_video_assignments', 'image_member_id'),
+        ('audio_video_assignments', 'reject_ineligible_audio_video_assignments', 'stage_member_id'),
+        ('audio_video_assignments', 'reject_ineligible_audio_video_assignments', 'roving_mic_1_member_id'),
+        ('audio_video_assignments', 'reject_ineligible_audio_video_assignments', 'roving_mic_2_member_id'),
+        ('audio_video_assignments', 'reject_ineligible_audio_video_assignments', 'attendants_member_ids'),
+        ('field_service_assignments', 'reject_ineligible_field_service_assignments', 'responsible_member_id'),
+        ('cart_assignments', 'reject_ineligible_cart_assignments', 'publisher1_member_id'),
+        ('cart_assignments', 'reject_ineligible_cart_assignments', 'publisher2_member_id')
+    )
+    select expected.table_name || '.' || expected.column_name
+    from expected
+    left join pg_catalog.pg_trigger trigger_definition
+      on trigger_definition.tgrelid =
+        pg_catalog.to_regclass('public.' || expected.table_name)
+      and trigger_definition.tgname = expected.trigger_name
+    where coalesce(pg_catalog.strpos(
+      pg_catalog.pg_get_triggerdef(trigger_definition.oid),
+      quote_literal(expected.column_name)
+    ), 0) = 0
+  $test$,
+  'all assignment identifier slots are passed to their eligibility trigger'
+);
+
+select is(
+  (
+    with expected(column_name) as (
+      values
+        ('president_id'), ('opening_prayer_id'), ('closing_prayer_id'),
+        ('treasure_talk_speaker_id'), ('treasure_gems_speaker_id'),
+        ('treasure_reading_student_id'), ('cbs_conductor_id'), ('cbs_reader_id'),
+        ('student_id'), ('assistant_id'), ('speaker_id'),
+        ('president_id'), ('closing_prayer_id'), ('watchtower_conductor_id'),
+        ('watchtower_reader_id'), ('sound_member_id'), ('image_member_id'),
+        ('stage_member_id'), ('roving_mic_1_member_id'),
+        ('roving_mic_2_member_id'), ('attendants_member_ids'),
+        ('responsible_member_id'), ('publisher1_member_id'), ('publisher2_member_id')
+    )
+    select count(*) from expected
+  ),
+  24::bigint,
+  'the normative assignment matrix contains all 24 identifier slots'
+);
+
+insert into public.members (id, full_name, gender, spiritual_status)
+values
+  ('27000000-0000-0000-0000-000000000001', 'Inativo Guard', 'M', 'inativo'),
+  ('27000000-0000-0000-0000-000000000002', 'Desassociado Guard', 'M', 'desassociado'),
+  ('27000000-0000-0000-0000-000000000003', 'Ativo Guard', 'F', 'publicador');
+
+select throws_ok(
+  $test$
+    insert into public.midweek_meetings (
+      id, date, president_id, opening_prayer_id, closing_prayer_id,
+      treasure_talk_speaker_id, treasure_gems_speaker_id,
+      treasure_reading_student_id, cbs_conductor_id, cbs_reader_id
+    ) values (
+      '28000000-0000-0000-0000-000000000001', current_date + 1001,
+      '27000000-0000-0000-0000-000000000001',
+      '27000000-0000-0000-0000-000000000001',
+      '27000000-0000-0000-0000-000000000001',
+      '27000000-0000-0000-0000-000000000001',
+      '27000000-0000-0000-0000-000000000001',
+      '27000000-0000-0000-0000-000000000001',
+      '27000000-0000-0000-0000-000000000001',
+      '27000000-0000-0000-0000-000000000001'
+    )
+  $test$,
+  'P0001', 'Membro inativo não pode receber designações.',
+  'future midweek insert rejects an inactive member in its identifier slots'
+);
+
+select lives_ok(
+  $test$
+    insert into public.midweek_meetings (
+      id, date, president_id, opening_prayer_id
+    ) values (
+      '28000000-0000-0000-0000-000000000002', current_date + 1002,
+      '27000000-0000-0000-0000-000000000003', null
+    )
+  $test$,
+  'future midweek insert accepts active members and null slots'
+);
+
+select lives_ok(
+  $test$
+    insert into public.midweek_meetings (id, date, president_id)
+    values (
+      '28000000-0000-0000-0000-000000000003', current_date - 1001,
+      '27000000-0000-0000-0000-000000000001'
+    )
+  $test$,
+  'past midweek assignments remain editable for inactive members'
+);
+
+select throws_ok(
+  $test$
+    update public.midweek_meetings
+    set opening_prayer_id = '27000000-0000-0000-0000-000000000001'
+    where id = '31000000-0000-0000-0000-000000000001'
+  $test$,
+  'P0001', 'Membro inativo não pode receber designações.',
+  'stale midweek update on the current date rejects an inactive member'
+);
+
+select throws_ok(
+  $test$
+    update public.midweek_meetings
+    set date = current_date + 1003
+    where id = '28000000-0000-0000-0000-000000000003'
+  $test$,
+  'P0001', 'Membro inativo não pode receber designações.',
+  'changing a past midweek row to a future date cannot bypass eligibility'
+);
+
+insert into public.midweek_meetings (id, date)
+values
+  ('28000000-0000-0000-0000-000000000004', current_date + 1004),
+  ('28000000-0000-0000-0000-000000000005', current_date - 1004);
+
+select throws_ok(
+  $test$
+    insert into public.midweek_ministry_parts (
+      id, meeting_id, part_number, title, duration, student_id, assistant_id
+    ) values (
+      '28100000-0000-0000-0000-000000000001',
+      '28000000-0000-0000-0000-000000000004', 1, 'Parte', 4,
+      '27000000-0000-0000-0000-000000000001',
+      '27000000-0000-0000-0000-000000000001'
+    )
+  $test$,
+  'P0001', 'Membro inativo não pode receber designações.',
+  'future ministry-part insert rejects inactive student and assistant IDs'
+);
+
+select throws_ok(
+  $test$
+    insert into public.midweek_christian_life_parts (
+      id, meeting_id, part_number, title, duration, speaker_id
+    ) values (
+      '28200000-0000-0000-0000-000000000001',
+      '28000000-0000-0000-0000-000000000004', 1, 'Vida Cristã', 8,
+      '27000000-0000-0000-0000-000000000002'
+    )
+  $test$,
+  'P0001', 'Membro inativo não pode receber designações.',
+  'future Christian-life insert rejects a disassociated speaker'
+);
+
+select lives_ok(
+  $test$
+    insert into public.midweek_ministry_parts (
+      id, meeting_id, part_number, title, duration, student_id
+    ) values (
+      '28100000-0000-0000-0000-000000000002',
+      '28000000-0000-0000-0000-000000000005', 1, 'Parte passada', 4,
+      '27000000-0000-0000-0000-000000000001'
+    );
+    insert into public.midweek_christian_life_parts (
+      id, meeting_id, part_number, title, duration, speaker_id
+    ) values (
+      '28200000-0000-0000-0000-000000000002',
+      '28000000-0000-0000-0000-000000000005', 1, 'Vida passada', 8,
+      '27000000-0000-0000-0000-000000000002'
+    )
+  $test$,
+  'past midweek parts remain editable for restricted members'
+);
+
+select throws_ok(
+  $test$
+    update public.midweek_ministry_parts
+    set meeting_id = '28000000-0000-0000-0000-000000000004'
+    where id = '28100000-0000-0000-0000-000000000002'
+  $test$,
+  'P0001', 'Membro inativo não pode receber designações.',
+  'moving a ministry part to a future meeting cannot bypass eligibility'
+);
+
+select throws_ok(
+  $test$
+    update public.midweek_christian_life_parts
+    set meeting_id = '28000000-0000-0000-0000-000000000004'
+    where id = '28200000-0000-0000-0000-000000000002'
+  $test$,
+  'P0001', 'Membro inativo não pode receber designações.',
+  'moving a Christian-life part to a future meeting cannot bypass eligibility'
+);
+
+select throws_ok(
+  $test$
+    insert into public.weekend_meetings (
+      id, date, talk_speaker_name, president_id, closing_prayer_id,
+      watchtower_conductor_id, watchtower_reader_id
+    ) values (
+      '28300000-0000-0000-0000-000000000001', current_date + 1005,
+      'Visitante',
+      '27000000-0000-0000-0000-000000000002',
+      '27000000-0000-0000-0000-000000000002',
+      '27000000-0000-0000-0000-000000000002',
+      '27000000-0000-0000-0000-000000000002'
+    )
+  $test$,
+  'P0001', 'Membro inativo não pode receber designações.',
+  'future weekend insert rejects disassociated members in every ID slot'
+);
+
+select lives_ok(
+  $test$
+    insert into public.weekend_meetings (
+      id, date, talk_speaker_name, president_id
+    ) values (
+      '28300000-0000-0000-0000-000000000002', current_date - 1005,
+      'Visitante', '27000000-0000-0000-0000-000000000002'
+    )
+  $test$,
+  'past weekend assignments remain editable for disassociated members'
+);
+
+select throws_ok(
+  $test$
+    update public.weekend_meetings
+    set date = current_date + 1006
+    where id = '28300000-0000-0000-0000-000000000002'
+  $test$,
+  'P0001', 'Membro inativo não pode receber designações.',
+  'stale weekend date update cannot carry a restricted member forward'
+);
+
+select throws_ok(
+  $test$
+    insert into public.audio_video_assignments (
+      id, date, weekday, sound, sound_member_id,
+      image, stage, roving_mic_1, roving_mic_2
+    ) values (
+      '28400000-0000-0000-0000-000000000001', current_date + 1007,
+      'Domingo', 'Inativo Guard',
+      '27000000-0000-0000-0000-000000000001', '', '', '', ''
+    )
+  $test$,
+  'P0001', 'Membro inativo não pode receber designações.',
+  'future audio-video scalar insert rejects an inactive member'
+);
+
+select throws_ok(
+  $test$
+    insert into public.audio_video_assignments (
+      id, date, weekday, sound, image, stage, roving_mic_1, roving_mic_2,
+      attendants, attendants_member_ids
+    ) values (
+      '28400000-0000-0000-0000-000000000002', current_date + 1008,
+      'Domingo', '', '', '', '', '',
+      array['Desassociado Guard'],
+      array['27000000-0000-0000-0000-000000000002'::uuid]
+    )
+  $test$,
+  'P0001', 'Membro inativo não pode receber designações.',
+  'future audio-video attendant array rejects a disassociated member'
+);
+
+select lives_ok(
+  $test$
+    insert into public.audio_video_assignments (
+      id, date, weekday, sound, sound_member_id,
+      image, stage, roving_mic_1, roving_mic_2,
+      attendants, attendants_member_ids
+    ) values (
+      '28400000-0000-0000-0000-000000000003', current_date + 1009,
+      'Domingo', 'Ativo Guard',
+      '27000000-0000-0000-0000-000000000003', '', '', '', '',
+      array['Sem vínculo', 'Ativo Guard'],
+      array[null::uuid, '27000000-0000-0000-0000-000000000003'::uuid]
+    )
+  $test$,
+  'future audio-video accepts an active scalar and positional null array IDs'
+);
+
+select throws_ok(
+  $test$
+    update public.audio_video_assignments
+    set image = 'Inativo Guard',
+        image_member_id = '27000000-0000-0000-0000-000000000001'
+    where id = '28400000-0000-0000-0000-000000000003'
+  $test$,
+  'P0001', 'Membro inativo não pode receber designações.',
+  'stale audio-video update rejects an inactive member'
+);
+
+select throws_ok(
+  $test$
+    update public.audio_video_assignments
+    set attendants = array['Desassociado Guard'],
+        attendants_member_ids =
+          array['27000000-0000-0000-0000-000000000002'::uuid]
+    where id = '28400000-0000-0000-0000-000000000003'
+  $test$,
+  'P0001', 'Membro inativo não pode receber designações.',
+  'audio-video normalization runs before and remains protected by eligibility'
+);
+
+select throws_ok(
+  $test$
+    insert into public.field_service_assignments (
+      id, month, year, weekday, time, responsible,
+      responsible_member_id, category
+    ) values (
+      '28500000-0000-0000-0000-000000000001',
+      extract(month from current_date)::int,
+      extract(year from current_date)::int,
+      'Sábado', '09:00', 'Inativo Guard',
+      '27000000-0000-0000-0000-000000000001', 'Campo'
+    )
+  $test$,
+  'P0001', 'Membro inativo não pode receber designações.',
+  'current-month field-service insert rejects an inactive member'
+);
+
+select lives_ok(
+  $test$
+    insert into public.field_service_assignments (
+      id, month, year, weekday, time, responsible,
+      responsible_member_id, category
+    ) values (
+      '28500000-0000-0000-0000-000000000002',
+      extract(month from (current_date - interval '1 month'))::int,
+      extract(year from (current_date - interval '1 month'))::int,
+      'Sábado', '09:00', 'Inativo Guard',
+      '27000000-0000-0000-0000-000000000001', 'Campo'
+    )
+  $test$,
+  'previous-month field-service assignments remain editable'
+);
+
+select throws_ok(
+  $test$
+    update public.field_service_assignments
+    set month = extract(month from current_date)::int,
+        year = extract(year from current_date)::int
+    where id = '28500000-0000-0000-0000-000000000002'
+  $test$,
+  'P0001', 'Membro inativo não pode receber designações.',
+  'changing field-service period cannot carry an inactive member forward'
+);
+
+select throws_ok(
+  $test$
+    insert into public.cart_assignments (
+      id, month, year, day, weekday, time, location,
+      publisher1, publisher1_member_id, publisher2, week
+    ) values (
+      '28600000-0000-0000-0000-000000000001',
+      extract(month from current_date)::int,
+      extract(year from current_date)::int,
+      extract(day from current_date)::int,
+      'Hoje', '09:00', 'Praça', 'Desassociado Guard',
+      '27000000-0000-0000-0000-000000000002', '', 1
+    )
+  $test$,
+  'P0001', 'Membro inativo não pode receber designações.',
+  'current-date cart insert rejects a disassociated member'
+);
+
+select lives_ok(
+  $test$
+    insert into public.cart_assignments (
+      id, month, year, day, weekday, time, location,
+      publisher1, publisher1_member_id, publisher2, week
+    ) values (
+      '28600000-0000-0000-0000-000000000002',
+      extract(month from (current_date - 10))::int,
+      extract(year from (current_date - 10))::int,
+      extract(day from (current_date - 10))::int,
+      'Passado', '09:00', 'Praça', 'Inativo Guard',
+      '27000000-0000-0000-0000-000000000001', '', 1
+    )
+  $test$,
+  'past cart assignments remain editable for inactive members'
+);
+
+select throws_ok(
+  $test$
+    update public.cart_assignments
+    set month = extract(month from current_date)::int,
+        year = extract(year from current_date)::int,
+        day = extract(day from current_date)::int
+    where id = '28600000-0000-0000-0000-000000000002'
+  $test$,
+  'P0001', 'Membro inativo não pode receber designações.',
+  'changing a cart date cannot carry an inactive member forward'
+);
+
+select throws_ok(
+  $test$
+    insert into public.weekend_meetings (
+      id, date, talk_speaker_name, president_id
+    ) values (
+      '28300000-0000-0000-0000-000000000003', current_date + 1010,
+      'Visitante', '27999999-0000-0000-0000-000000000999'
+    )
+  $test$,
+  '23503',
+  'insert or update on table "weekend_meetings" violates foreign key constraint "weekend_meetings_president_id_fkey"',
+  'nonexistent scalar member IDs continue to use the existing foreign key'
+);
+
+select throws_ok(
+  $test$
+    insert into public.weekend_meetings (
+      id, date, talk_speaker_name, president_id
+    ) values (
+      '28300000-0000-0000-0000-000000000004', current_date + 1011,
+      'Visitante', 'uuid-invalido'
+    )
+  $test$,
+  '22P02',
+  'invalid input syntax for type uuid: "uuid-invalido"',
+  'malformed scalar member IDs remain rejected by UUID typing'
+);
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-0000-0000-000000000001',
+  true
+);
+
+select lives_ok(
+  $$select public.transfer_member(
+      '27000000-0000-0000-0000-000000000003', current_date, null
+    )$$,
+  'transfer RPC continues to work with assignment guards installed'
+);
+
+select lives_ok(
+  $$select public.cancel_member_transfer((
+      select id from public.member_transfers
+      where member_id = '27000000-0000-0000-0000-000000000003'
+        and cancelled_at is null
+    ))$$,
+  'cancel RPC continues to work with assignment guards installed'
+);
+
+reset role;
 
 select * from finish();
 
