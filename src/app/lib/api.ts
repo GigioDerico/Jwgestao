@@ -1,10 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
+import { readThroughCache } from './offline-cache';
 import { Database } from './supabase-types';
 import { getMeetingDatesForMonth } from './audio-video-calendar';
 import { getSaturdaysForMonth } from './field-service-calendar';
 import { buildPublicAppUrl } from './public-url';
 import type { AssignmentNotification } from '../types';
+import {
+  mapTransferAuditHistory,
+  type TransferAuditHistoryRow,
+} from './member-transfer-history';
 
 const PHONE_EMAIL_DOMAIN = 'jwgestao.app';
 
@@ -507,14 +512,16 @@ async function upsertAssignmentNotificationSlot(input: {
 
 export const api = {
   async getAppSetting(key: string) {
-    const { data, error } = await supabase
-      .from('app_settings')
-      .select('value')
-      .eq('key', key)
-      .maybeSingle();
+    return readThroughCache(`app_setting:${key}`, async () => {
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', key)
+        .maybeSingle();
 
-    if (error) throw new Error(`Erro ao buscar configuração: ${error.message}`);
-    return data?.value || null;
+      if (error) throw new Error(`Erro ao buscar configuração: ${error.message}`);
+      return data?.value || null;
+    });
   },
 
   async setAppSetting(key: string, value: string) {
@@ -953,25 +960,55 @@ export const api = {
 
   // Members (includes system_role from user_profiles via join)
   async getMembers() {
-    const { data, error } = await supabase
-      .from('members')
-      .select('*, user_profiles(system_role), member_privileges(role)')
-      .order('full_name');
+    return readThroughCache('members', async () => {
+      const { data, error } = await supabase
+        .from('members')
+        .select(`
+          *,
+          user_profiles(system_role, is_active),
+          member_privileges(role),
+          member_transfers!member_transfers_member_id_fkey(
+            id, transferred_at, destination_congregation, created_at, cancelled_at
+          )
+        `)
+        .order('full_name');
 
-    if (error) throw error;
+      if (error) throw error;
 
-    // Flatten system_role from the joined user_profiles onto each member
-    return (data || []).map((m: any) => ({
-      ...m,
-      roles: Array.isArray(m.member_privileges)
-        ? m.member_privileges.map((p: any) => p.role).filter(Boolean)
-        : [],
-      system_role: Array.isArray(m.user_profiles)
-        ? m.user_profiles[0]?.system_role ?? 'publicador'
-        : m.user_profiles?.system_role ?? 'publicador',
-      member_privileges: undefined,
-      user_profiles: undefined,
-    }));
+      // Flatten system_role from the joined user_profiles onto each member
+      return (data || []).map((m: any) => {
+        const transfers = Array.isArray(m.member_transfers)
+          ? m.member_transfers
+          : m.member_transfers
+            ? [m.member_transfers]
+            : [];
+        const activeTransfer = transfers.find((transfer: any) => transfer.cancelled_at === null);
+        const {
+          member_privileges: memberPrivileges,
+          member_transfers: _memberTransfers,
+          user_profiles: userProfiles,
+          ...member
+        } = m;
+
+        return {
+          ...member,
+          roles: Array.isArray(memberPrivileges)
+            ? memberPrivileges.map((p: any) => p.role).filter(Boolean)
+            : [],
+          system_role: Array.isArray(userProfiles)
+            ? userProfiles[0]?.system_role ?? 'publicador'
+            : userProfiles?.system_role ?? 'publicador',
+          ...(activeTransfer ? {
+            activeTransfer: {
+              id: activeTransfer.id,
+              transferredAt: activeTransfer.transferred_at,
+              destinationCongregation: activeTransfer.destination_congregation,
+              createdAt: activeTransfer.created_at,
+            },
+          } : {}),
+        };
+      });
+    });
   },
 
   async updateMember(memberId: string, input: Partial<CreateMemberInput>) {
@@ -2415,6 +2452,20 @@ export const api = {
       });
     }
 
+    const { data: transferAuditRows, error: transferAuditError } = await supabase
+      .from('member_transfer_assignment_audit')
+      .select('id, source, source_type, source_id, slot_key, role_label, assignment_date, member_id, member_name, details')
+      .gte('assignment_date', startDate)
+      .lte('assignment_date', endDate);
+
+    if (transferAuditError) {
+      throw new Error(`Erro ao carregar histórico de transferências: ${transferAuditError.message}`);
+    }
+
+    entries.push(...mapTransferAuditHistory(
+      (transferAuditRows || []) as TransferAuditHistoryRow[],
+    ));
+
     return entries.sort((a, b) => {
       if (a.date !== b.date) {
         return b.date.localeCompare(a.date);
@@ -2428,11 +2479,7 @@ export const api = {
 
   // Midweek Meetings 
   async getMidweekMeetings() {
-    /* const scheduleResult = await supabase.rpc('get_midweek_meetings_schedule');
-    if (!scheduleResult.error && Array.isArray(scheduleResult.data)) {
-      return scheduleResult.data;
-    } */
-
+    return readThroughCache('midweek_meetings', async () => {
     const { data, error } = await supabase
       .from('midweek_meetings')
       .select(`
@@ -2454,6 +2501,7 @@ export const api = {
       throw error;
     }
     return data;
+    });
   },
 
   // Weekend Meetings
@@ -2498,11 +2546,7 @@ export const api = {
   },
 
   async getWeekendMeetings() {
-    /* const scheduleResult = await supabase.rpc('get_weekend_meetings_schedule');
-    if (!scheduleResult.error && Array.isArray(scheduleResult.data)) {
-      return scheduleResult.data;
-    } */
-
+    return readThroughCache('weekend_meetings', async () => {
     const { data, error } = await supabase
       .from('weekend_meetings')
       .select(`
@@ -2518,5 +2562,6 @@ export const api = {
       throw error;
     }
     return data;
+    });
   }
 };

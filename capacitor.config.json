@@ -2,10 +2,14 @@
   "appId": "com.jwgestao.app",
   "appName": "JWGestao",
   "webDir": "dist",
+  "server": {
+    "url": "https://jwgestao.vercel.app",
+    "allowNavigation": ["jwgestao.vercel.app"]
+  },
   "plugins": {
     "StatusBar": {
-      "overlaysWebView": true,
-      "style": "LIGHT",
+      "overlaysWebView": false,
+      "style": "DARK",
       "backgroundColor": "#082c45"
     }
   }

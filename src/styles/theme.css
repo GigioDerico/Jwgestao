@@ -169,3 +169,18 @@
     line-height: 1.5;
   }
 }
+
+/* App nativo (Capacitor): Android 15+ força edge-to-edge e o WebView fica
+   atrás da status bar. Reserva a área do sistema no topo (e gesto no rodapé).
+   Fundo escuro combina com a status bar configurada em capacitor-init. */
+html.cap-native body {
+  padding-top: 28px;
+  background-color: #082c45;
+}
+
+@supports (padding-top: env(safe-area-inset-top)) {
+  html.cap-native body {
+    padding-top: max(env(safe-area-inset-top), 28px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}

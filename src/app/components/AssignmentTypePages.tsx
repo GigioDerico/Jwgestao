@@ -3,6 +3,7 @@ import { Navigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { api } from '../lib/api';
+import { filterMembersEligibleForAssignments } from '../lib/assignment-member-eligibility';
 import { AudioVideoAssignments } from './AudioVideoAssignments';
 import { AssignmentHistory } from './AssignmentHistory';
 import { CartAssignments } from './CartAssignments';
@@ -86,7 +87,9 @@ export function AudioVideoAssignmentsPage() {
 
   useEffect(() => {
     if (view !== 'history') return;
-    api.getMembers().then(setMembers).catch(() => {});
+    api.getMembers()
+      .then(loadedMembers => setMembers(filterMembersEligibleForAssignments(loadedMembers)))
+      .catch(() => {});
   }, [view]);
 
   if (!canAccess) {

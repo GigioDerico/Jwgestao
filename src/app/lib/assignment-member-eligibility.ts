@@ -1,16 +1,24 @@
 export const RESTRICTED_ASSIGNMENT_STATUSES = ['inativo', 'desassociado'] as const;
 
+type MemberStatusLike = {
+  spiritual_status?: string | null;
+  spiritualStatus?: string | null;
+};
+
+function resolveMemberStatus(
+  value: MemberStatusLike | string | null | undefined,
+): string | null {
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  return value?.spiritual_status ?? value?.spiritualStatus ?? null;
+}
+
 export function isMemberEligibleForAssignments(
-  memberOrStatus:
-    | { spiritual_status?: string | null }
-    | string
-    | null
-    | undefined,
+  memberOrStatus: MemberStatusLike | string | null | undefined,
 ): boolean {
-  const status =
-    typeof memberOrStatus === 'string'
-      ? memberOrStatus
-      : memberOrStatus?.spiritual_status;
+  const status = resolveMemberStatus(memberOrStatus);
 
   if (!status) {
     return true;
@@ -21,8 +29,11 @@ export function isMemberEligibleForAssignments(
   );
 }
 
-export function filterMembersEligibleForAssignments<T extends { spiritual_status?: string | null }>(
+export function filterMembersEligibleForAssignments<T extends MemberStatusLike>(
   members: T[],
 ): T[] {
-  return members.filter(member => isMemberEligibleForAssignments(member));
+  return members.filter(member => {
+    const status = resolveMemberStatus(member);
+    return isMemberEligibleForAssignments(status);
+  });
 }

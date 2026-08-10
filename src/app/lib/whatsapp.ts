@@ -1,5 +1,14 @@
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { api } from './api';
 import { supabase } from './supabase';
+
+interface WhatsAppLauncherPlugin {
+    open(options: { url: string }): Promise<void>;
+}
+
+// Plugin nativo (Android) que abre o link forçando o WhatsApp pessoal
+// (com.whatsapp) em vez do app padrão — que pode ser o WhatsApp Business.
+const WhatsAppLauncher = registerPlugin<WhatsAppLauncherPlugin>('WhatsAppLauncher');
 
 export interface DesignationMessageData {
     studentName: string;
@@ -107,23 +116,18 @@ function formatPhoneForWhatsApp(phone: string) {
     return formattedPhone;
 }
 
-export async function sendDesignationWhatsApp(data: DesignationMessageData): Promise<boolean> {
-    try {
-        if (!data.phone) {
-            throw new Error('Número de telefone do estudante não encontrado.');
-        }
+function buildDesignationMessage(data: DesignationMessageData): string {
+    const title = data.meetingTitle || 'DESIGNAÇÃO PARA A REUNIÃO NOSSA VIDA E MINISTÉRIO CRISTÃO';
+    const assignmentLabel =
+        data.assignmentLabel ||
+        (typeof data.partNumber === 'number' ? 'Número da parte' : 'Designação');
+    const observationText = data.observationText || (
+        title === 'DESIGNAÇÃO PARA A REUNIÃO NOSSA VIDA E MINISTÉRIO CRISTÃO'
+            ? 'A lição e a fonte de matéria para a sua designação estão na *Apostila da Reunião Vida e Ministério*. Veja as instruções para a parte que estão nas *Instruções para a Reunião Nossa Vida e Ministério Cristão (S-38)*.'
+            : 'Se houver algum imprevisto, informe com antecedência ao responsável pelas designações.'
+    );
 
-        const title = data.meetingTitle || 'DESIGNAÇÃO PARA A REUNIÃO NOSSA VIDA E MINISTÉRIO CRISTÃO';
-        const assignmentLabel =
-            data.assignmentLabel ||
-            (typeof data.partNumber === 'number' ? 'Número da parte' : 'Designação');
-        const observationText = data.observationText || (
-            title === 'DESIGNAÇÃO PARA A REUNIÃO NOSSA VIDA E MINISTÉRIO CRISTÃO'
-                ? 'A lição e a fonte de matéria para a sua designação estão na *Apostila da Reunião Vida e Ministério*. Veja as instruções para a parte que estão nas *Instruções para a Reunião Nossa Vida e Ministério Cristão (S-38)*.'
-                : 'Se houver algum imprevisto, informe com antecedência ao responsável pelas designações.'
-        );
-
-        const messageTemplate = `Olá *${data.studentName}*, tudo bem?
+    return `Olá *${data.studentName}*, tudo bem?
 
 Segue sua designação para a reunião:
 
@@ -135,8 +139,61 @@ ${assignmentLabel}: ${data.partNumber}
 Local: ${data.location}
 
 Observação: ${observationText}`;
+}
 
-        return sendWhatsAppText(formatPhoneForWhatsApp(data.phone), messageTemplate);
+// Link "click to chat" oficial: abre o WhatsApp do próprio usuário (app ou
+// WhatsApp Web) com a conversa e o texto pré-preenchidos — o envio é manual.
+export function buildWaMeLink(phone: string, text: string): string {
+    return `https://wa.me/${formatPhoneForWhatsApp(phone)}?text=${encodeURIComponent(text)}`;
+}
+
+async function openWaMeLink(phone: string, text: string): Promise<void> {
+    const link = buildWaMeLink(phone, text);
+
+    // App Android (Capacitor): plugin nativo força o WhatsApp pessoal.
+    if (Capacitor.getPlatform() === 'android') {
+        await WhatsAppLauncher.open({ url: link });
+        return;
+    }
+
+    // Browser Android: intent com pacote explícito força o WhatsApp pessoal;
+    // se não estiver instalado, o browser cai no wa.me normal.
+    if (/Android/i.test(navigator.userAgent)) {
+        const number = formatPhoneForWhatsApp(phone);
+        window.location.href =
+            `intent://send?phone=${number}&text=${encodeURIComponent(text)}` +
+            `#Intent;scheme=whatsapp;package=com.whatsapp;S.browser_fallback_url=${encodeURIComponent(link)};end`;
+        return;
+    }
+
+    window.open(link, '_blank', 'noopener,noreferrer');
+}
+
+export async function openDesignationInWhatsApp(data: DesignationMessageData): Promise<void> {
+    if (!data.phone) {
+        throw new Error('Número de telefone do estudante não encontrado.');
+    }
+    await openWaMeLink(data.phone, buildDesignationMessage(data));
+}
+
+export async function openTextInWhatsApp(data: PlainWhatsAppMessageData): Promise<void> {
+    if (!data.phone) {
+        throw new Error('Número de telefone não encontrado.');
+    }
+    const message = (data.text || '').trim();
+    if (!message) {
+        throw new Error('Mensagem vazia.');
+    }
+    await openWaMeLink(data.phone, message);
+}
+
+export async function sendDesignationWhatsApp(data: DesignationMessageData): Promise<boolean> {
+    try {
+        if (!data.phone) {
+            throw new Error('Número de telefone do estudante não encontrado.');
+        }
+
+        return sendWhatsAppText(formatPhoneForWhatsApp(data.phone), buildDesignationMessage(data));
     } catch (error: any) {
         console.error('Error sending WhatsApp message:', error);
         throw error;

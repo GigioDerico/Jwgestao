@@ -123,6 +123,21 @@ export function Layout() {
 
   useEffect(() => {
     if (!user?.id) return;
+
+    // Baixa registros já existentes na nuvem pro banco local (primeiro uso
+    // neste aparelho / reinstalação) e sobe pendências offline em seguida.
+    ministryApi.pullFromCloud(user.id)
+      .then(({ errors }) => {
+        if (errors.length > 0) console.warn('[ministry] Erros no pull:', errors);
+        return ministryApi.syncIfOnline(user.id);
+      })
+      .then((result) => {
+        if (result && result.synced > 0) {
+          toast.success(`${result.synced} registro(s) sincronizado(s)`);
+        }
+      })
+      .catch((err) => console.warn('[ministry] Falha ao sincronizar com a nuvem:', err));
+
     const unsubscribe = ministryApi.subscribeToOnline(() => {
       ministryApi.syncIfOnline(user.id).then(({ synced, errors }) => {
         if (synced > 0) toast.success(`${synced} registro(s) sincronizado(s)`);
