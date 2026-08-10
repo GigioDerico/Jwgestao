@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(85);
+select plan(91);
 
 select has_table('public', 'member_transfers', 'member_transfers exists');
 select has_table('public', 'member_transfer_assignment_audit', 'assignment audit exists');
@@ -111,9 +111,13 @@ select fk_ok(
 );
 
 select fk_ok(
-  'public', 'member_transfer_assignment_audit', 'transfer_id',
-  'public', 'member_transfers', 'id',
-  'assignment audit references its transfer'
+  'public',
+  'member_transfer_assignment_audit',
+  array['transfer_id', 'member_id']::name[],
+  'public',
+  'member_transfers',
+  array['id', 'member_id']::name[],
+  'assignment audit references the matching member transfer'
 );
 
 select fk_ok(
@@ -130,7 +134,7 @@ select is_empty(
         ('public.member_transfers', 'member_transfers_previous_group_id_fkey', 'n'::"char"),
         ('public.member_transfers', 'member_transfers_transferred_by_fkey', 'r'::"char"),
         ('public.member_transfers', 'member_transfers_cancelled_by_fkey', 'r'::"char"),
-        ('public.member_transfer_assignment_audit', 'member_transfer_assignment_audit_transfer_id_fkey', 'c'::"char"),
+        ('public.member_transfer_assignment_audit', 'member_transfer_assignment_audit_transfer_member_fkey', 'c'::"char"),
         ('public.member_transfer_assignment_audit', 'member_transfer_assignment_audit_member_id_fkey', 'r'::"char")
     )
     select expected.constraint_name
@@ -179,6 +183,13 @@ select ok(
         'UNIQUE (transfer_id, source_type, source_id, slot_key, assignment_date)'
   ),
   'assignment audit enforces its composite uniqueness key'
+);
+
+select col_is_unique(
+  'public',
+  'member_transfers',
+  array['id', 'member_id']::name[],
+  'member transfers exposes a composite key for audit integrity'
 );
 
 select table_privs_are(
@@ -348,7 +359,6 @@ select is(
   (
     with target(function_oid) as (
       values
-        ('private.is_active_user()'::regprocedure::oid),
         ('public.get_my_access_status()'::regprocedure::oid),
         ('private.has_role_permission(text)'::regprocedure::oid),
         ('public.has_role_permission(text)'::regprocedure::oid),
@@ -362,7 +372,16 @@ select is(
     where has_function_privilege('anon', target.function_oid, 'execute')
   ),
   0::bigint,
-  'anon cannot execute authorization functions'
+  'anon cannot execute any other authorization functions'
+);
+
+select ok(
+  has_function_privilege(
+    'anon',
+    'private.is_active_user()',
+    'execute'
+  ),
+  'anon can evaluate the private active-profile helper through RLS'
 );
 
 select is(
@@ -630,11 +649,109 @@ select is_empty(
           and policy.policyname = 'Active profiles only'
           and policy.permissive = 'RESTRICTIVE'
           and policy.cmd = 'ALL'
-          and policy.roles = array['authenticated']::name[]
+          and policy.roles = array['public']::name[]
       )
   $test$,
-  'all current RLS-enabled public tables require an active profile'
+  'all current RLS-enabled public tables require an active profile for every role'
 );
+
+select is_empty(
+  $test$
+    select relation.relname
+    from pg_catalog.pg_class relation
+    join pg_catalog.pg_namespace namespace
+      on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'public'
+      and relation.relkind in ('r', 'p')
+      and relation.relrowsecurity
+      and exists (
+        select 1
+        from information_schema.role_table_grants privilege
+        where privilege.table_schema = namespace.nspname
+          and privilege.table_name = relation.relname
+          and privilege.grantee = 'anon'
+          and privilege.privilege_type in (
+            'SELECT', 'INSERT', 'UPDATE', 'DELETE'
+          )
+      )
+      and not exists (
+        select 1
+        from pg_catalog.pg_policies policy
+        where policy.schemaname = namespace.nspname
+          and policy.tablename = relation.relname
+          and policy.policyname = 'Active profiles only'
+          and policy.permissive = 'RESTRICTIVE'
+          and policy.cmd = 'ALL'
+          and policy.roles = array['public']::name[]
+      )
+  $test$,
+  'anon DML grants are always constrained by the active-profile policy'
+);
+
+insert into public.audio_video_assignments (
+  id,
+  date,
+  weekday,
+  sound,
+  image,
+  stage,
+  roving_mic_1,
+  roving_mic_2
+)
+values (
+  '55000000-0000-0000-0000-000000000001',
+  current_date,
+  'security fixture',
+  'security fixture',
+  'security fixture',
+  'security fixture',
+  'security fixture',
+  'security fixture'
+);
+
+select set_config('request.jwt.claim.sub', '', true);
+
+set local role anon;
+
+select is(
+  (
+    select count(*)
+    from public.audio_video_assignments
+    where id = '55000000-0000-0000-0000-000000000001'
+  ),
+  0::bigint,
+  'anon without a JWT cannot read congregational assignments'
+);
+
+select throws_ok(
+  $test$
+    insert into public.audio_video_assignments (
+      id,
+      date,
+      weekday,
+      sound,
+      image,
+      stage,
+      roving_mic_1,
+      roving_mic_2
+    )
+    values (
+      '55000000-0000-0000-0000-000000000002',
+      current_date,
+      'anon write',
+      'anon write',
+      'anon write',
+      'anon write',
+      'anon write',
+      'anon write'
+    )
+  $test$,
+  '42501',
+  'new row violates row-level security policy "Active profiles only" for table "audio_video_assignments"',
+  'anon without a JWT cannot write congregational assignments'
+);
+
+reset role;
 
 insert into auth.users (id, email)
 values (
@@ -1015,6 +1132,36 @@ select throws_ok(
   '23505',
   'duplicate key value violates unique constraint "member_transfer_assignment_au_transfer_id_source_type_sourc_key"',
   'assignment audit rejects duplicate source slots for a transfer'
+);
+
+select throws_ok(
+  $test$
+    insert into public.member_transfer_assignment_audit (
+      transfer_id,
+      source,
+      source_type,
+      source_id,
+      slot_key,
+      role_label,
+      assignment_date,
+      member_id,
+      member_name
+    )
+    values (
+      '30000000-0000-0000-0000-000000000001',
+      'midweek',
+      'mismatched_member',
+      '56000000-0000-0000-0000-000000000001',
+      'mismatched_member',
+      'Mismatched member',
+      current_date,
+      '20000000-0000-0000-0000-000000000003',
+      'Transfer constraint member'
+    )
+  $test$,
+  '23503',
+  'insert or update on table "member_transfer_assignment_audit" violates foreign key constraint "member_transfer_assignment_audit_transfer_member_fkey"',
+  'assignment audit rejects a member that does not match its transfer'
 );
 
 select set_config(

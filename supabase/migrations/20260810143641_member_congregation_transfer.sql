@@ -21,7 +21,8 @@ create table public.member_transfers (
   created_at timestamptz not null default now(),
   cancelled_at timestamptz null,
   cancelled_by uuid null references auth.users(id) on delete restrict,
-  check ((cancelled_at is null) = (cancelled_by is null))
+  check ((cancelled_at is null) = (cancelled_by is null)),
+  unique (id, member_id)
 );
 
 create unique index member_transfers_one_active_per_member
@@ -33,7 +34,7 @@ create index member_transfers_member_created_idx
 
 create table public.member_transfer_assignment_audit (
   id uuid primary key default gen_random_uuid(),
-  transfer_id uuid not null references public.member_transfers(id) on delete cascade,
+  transfer_id uuid not null,
   source text not null check (
     source in ('midweek', 'weekend', 'audio_video', 'field_service', 'cart')
   ),
@@ -46,6 +47,10 @@ create table public.member_transfer_assignment_audit (
   member_name text not null,
   details text null,
   created_at timestamptz not null default now(),
+  constraint member_transfer_assignment_audit_transfer_member_fkey
+    foreign key (transfer_id, member_id)
+    references public.member_transfers(id, member_id)
+    on delete cascade,
   unique (transfer_id, source_type, source_id, slot_key, assignment_date)
 );
 
@@ -88,7 +93,7 @@ as $$
 $$;
 
 revoke all on function private.is_active_user() from public, anon, service_role;
-grant execute on function private.is_active_user() to authenticated;
+grant execute on function private.is_active_user() to authenticated, anon;
 
 create or replace function public.get_my_access_status()
 returns boolean
@@ -315,7 +320,7 @@ begin
     );
 
     execute pg_catalog.format(
-      'create policy %I on %I.%I as restrictive for all to authenticated using ((select private.is_active_user())) with check ((select private.is_active_user()))',
+      'create policy %I on %I.%I as restrictive for all to public using ((select private.is_active_user())) with check ((select private.is_active_user()))',
       'Active profiles only',
       rls_table.schema_name,
       rls_table.table_name
