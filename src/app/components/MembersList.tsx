@@ -31,6 +31,15 @@ import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { MemberExportDialog } from './MemberExportDialog';
 import { generateMemberListPdf, generateMemberListExcel } from '../lib/member-export';
+import { MemberTransferDialog } from './MemberTransferDialog';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import {
+  cancelMemberTransfer,
+  previewMemberTransfer,
+  transferMember,
+  type MemberTransferImpact,
+  type TransferMemberInput,
+} from '../lib/member-transfer';
 
 type ViewMode = 'list' | 'service_group' | 'family';
 
@@ -55,12 +64,19 @@ export function MembersList() {
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [editForm, setEditForm] = useState<Partial<CreateMemberInput>>({});
   const [copiedShareLink, setCopiedShareLink] = useState(false);
+  const [transferDialogMember, setTransferDialogMember] = useState<Member | null>(null);
+  const [transferDialogMode, setTransferDialogMode] = useState<'transfer' | 'cancel'>('transfer');
+  const [transferImpact, setTransferImpact] = useState<MemberTransferImpact | null>(null);
+  const [transferImpactLoading, setTransferImpactLoading] = useState(false);
+  const [transferMutationLoading, setTransferMutationLoading] = useState(false);
   const memberCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const memberButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const pendingEditFocusMemberIdRef = useRef<string | null>(null);
+  const transferPreviewRequestRef = useRef(0);
 
   const { user: authUser, isAdmin } = useAuth();
   const { can } = usePermissions();
+  const online = useOnlineStatus();
 
   const handleCopyShareLink = async () => {
     const url = `${window.location.origin}/cadastro`;
@@ -168,6 +184,7 @@ export function MembersList() {
         group_id: m.group_id || undefined,
         family_head_id: m.family_head_id || undefined,
         system_role: m.system_role || 'publicador',
+        activeTransfer: m.activeTransfer,
       }));
 
       setAllMembers(mapped);
@@ -183,6 +200,10 @@ export function MembersList() {
 
   useEffect(() => {
     fetchMembers();
+  }, []);
+
+  useEffect(() => () => {
+    transferPreviewRequestRef.current += 1;
   }, []);
 
   useEffect(() => {
@@ -367,6 +388,84 @@ export function MembersList() {
   const closeEditModal = (memberId?: string | null) => {
     pendingEditFocusMemberIdRef.current = memberId || null;
     setEditingMember(null);
+  };
+
+  const closeTransferDialog = () => {
+    transferPreviewRequestRef.current += 1;
+    setTransferDialogMember(null);
+    setTransferImpact(null);
+    setTransferImpactLoading(false);
+  };
+
+  const openTransferDialog = async (member: Member) => {
+    const requestId = transferPreviewRequestRef.current + 1;
+    transferPreviewRequestRef.current = requestId;
+    setTransferDialogMember(member);
+    setTransferDialogMode('transfer');
+    setTransferImpact(null);
+    setTransferImpactLoading(true);
+
+    try {
+      const nextImpact = await previewMemberTransfer(member.id);
+      if (transferPreviewRequestRef.current === requestId) {
+        setTransferImpact(nextImpact);
+      }
+    } catch (error) {
+      if (transferPreviewRequestRef.current === requestId) {
+        const message = error instanceof Error ? error.message : 'Erro ao verificar designações futuras.';
+        toast.error(message);
+      }
+    } finally {
+      if (transferPreviewRequestRef.current === requestId) {
+        setTransferImpactLoading(false);
+      }
+    }
+  };
+
+  const openCancelTransferDialog = (member: Member) => {
+    transferPreviewRequestRef.current += 1;
+    setTransferDialogMember(member);
+    setTransferDialogMode('cancel');
+    setTransferImpact(null);
+    setTransferImpactLoading(false);
+  };
+
+  const handleTransferMember = async (input: TransferMemberInput) => {
+    setTransferMutationLoading(true);
+    try {
+      const result = await transferMember(input);
+      closeTransferDialog();
+      setExpandedId(null);
+      toast.success(
+        result.removedAssignmentCount === 1
+          ? 'Membro transferido. 1 designação futura removida.'
+          : `Membro transferido. ${result.removedAssignmentCount} designações futuras removidas.`,
+      );
+      await fetchMembers();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao transferir membro.';
+      toast.error(message);
+      throw error;
+    } finally {
+      setTransferMutationLoading(false);
+    }
+  };
+
+  const handleCancelMemberTransfer = async (transferId: string) => {
+    setTransferMutationLoading(true);
+    try {
+      await cancelMemberTransfer(transferId);
+      closeTransferDialog();
+      setExpandedId(null);
+      toast.success('Transferência cancelada. As designações removidas não foram restauradas.');
+      await fetchMembers();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erro ao cancelar transferência.';
+      toast.error(message);
+      throw error;
+    } finally {
+      setTransferMutationLoading(false);
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -569,6 +668,23 @@ export function MembersList() {
               </span>
             )}
 
+            {member.activeTransfer && (
+              <>
+                <span
+                  className="px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-800"
+                  style={{ fontSize: '0.7rem' }}
+                >
+                  Transferido
+                </span>
+                <span className="text-amber-700" style={{ fontSize: '0.7rem' }}>
+                  {member.activeTransfer.transferredAt.split('-').reverse().join('/')}
+                  {member.activeTransfer.destinationCongregation
+                    ? ` · ${member.activeTransfer.destinationCongregation}`
+                    : ''}
+                </span>
+              </>
+            )}
+
             <span
               className="flex items-center gap-0.5 text-primary/70"
               style={{ fontSize: '0.7rem' }}
@@ -742,6 +858,26 @@ export function MembersList() {
             {/* Action Buttons */}
             {canEdit && (
               <div className="sm:col-span-2 mt-3 flex justify-end gap-3 flex-wrap">
+                {online && !member.activeTransfer && member.id !== authUser?.member_id && (
+                  <button
+                    type="button"
+                    onClick={() => void openTransferDialog(member)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors font-medium"
+                    style={{ fontSize: '0.85rem' }}
+                  >
+                    Transferir de congregação
+                  </button>
+                )}
+                {online && member.activeTransfer && (
+                  <button
+                    type="button"
+                    onClick={() => openCancelTransferDialog(member)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl border border-amber-300 bg-card text-amber-800 hover:bg-amber-50 transition-colors font-medium"
+                    style={{ fontSize: '0.85rem' }}
+                  >
+                    Cancelar transferência
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={async () => {
@@ -1289,6 +1425,19 @@ export function MembersList() {
             setExporting(false);
           }
         }}
+      />
+
+      <MemberTransferDialog
+        member={transferDialogMember}
+        open={transferDialogMember !== null}
+        mode={transferDialogMode}
+        loading={transferImpactLoading || transferMutationLoading}
+        impact={transferImpact}
+        onOpenChange={open => {
+          if (!open && !transferMutationLoading) closeTransferDialog();
+        }}
+        onTransfer={handleTransferMember}
+        onCancelTransfer={handleCancelMemberTransfer}
       />
 
       {/* Add Modal */}
