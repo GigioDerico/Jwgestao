@@ -2,6 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, type DesignationHistoryEntry } from '../lib/api';
+import {
+  filterMembersEligibleForAssignments,
+  isMemberEligibleForAssignments,
+} from '../lib/assignment-member-eligibility';
 
 type HistorySource = DesignationHistoryEntry['source'];
 type SourceFilter = 'all' | HistorySource;
@@ -70,9 +74,7 @@ function getPrivilegeFieldsForKey(designationKey: string): string[] {
 }
 
 function memberHasPrivilegeForDesignation(member: any, designationKey: string): boolean {
-  // Verifica status: nunca sugerir inativos ou desassociados
-  const status = member.spiritual_status;
-  if (status === 'inativo' || status === 'desassociado') return false;
+  if (!isMemberEligibleForAssignments(member)) return false;
 
   // Verifica campos de privilégio
   const fields = getPrivilegeFieldsForKey(designationKey);
@@ -413,9 +415,7 @@ export function AssignmentHistory({
 
   const eligibleMembers = useMemo(() => {
     if (!members) return [];
-    return members.filter(
-      m => m.spiritual_status !== 'inativo' && m.spiritual_status !== 'desassociado'
-    );
+    return filterMembersEligibleForAssignments(members);
   }, [members]);
 
   const suggestions = useMemo(() => {

@@ -6,6 +6,10 @@ import { getMeetingDatesForMonth } from './audio-video-calendar';
 import { getSaturdaysForMonth } from './field-service-calendar';
 import { buildPublicAppUrl } from './public-url';
 import type { AssignmentNotification } from '../types';
+import {
+  mapTransferAuditHistory,
+  type TransferAuditHistoryRow,
+} from './member-transfer-history';
 
 const PHONE_EMAIL_DOMAIN = 'jwgestao.app';
 
@@ -2447,6 +2451,20 @@ export const api = {
         fallbackName: row.publisher2,
       });
     }
+
+    const { data: transferAuditRows, error: transferAuditError } = await supabase
+      .from('member_transfer_assignment_audit')
+      .select('id, source, source_type, source_id, slot_key, role_label, assignment_date, member_id, member_name, details')
+      .gte('assignment_date', startDate)
+      .lte('assignment_date', endDate);
+
+    if (transferAuditError) {
+      throw new Error(`Erro ao carregar histórico de transferências: ${transferAuditError.message}`);
+    }
+
+    entries.push(...mapTransferAuditHistory(
+      (transferAuditRows || []) as TransferAuditHistoryRow[],
+    ));
 
     return entries.sort((a, b) => {
       if (a.date !== b.date) {
