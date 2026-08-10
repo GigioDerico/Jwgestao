@@ -19,6 +19,43 @@ async function assertActiveAccess(): Promise<void> {
   if (!data) throw new InactiveMemberAccessError();
 }
 
+function errorDetails(error: unknown): { message: string; code?: unknown; status?: unknown } {
+  if (error instanceof Error) {
+    return {
+      message: error.message,
+      code: 'code' in error ? error.code : undefined,
+      status: 'status' in error ? error.status : undefined,
+    };
+  }
+  if (error && typeof error === 'object') {
+    const candidate = error as { message?: unknown; code?: unknown; status?: unknown; statusCode?: unknown };
+    return {
+      message: typeof candidate.message === 'string' ? candidate.message : 'Falha ao validar o acesso.',
+      code: candidate.code,
+      status: candidate.status ?? candidate.statusCode,
+    };
+  }
+  return { message: typeof error === 'string' ? error : 'Falha ao validar o acesso.' };
+}
+
+function isConnectivityError(error: unknown): boolean {
+  const { message, code, status } = errorDetails(error);
+  if (status !== undefined) return false;
+
+  const normalizedCode = typeof code === 'string' ? code.toUpperCase() : '';
+  if (normalizedCode) {
+    return ['ERR_NETWORK', 'ECONNREFUSED', 'ENOTFOUND', 'ETIMEDOUT'].includes(normalizedCode);
+  }
+
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
+
+  if (typeof DOMException !== 'undefined' && error instanceof DOMException) {
+    if (error.name === 'NetworkError' || error.name === 'TimeoutError') return true;
+  }
+
+  return /failed to fetch|networkerror|network error|network request failed|load failed|fetch failed/i.test(message);
+}
+
 export function phoneToEmail(phone: string): string {
   const digits = phone.replace(/\D/g, '');
   return `${digits}@${PHONE_EMAIL_DOMAIN}`;
@@ -69,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
   const authOperationRef = useRef(0);
-  const blockedUserIdsRef = useRef(new Set<string>());
+  const completedBlocksRef = useRef(new Set<string>());
   const blockingPromisesRef = useRef(new Map<string, Promise<void>>());
 
   // Última versão do perfil montado, por usuário — usada como fallback
@@ -101,6 +138,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const failClosedAccess = useCallback(() => {
+    authOperationRef.current += 1;
+    if (mountedRef.current) {
+      setUser(null);
+      setSession(null);
+      setLoading(false);
+    }
+  }, []);
+
   const blockInactiveAccess = useCallback((userId: string): Promise<void> => {
     authOperationRef.current += 1;
     removeCachedAuthUser(userId);
@@ -113,18 +159,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const pendingBlock = blockingPromisesRef.current.get(userId);
     if (pendingBlock) return pendingBlock;
-    if (blockedUserIdsRef.current.has(userId)) return Promise.resolve();
+    if (completedBlocksRef.current.has(userId)) return Promise.resolve();
 
-    blockedUserIdsRef.current.add(userId);
     const blockPromise = Promise.allSettled([
       Promise.resolve().then(() => clearReadCache()),
-      Promise.resolve().then(() => supabase.auth.signOut()),
+      Promise.resolve().then(async () => {
+        const result = await supabase.auth.signOut();
+        if (result.error) throw result.error;
+      }),
     ]).then(results => {
       if (results[0].status === 'rejected') {
         console.warn('[Auth] Falha ao limpar cache de leituras após bloqueio:', results[0].reason);
       }
       if (results[1].status === 'rejected') {
         console.warn('[Auth] Falha ao encerrar sessão remota após bloqueio:', results[1].reason);
+        completedBlocksRef.current.delete(userId);
+      } else {
+        completedBlocksRef.current.add(userId);
       }
     }).finally(() => {
       blockingPromisesRef.current.delete(userId);
@@ -136,10 +187,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const buildAuthUser = useCallback(async (supaUser: User): Promise<AuthUser> => {
     const phoneDigits = supaUser.email?.replace(`@${PHONE_EMAIL_DOMAIN}`, '') || '';
+
+    const offlineFallback = () => readCachedAuthUser(supaUser.id) ?? {
+      id: supaUser.id,
+      phone: phoneDigits,
+      role: 'publicador',
+      name: 'Usuário',
+    };
+
     try {
       await assertActiveAccess();
-      blockedUserIdsRef.current.delete(supaUser.id);
+      completedBlocksRef.current.delete(supaUser.id);
+    } catch (error) {
+      if (error instanceof InactiveMemberAccessError) throw error;
+      if (isConnectivityError(error)) return offlineFallback();
+      throw error;
+    }
 
+    try {
       const { data: profileRows, error: profileError } = await supabase
         .from('user_profiles')
         .select('system_role, member_id')
@@ -155,18 +220,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       let resolvedMemberId: string | undefined = profile?.member_id || undefined;
 
       if (!resolvedMemberId && phoneDigits) {
-        const { data: memberByPhone } = await supabase
+        const { data: memberByPhone, error: memberByPhoneError } = await supabase
           .from('members')
           .select('id')
           .eq('phone', phoneDigits)
           .maybeSingle();
 
+        if (memberByPhoneError) throw memberByPhoneError;
+
         if (memberByPhone?.id) {
           resolvedMemberId = memberByPhone.id;
-          await supabase
+          const { error: linkError } = await supabase
             .from('user_profiles')
             .update({ member_id: resolvedMemberId })
             .eq('id', supaUser.id);
+          if (linkError) throw linkError;
         }
       }
 
@@ -186,8 +254,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .limit(1);
 
         if (memberError) {
-          console.warn('[Auth] Falha ao buscar membro do usuario autenticado:', memberError);
-          return readCachedAuthUser(supaUser.id) ?? baseUser;
+          throw memberError;
         }
 
         const member = memberRows?.[0];
@@ -214,15 +281,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       writeCachedAuthUser(baseUser);
       return baseUser;
     } catch (error) {
-      if (error instanceof InactiveMemberAccessError) throw error;
-      // Offline ou Supabase indisponível: usa o último perfil conhecido
-      // pra manter nome, papel e permissões do usuário.
-      return readCachedAuthUser(supaUser.id) ?? {
-        id: supaUser.id,
-        phone: phoneDigits,
-        role: 'publicador',
-        name: 'Usuário',
-      };
+      if (isConnectivityError(error)) return offlineFallback();
+      throw error;
     }
   }, []);
 
@@ -266,6 +326,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (err instanceof Error && err.message === 'SESSION_TIMEOUT') {
           console.warn('[Auth] Timeout ao restaurar sessão. Prosseguindo sem sessão ativa.');
         } else {
+          if (operation === authOperationRef.current) failClosedAccess();
           console.warn('[Auth] Falha ao restaurar sessão:', err);
         }
       } finally {
@@ -305,6 +366,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   await blockInactiveAccess(s.user.id);
                 }
               } else {
+                if (operation === authOperationRef.current) failClosedAccess();
                 console.warn('[Auth] Falha ao atualizar sessão autenticada:', error);
               }
             } finally {
@@ -323,14 +385,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authOperationRef.current += 1;
       subscription.unsubscribe();
     };
-  }, [blockInactiveAccess, buildAuthUser]);
+  }, [blockInactiveAccess, buildAuthUser, failClosedAccess]);
 
   const login = async (phone: string, password: string): Promise<string | null> => {
     const email = phoneToEmail(phone);
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return error.message;
 
-    if (data.user) blockedUserIdsRef.current.delete(data.user.id);
+    if (data.user) completedBlocksRef.current.delete(data.user.id);
     const operation = ++authOperationRef.current;
 
     if (data.user) {
@@ -345,7 +407,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await blockInactiveAccess(data.user.id);
           return buildError.message;
         }
-        throw buildError;
+        if (operation === authOperationRef.current) failClosedAccess();
+        return errorDetails(buildError).message;
       }
     } else if (mountedRef.current && operation === authOperationRef.current) {
       setSession(data.session ?? null);
@@ -383,6 +446,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await blockInactiveAccess(session.user.id);
         return;
       }
+      if (operation === authOperationRef.current) failClosedAccess();
       throw error;
     }
   };

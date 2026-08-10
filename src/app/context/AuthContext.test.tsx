@@ -101,6 +101,7 @@ describe('AuthProvider active-access validation', () => {
     vi.clearAllMocks();
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     localStorage.clear();
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
     unsubscribe = vi.fn();
     auth.getSession.mockResolvedValue({ data: { session }, error: null });
     auth.onAuthStateChange.mockImplementation((callback: typeof authStateCallback) => {
@@ -153,6 +154,56 @@ describe('AuthProvider active-access validation', () => {
     expect(auth.signOut).not.toHaveBeenCalled();
     expect(clearReadCacheMock).not.toHaveBeenCalled();
     expect(localStorage.getItem(`auth_user_cache:${userId}`)).not.toBeNull();
+  });
+
+  it.each([
+    { message: 'Invalid JWT', status: 401 },
+    { message: 'permission denied', code: '42501', status: 403 },
+    { message: 'Internal Server Error', status: 500 },
+    { message: 'Could not find the function', code: 'PGRST202' },
+  ])('fails closed instead of exposing cached access for a server error: %j', async error => {
+    cacheUser();
+    rpc.mockResolvedValue({ data: null, error });
+
+    renderAuth();
+
+    await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('anonymous:no-session'));
+    expect(screen.getByTestId('auth-state')).not.toHaveTextContent('Membro em cache');
+    expect(localStorage.getItem(`auth_user_cache:${userId}`)).not.toBeNull();
+    expect(auth.signOut).not.toHaveBeenCalled();
+    expect(clearReadCacheMock).not.toHaveBeenCalled();
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it('does not disguise an explicit HTTP authorization response as offline when navigator is offline', async () => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    cacheUser();
+    rpc.mockResolvedValue({ data: null, error: { message: 'Invalid JWT', status: 401 } });
+
+    renderAuth();
+
+    await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('anonymous:no-session'));
+    expect(screen.getByTestId('auth-state')).not.toHaveTextContent('Membro em cache');
+    expect(auth.signOut).not.toHaveBeenCalled();
+  });
+
+  it('returns a server validation error from login without exposing or deleting cached access', async () => {
+    auth.getSession.mockResolvedValue({ data: { session: null }, error: null });
+    cacheUser();
+    rpc.mockResolvedValue({
+      data: null,
+      error: { message: 'Acesso não autorizado', code: 'PGRST301', status: 401 },
+    });
+    renderAuth();
+    await waitFor(() => expect(screen.getByTestId('auth-state')).toHaveTextContent('anonymous:no-session'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'login' }));
+
+    await waitFor(() => expect(screen.getByTestId('login-result')).toHaveTextContent('Acesso não autorizado'));
+    expect(screen.getByTestId('auth-state')).toHaveTextContent('anonymous:no-session');
+    expect(localStorage.getItem(`auth_user_cache:${userId}`)).not.toBeNull();
+    expect(auth.signOut).not.toHaveBeenCalled();
+    expect(clearReadCacheMock).not.toHaveBeenCalled();
   });
 
   it.each([false, null])('rejects an inactive login response (%s) and clears local access', async access => {
@@ -213,6 +264,23 @@ describe('AuthProvider active-access validation', () => {
     expect(localStorage.getItem(`auth_user_cache:${userId}`)).toBeNull();
     expect(clearReadCacheMock).toHaveBeenCalledTimes(1);
     expect(auth.signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('detects a resolved sign-out error and retries on a later authenticated callback', async () => {
+    cacheUser();
+    rpc.mockResolvedValue({ data: false, error: null });
+    auth.signOut.mockResolvedValue({ error: new Error('remote sign-out failed') });
+    renderAuth();
+
+    await waitFor(() => expect(auth.signOut).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('auth-state')).toHaveTextContent('anonymous:no-session');
+    expect(localStorage.getItem(`auth_user_cache:${userId}`)).toBeNull();
+
+    act(() => authStateCallback('TOKEN_REFRESHED', session));
+
+    await waitFor(() => expect(auth.signOut).toHaveBeenCalledTimes(2));
+    expect(clearReadCacheMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('auth-state')).toHaveTextContent('anonymous:no-session');
   });
 
   it('deduplicates repeated inactive callbacks for the same session', async () => {
