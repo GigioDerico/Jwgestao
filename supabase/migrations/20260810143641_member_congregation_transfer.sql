@@ -1493,10 +1493,61 @@ set search_path = ''
 as $$
 declare
   row_data jsonb := pg_catalog.to_jsonb(new);
+  old_data jsonb := case
+    when tg_op = 'UPDATE' then pg_catalog.to_jsonb(old)
+    else null
+  end;
   column_name text;
   candidate_id uuid;
+  old_candidate_id uuid;
   assignment_is_future boolean;
+  assignment_was_future boolean := false;
+  validate_all_slots boolean;
+  new_meeting_id uuid;
+  old_meeting_id uuid;
+  new_meeting_lock_key bigint;
+  old_meeting_lock_key bigint;
 begin
+  -- Parent and child writes use the same transaction lock. When a child moves
+  -- between meetings, hashes are locked in numeric order to avoid deadlocks.
+  if tg_table_name = 'midweek_meetings' then
+    new_meeting_id := (row_data ->> 'id')::uuid;
+    perform pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended(new_meeting_id::text, 0)
+    );
+  elsif tg_table_name in (
+    'midweek_ministry_parts',
+    'midweek_christian_life_parts'
+  ) then
+    new_meeting_id := (row_data ->> 'meeting_id')::uuid;
+    old_meeting_id := case
+      when tg_op = 'UPDATE' then (old_data ->> 'meeting_id')::uuid
+      else null
+    end;
+    new_meeting_lock_key := pg_catalog.hashtextextended(
+      new_meeting_id::text,
+      0
+    );
+    old_meeting_lock_key := case
+      when old_meeting_id is not null then pg_catalog.hashtextextended(
+        old_meeting_id::text,
+        0
+      )
+      else null
+    end;
+
+    if old_meeting_lock_key is null
+      or old_meeting_lock_key = new_meeting_lock_key then
+      perform pg_catalog.pg_advisory_xact_lock(new_meeting_lock_key);
+    elsif old_meeting_lock_key < new_meeting_lock_key then
+      perform pg_catalog.pg_advisory_xact_lock(old_meeting_lock_key);
+      perform pg_catalog.pg_advisory_xact_lock(new_meeting_lock_key);
+    else
+      perform pg_catalog.pg_advisory_xact_lock(new_meeting_lock_key);
+      perform pg_catalog.pg_advisory_xact_lock(old_meeting_lock_key);
+    end if;
+  end if;
+
   assignment_is_future := case tg_table_name
     when 'midweek_meetings' then
       ((row_data ->> 'date')::date >= current_date)
@@ -1535,18 +1586,106 @@ begin
     else true
   end;
 
-  if not assignment_is_future then
+  if tg_op = 'UPDATE' then
+    assignment_was_future := case tg_table_name
+      when 'midweek_meetings' then
+        ((old_data ->> 'date')::date >= current_date)
+      when 'weekend_meetings' then
+        ((old_data ->> 'date')::date >= current_date)
+      when 'audio_video_assignments' then
+        ((old_data ->> 'date')::date >= current_date)
+      when 'field_service_assignments' then
+        (
+          pg_catalog.make_date(
+            (old_data ->> 'year')::integer,
+            (old_data ->> 'month')::integer,
+            1
+          ) >= pg_catalog.date_trunc('month', current_date)::date
+        )
+      when 'cart_assignments' then
+        (
+          pg_catalog.make_date(
+            (old_data ->> 'year')::integer,
+            (old_data ->> 'month')::integer,
+            (old_data ->> 'day')::integer
+          ) >= current_date
+        )
+      when 'midweek_ministry_parts' then exists (
+        select 1
+        from public.midweek_meetings meeting
+        where meeting.id = (old_data ->> 'meeting_id')::uuid
+          and meeting.date >= current_date
+      )
+      when 'midweek_christian_life_parts' then exists (
+        select 1
+        from public.midweek_meetings meeting
+        where meeting.id = (old_data ->> 'meeting_id')::uuid
+          and meeting.date >= current_date
+      )
+      else true
+    end;
+  end if;
+
+  if assignment_is_future is not true then
     return new;
+  end if;
+
+  validate_all_slots := tg_op = 'INSERT'
+    or not assignment_was_future
+    or (
+      tg_table_name in (
+        'midweek_ministry_parts',
+        'midweek_christian_life_parts'
+      )
+      and new_meeting_id is distinct from old_meeting_id
+    );
+
+  if tg_table_name = 'midweek_meetings'
+    and validate_all_slots
+    and exists (
+      select 1
+      from (
+        select ministry.student_id as member_id
+        from public.midweek_ministry_parts ministry
+        where ministry.meeting_id = new_meeting_id
+
+        union all
+
+        select ministry.assistant_id
+        from public.midweek_ministry_parts ministry
+        where ministry.meeting_id = new_meeting_id
+
+        union all
+
+        select christian_life.speaker_id
+        from public.midweek_christian_life_parts christian_life
+        where christian_life.meeting_id = new_meeting_id
+      ) child_assignment
+      join public.members member on member.id = child_assignment.member_id
+      where member.spiritual_status in ('inativo', 'desassociado')
+    ) then
+    raise exception 'Membro inativo não pode receber designações.';
   end if;
 
   foreach column_name in array tg_argv loop
     if pg_catalog.jsonb_typeof(row_data -> column_name) = 'array' then
       for candidate_id in
-        select nullif(array_value.value, '')::uuid
-        from pg_catalog.jsonb_array_elements_text(row_data -> column_name)
-          array_value(value)
+        select added_candidate.candidate_id
+        from (
+          select nullif(array_value.value, '')::uuid as candidate_id
+          from pg_catalog.jsonb_array_elements_text(row_data -> column_name)
+            array_value(value)
+
+          except all
+
+          select nullif(array_value.value, '')::uuid
+          from pg_catalog.jsonb_array_elements_text(old_data -> column_name)
+            array_value(value)
+          where not validate_all_slots
+        ) added_candidate
+        where added_candidate.candidate_id is not null
       loop
-        if candidate_id is not null and exists (
+        if exists (
           select 1
           from public.members member
           where member.id = candidate_id
@@ -1557,8 +1696,18 @@ begin
       end loop;
     else
       candidate_id := nullif(row_data ->> column_name, '')::uuid;
+      old_candidate_id := case
+        when tg_op = 'UPDATE' then
+          nullif(old_data ->> column_name, '')::uuid
+        else null
+      end;
 
-      if candidate_id is not null and exists (
+      if candidate_id is not null
+        and (
+          validate_all_slots
+          or candidate_id is distinct from old_candidate_id
+        )
+        and exists (
         select 1
         from public.members member
         where member.id = candidate_id

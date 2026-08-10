@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(197);
+select plan(204);
 
 select has_table('public', 'member_transfers', 'member_transfers exists');
 select has_table('public', 'member_transfer_assignment_audit', 'assignment audit exists');
@@ -2519,11 +2519,12 @@ select throws_ok(
 select lives_ok(
   $test$
     insert into public.midweek_ministry_parts (
-      id, meeting_id, part_number, title, duration, student_id
+      id, meeting_id, part_number, title, duration, student_id, assistant_id
     ) values (
       '28100000-0000-0000-0000-000000000002',
       '28000000-0000-0000-0000-000000000005', 1, 'Parte passada', 4,
-      '27000000-0000-0000-0000-000000000001'
+      '27000000-0000-0000-0000-000000000001',
+      '27000000-0000-0000-0000-000000000002'
     );
     insert into public.midweek_christian_life_parts (
       id, meeting_id, part_number, title, duration, speaker_id
@@ -2554,6 +2555,16 @@ select throws_ok(
   $test$,
   'P0001', 'Membro inativo não pode receber designações.',
   'moving a Christian-life part to a future meeting cannot bypass eligibility'
+);
+
+select throws_ok(
+  $test$
+    update public.midweek_meetings
+    set date = current_date + 1014
+    where id = '28000000-0000-0000-0000-000000000005'
+  $test$,
+  'P0001', 'Membro inativo não pode receber designações.',
+  'moving a meeting with restricted child assignments to the future is rejected'
 );
 
 select throws_ok(
@@ -2786,6 +2797,139 @@ select throws_ok(
   'malformed scalar member IDs remain rejected by UUID typing'
 );
 
+select ok(
+  pg_catalog.strpos(
+    pg_catalog.lower(pg_catalog.pg_get_functiondef(
+      'private.reject_ineligible_assignment()'::regprocedure
+    )),
+    'pg_advisory_xact_lock'
+  ) > 0
+  and pg_catalog.strpos(
+    pg_catalog.lower(pg_catalog.pg_get_functiondef(
+      'private.reject_ineligible_assignment()'::regprocedure
+    )),
+    'midweek_ministry_parts'
+  ) > 0
+  and pg_catalog.strpos(
+    pg_catalog.lower(pg_catalog.pg_get_functiondef(
+      'private.reject_ineligible_assignment()'::regprocedure
+    )),
+    'midweek_christian_life_parts'
+  ) > 0,
+  'parent and child assignment validation share a meeting lock and child scan'
+);
+
+insert into public.members (id, full_name, gender, spiritual_status)
+values
+  ('27000000-0000-0000-0000-000000000004', 'Legado Escalar Guard', 'M', 'publicador'),
+  ('27000000-0000-0000-0000-000000000005', 'Alvo Limpeza Guard', 'M', 'publicador'),
+  ('27000000-0000-0000-0000-000000000006', 'Legado Array Guard', 'F', 'publicador'),
+  ('27000000-0000-0000-0000-000000000007', 'Ativo Array Guard', 'F', 'publicador');
+
+insert into public.audio_video_assignments (
+  id, date, weekday, sound, sound_member_id,
+  image, image_member_id, stage, roving_mic_1, roving_mic_2
+) values (
+  '28400000-0000-0000-0000-000000000004', current_date + 1012,
+  'Domingo', 'Legado Escalar Guard',
+  '27000000-0000-0000-0000-000000000004',
+  'Ativo Array Guard', '27000000-0000-0000-0000-000000000007',
+  '', '', ''
+);
+
+insert into public.audio_video_assignments (
+  id, date, weekday, sound, image, stage, roving_mic_1, roving_mic_2,
+  attendants, attendants_member_ids
+) values (
+  '28400000-0000-0000-0000-000000000005', current_date + 1013,
+  'Domingo', '', '', '', '', '',
+  array['Legado Array Guard', 'Sem vínculo', 'Legado Array Guard'],
+  array[
+    '27000000-0000-0000-0000-000000000006'::uuid,
+    null::uuid,
+    '27000000-0000-0000-0000-000000000006'::uuid
+  ]
+);
+
+insert into public.weekend_meetings (
+  id, date, talk_speaker_name, president_id, closing_prayer_id
+) values (
+  '28300000-0000-0000-0000-000000000005', current_date + 1015,
+  'Visitante',
+  '27000000-0000-0000-0000-000000000005',
+  '27000000-0000-0000-0000-000000000004'
+);
+
+update public.members
+set spiritual_status = 'inativo'
+where id in (
+  '27000000-0000-0000-0000-000000000004',
+  '27000000-0000-0000-0000-000000000006'
+);
+
+select lives_ok(
+  $test$
+    update public.audio_video_assignments
+    set image = '', image_member_id = null
+    where id = '28400000-0000-0000-0000-000000000004'
+  $test$,
+  'removing a target remains allowed when another restricted legacy ID is unchanged'
+);
+
+select lives_ok(
+  $test$
+    update public.audio_video_assignments
+    set attendants = array[
+          'Legado Array Guard', 'Legado Array Guard', 'Sem vínculo'
+        ],
+        attendants_member_ids = array[
+          '27000000-0000-0000-0000-000000000006'::uuid,
+          '27000000-0000-0000-0000-000000000006'::uuid,
+          null::uuid
+        ]
+    where id = '28400000-0000-0000-0000-000000000005'
+  $test$,
+  'reordering an array multiset does not revalidate legacy restricted IDs'
+);
+
+select lives_ok(
+  $test$
+    update public.audio_video_assignments
+    set attendants = array[
+          'Legado Array Guard', 'Legado Array Guard', 'Sem vínculo',
+          'Ativo Array Guard'
+        ],
+        attendants_member_ids = array[
+          '27000000-0000-0000-0000-000000000006'::uuid,
+          '27000000-0000-0000-0000-000000000006'::uuid,
+          null::uuid,
+          '27000000-0000-0000-0000-000000000007'::uuid
+        ]
+    where id = '28400000-0000-0000-0000-000000000005'
+  $test$,
+  'adding an active array member is allowed beside restricted legacy IDs'
+);
+
+select throws_ok(
+  $test$
+    update public.audio_video_assignments
+    set attendants = array[
+          'Legado Array Guard', 'Legado Array Guard', 'Legado Array Guard',
+          'Sem vínculo', 'Ativo Array Guard'
+        ],
+        attendants_member_ids = array[
+          '27000000-0000-0000-0000-000000000006'::uuid,
+          '27000000-0000-0000-0000-000000000006'::uuid,
+          '27000000-0000-0000-0000-000000000006'::uuid,
+          null::uuid,
+          '27000000-0000-0000-0000-000000000007'::uuid
+        ]
+    where id = '28400000-0000-0000-0000-000000000005'
+  $test$,
+  'P0001', 'Membro inativo não pode receber designações.',
+  'adding a new occurrence of a restricted array member is rejected'
+);
+
 set local role authenticated;
 select set_config(
   'request.jwt.claim.sub',
@@ -2807,6 +2951,18 @@ select lives_ok(
         and cancelled_at is null
     ))$$,
   'cancel RPC continues to work with assignment guards installed'
+);
+
+select lives_ok(
+  $$select public.transfer_member(
+      '27000000-0000-0000-0000-000000000005', current_date, null
+    );
+    select public.cancel_member_transfer((
+      select id from public.member_transfers
+      where member_id = '27000000-0000-0000-0000-000000000005'
+        and cancelled_at is null
+    ))$$,
+  'transfer clearing ignores unrelated restricted legacy IDs and still cancels'
 );
 
 reset role;
