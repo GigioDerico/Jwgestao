@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(143);
+select plan(161);
 
 select has_table('public', 'member_transfers', 'member_transfers exists');
 select has_table('public', 'member_transfer_assignment_audit', 'assignment audit exists');
@@ -631,6 +631,138 @@ select ok(
   ),
   'one active transfer per member is enforced by a unique partial index'
 );
+
+select ok(
+  exists (
+    select 1
+    from pg_catalog.pg_index index_definition
+    join pg_catalog.pg_class index_relation
+      on index_relation.oid = index_definition.indexrelid
+    join pg_catalog.pg_class table_relation
+      on table_relation.oid = index_definition.indrelid
+    join pg_catalog.pg_namespace namespace
+      on namespace.oid = table_relation.relnamespace
+    where namespace.nspname = 'public'
+      and table_relation.relname = 'user_profiles'
+      and index_relation.relname = 'user_profiles_one_profile_per_member'
+      and index_definition.indisunique
+      and pg_catalog.pg_get_indexdef(index_relation.oid, 1, true) = 'member_id'
+      and pg_catalog.pg_get_expr(
+        index_definition.indpred,
+        index_definition.indrelid
+      ) = '(member_id IS NOT NULL)'
+  ),
+  'one profile per linked member is enforced by a unique partial index'
+);
+
+select ok(
+  exists (
+    select 1
+    from pg_catalog.pg_constraint constraint_definition
+    where constraint_definition.conrelid =
+      'public.audio_video_assignments'::regclass
+      and constraint_definition.conname =
+        'audio_video_attendants_alignment_check'
+      and constraint_definition.contype = 'c'
+  ),
+  'audio-video attendant names and IDs have a cardinality constraint'
+);
+
+select is_empty(
+  $test$
+    select id
+    from public.audio_video_assignments
+    where cardinality(attendants) <> cardinality(attendants_member_ids)
+  $test$,
+  'existing audio-video attendant arrays are normalized without drift'
+);
+
+select lives_ok(
+  $test$
+    insert into public.audio_video_assignments (
+      id, date, weekday, sound, image, stage, roving_mic_1, roving_mic_2,
+      attendants, attendants_member_ids
+    )
+    values (
+      '57000000-0000-0000-0000-000000000001', current_date + 40,
+      'desalinhado', '', '', '', '', '',
+      array['Nome sem ID'], '{}'::uuid[]
+    )
+  $test$,
+  'legacy frontend payloads with compressed IDs are accepted and normalized'
+);
+
+select results_eq(
+  $$select attendants, attendants_member_ids
+    from public.audio_video_assignments
+    where id = '57000000-0000-0000-0000-000000000001'$$,
+  $$values (array['Nome sem ID']::text[], array[null::uuid])$$,
+  'future writes preserve unresolved names with explicit positional nulls'
+);
+
+delete from public.audio_video_assignments
+where id = '57000000-0000-0000-0000-000000000001';
+
+select ok(
+  exists (
+    select 1
+    from pg_catalog.pg_indexes index_definition
+    where index_definition.schemaname = 'public'
+      and index_definition.tablename = 'member_transfer_assignment_audit'
+      and index_definition.indexname = 'member_transfer_audit_history_idx'
+      and index_definition.indexdef =
+        'CREATE INDEX member_transfer_audit_history_idx ON public.member_transfer_assignment_audit USING btree (member_id, assignment_date DESC)'
+  ),
+  'audit history index leads with member and preserves descending date order'
+);
+
+insert into auth.users (id, email)
+values
+  ('12000000-0000-0000-0000-000000000001', 'null-profile-1@example.invalid'),
+  ('12000000-0000-0000-0000-000000000002', 'null-profile-2@example.invalid'),
+  ('12000000-0000-0000-0000-000000000003', 'linked-profile-1@example.invalid'),
+  ('12000000-0000-0000-0000-000000000004', 'linked-profile-2@example.invalid');
+
+insert into public.members (id, full_name, gender)
+values (
+  '22000000-0000-0000-0000-000000000001',
+  'Perfil único Teste',
+  'M'
+);
+
+select lives_ok(
+  $test$
+    insert into public.user_profiles (id, member_id, system_role)
+    values
+      ('12000000-0000-0000-0000-000000000001', null, 'publicador'),
+      ('12000000-0000-0000-0000-000000000002', null, 'publicador')
+  $test$,
+  'multiple unlinked profiles remain allowed'
+);
+
+insert into public.user_profiles (id, member_id, system_role)
+values (
+  '12000000-0000-0000-0000-000000000003',
+  '22000000-0000-0000-0000-000000000001',
+  'publicador'
+);
+
+select throws_ok(
+  $test$
+    insert into public.user_profiles (id, member_id, system_role)
+    values (
+      '12000000-0000-0000-0000-000000000004',
+      '22000000-0000-0000-0000-000000000001',
+      'publicador'
+    )
+  $test$,
+  '23505',
+  'duplicate key value violates unique constraint "user_profiles_one_profile_per_member"',
+  'a member cannot be linked to multiple profiles'
+);
+
+delete from public.user_profiles
+where id = '12000000-0000-0000-0000-000000000004';
 
 select is_empty(
   $test$
@@ -1369,7 +1501,71 @@ values
   ('21000000-0000-0000-0000-000000000003', 'Outro Membro RPC', 'M', 'publicador_batizado', null),
   ('21000000-0000-0000-0000-000000000004', 'Sem Permissão RPC', 'M', 'publicador', null),
   ('21000000-0000-0000-0000-000000000005', 'Validação RPC', 'F', 'pioneiro_regular', null),
-  ('21000000-0000-0000-0000-000000000006', 'Rollback RPC', 'M', 'publicador', null);
+  ('21000000-0000-0000-0000-000000000006', 'Rollback RPC', 'M', 'publicador', null),
+  ('21000000-0000-0000-0000-000000000007', 'Nome Ambíguo RPC', 'M', 'publicador', null),
+  ('21000000-0000-0000-0000-000000000008', 'Nome Ambíguo RPC', 'F', 'publicador', null);
+
+select results_eq(
+  $$select attendants, attendants_member_ids
+    from private.normalize_audio_video_attendants(
+      array['Nome legado', 'Membro RPC'],
+      array['21000000-0000-0000-0000-000000000002'::uuid]
+    )$$,
+  $$values (
+    array['Nome legado', 'Membro RPC']::text[],
+    array[null::uuid, '21000000-0000-0000-0000-000000000002'::uuid]
+  )$$,
+  'normalization moves a mismatched ID to its exact-name position'
+);
+
+select results_eq(
+  $$select attendants, attendants_member_ids
+    from private.normalize_audio_video_attendants(
+      array['Nome legado'],
+      array['21000000-0000-0000-0000-000000000002'::uuid]
+    )$$,
+  $$values (
+    array['Membro RPC']::text[],
+    array['21000000-0000-0000-0000-000000000002'::uuid]
+  )$$,
+  'equal-cardinality ID-backed entries keep the authoritative member identity'
+);
+
+select results_eq(
+  $$select attendants, attendants_member_ids
+    from private.normalize_audio_video_attendants(
+      array['Outro Membro RPC', 'Membro RPC'],
+      array[
+        '21000000-0000-0000-0000-000000000002'::uuid,
+        '21000000-0000-0000-0000-000000000003'::uuid
+      ]
+    )$$,
+  $$values (
+    array['Membro RPC', 'Outro Membro RPC']::text[],
+    array[
+      '21000000-0000-0000-0000-000000000002'::uuid,
+      '21000000-0000-0000-0000-000000000003'::uuid
+    ]
+  )$$,
+  'equal-cardinality arrays align displayed names to authoritative ID order'
+);
+
+select results_eq(
+  $$select attendants, attendants_member_ids
+    from private.normalize_audio_video_attendants(null, null)$$,
+  $$values ('{}'::text[], '{}'::uuid[])$$,
+  'normalization handles null legacy arrays as aligned empty arrays'
+);
+
+select results_eq(
+  $$select attendants, attendants_member_ids
+    from private.normalize_audio_video_attendants(
+      array['Nome preservado'],
+      array['29999999-0000-0000-0000-000000000999'::uuid]
+    )$$,
+  $$values (array['Nome preservado']::text[], array[null::uuid])$$,
+  'normalization preserves a legacy name and nulls its orphan member ID'
+);
 
 update public.user_profiles
 set member_id = '21000000-0000-0000-0000-000000000001'
@@ -1467,6 +1663,19 @@ values
     '', null, '', null, '', null, '', null, '{}', '{}'
   );
 
+insert into public.audio_video_assignments (
+  id, date, weekday, sound, sound_member_id, image, image_member_id,
+  stage, stage_member_id, roving_mic_1, roving_mic_1_member_id,
+  roving_mic_2, roving_mic_2_member_id, attendants, attendants_member_ids
+)
+values (
+  '33000000-0000-0000-0000-000000000003', current_date + 2, 'Drift',
+  'Nome anterior do membro', '21000000-0000-0000-0000-000000000002',
+  'Membro RPC', null, '', null, '', null, '', null,
+  array['Nome legado', 'Membro RPC'],
+  array[null::uuid, '21000000-0000-0000-0000-000000000002'::uuid]
+);
+
 insert into public.field_service_assignments (
   id, month, year, weekday, time, responsible, responsible_member_id,
   location, category
@@ -1484,6 +1693,22 @@ values
     extract(year from (date_trunc('month', current_date) - interval '1 month'))::int,
     'Mês anterior', '09:00', 'Membro RPC',
     '21000000-0000-0000-0000-000000000002', 'Salão', 'Campo'
+  );
+
+insert into public.field_service_assignments (
+  id, month, year, weekday, time, responsible, responsible_member_id,
+  location, category
+)
+values
+  (
+    '34000000-0000-0000-0000-000000000003',
+    extract(month from current_date)::int, extract(year from current_date)::int,
+    'Nome legado', '10:00', 'Membro RPC', null, 'Salão', 'Campo'
+  ),
+  (
+    '34000000-0000-0000-0000-000000000004',
+    extract(month from current_date)::int, extract(year from current_date)::int,
+    'Nome ambíguo', '11:00', 'Nome Ambíguo RPC', null, 'Salão', 'Campo'
   );
 
 insert into public.cart_assignments (
@@ -1505,6 +1730,26 @@ values
     extract(day from (current_date - 1))::int, 'Ontem', '09:00', 'Praça',
     'Membro RPC', '21000000-0000-0000-0000-000000000002', '', null, 1
   );
+
+insert into public.cart_assignments (
+  id, month, year, day, weekday, time, location,
+  publisher1, publisher1_member_id, publisher2, publisher2_member_id, week
+)
+values (
+  '35000000-0000-0000-0000-000000000003',
+  extract(month from (current_date + 4))::int,
+  extract(year from (current_date + 4))::int,
+  extract(day from (current_date + 4))::int, 'Nome legado', '10:00', 'Praça',
+  'Membro RPC', null, '', null, 1
+);
+
+insert into public.weekend_meetings (
+  id, date, talk_speaker_name, closing_prayer_name, closing_prayer_id
+)
+values (
+  '32000000-0000-0000-0000-000000000003', current_date + 3,
+  'Visitante', 'Membro RPC', null
+);
 
 insert into public.member_assignment_notifications (
   id, member_id, source_type, source_id, slot_key, category,
@@ -1629,6 +1874,13 @@ select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000001
 set local role authenticated;
 
 select throws_ok(
+  $$select public.preview_member_transfer('21000000-0000-0000-0000-000000000007')$$,
+  'P0001',
+  'Existem designações legadas ambíguas para este nome. Vincule-as ao membro antes de transferir.',
+  'ambiguous name-only assignments block transfer preview safely'
+);
+
+select throws_ok(
   $$select public.preview_member_transfer('21000000-0000-0000-0000-000000000001')$$,
   'P0001', 'Você não pode transferir a si próprio.',
   'self-transfer is rejected'
@@ -1681,8 +1933,8 @@ select lives_ok(
 
 select is(
   (public.preview_member_transfer('21000000-0000-0000-0000-000000000002')).future_assignment_count,
-  25::bigint,
-  'preview counts every future slot including repeated slots in one row'
+  31::bigint,
+  'preview counts ID-backed and uniquely resolved legacy future slots'
 );
 
 select results_eq(
@@ -1701,13 +1953,13 @@ select * from public.transfer_member(
 
 select is(
   (select removed_assignment_count from transfer_rpc_result),
-  25::bigint,
+  31::bigint,
   'transfer returns the exact number of removed assignment slots'
 );
 
 select is(
   (select count(*) from public.member_transfer_assignment_audit a join transfer_rpc_result r on r.transfer_id = a.transfer_id),
-  25::bigint,
+  31::bigint,
   'transfer writes one audit row per removed slot'
 );
 
@@ -1772,15 +2024,41 @@ select results_eq(
 );
 
 select results_eq(
+  $$select sound, sound_member_id, image, image_member_id, attendants, attendants_member_ids
+    from public.audio_video_assignments where id = '33000000-0000-0000-0000-000000000003'$$,
+  $$values (''::varchar, null::uuid, ''::varchar, null::uuid,
+    array['Nome legado']::text[], array[null::uuid])$$,
+  'ID-only and unique name-only AV slots clear without corrupting aligned legacy attendants'
+);
+
+select results_eq(
   $$select responsible, responsible_member_id from public.field_service_assignments where id = '34000000-0000-0000-0000-000000000001'$$,
   $$values (''::varchar, null::uuid)$$,
   'current-month field service assignment is cleared with its legacy name'
 );
 
 select results_eq(
+  $$select responsible, responsible_member_id from public.field_service_assignments where id = '34000000-0000-0000-0000-000000000003'$$,
+  $$values (''::varchar, null::uuid)$$,
+  'unique name-only field service assignment is audited and cleared'
+);
+
+select results_eq(
   $$select publisher1, publisher1_member_id, publisher2, publisher2_member_id from public.cart_assignments where id = '35000000-0000-0000-0000-000000000001'$$,
   $$values (''::varchar, null::uuid, ''::varchar, null::uuid)$$,
   'both current-date cart slots and legacy names are cleared'
+);
+
+select results_eq(
+  $$select publisher1, publisher1_member_id from public.cart_assignments where id = '35000000-0000-0000-0000-000000000003'$$,
+  $$values (''::varchar, null::uuid)$$,
+  'unique name-only cart assignment is audited and cleared'
+);
+
+select results_eq(
+  $$select closing_prayer_name, closing_prayer_id from public.weekend_meetings where id = '32000000-0000-0000-0000-000000000003'$$,
+  $$values (null::varchar, null::uuid)$$,
+  'unique name-only weekend prayer assignment is audited and cleared'
 );
 
 select is(

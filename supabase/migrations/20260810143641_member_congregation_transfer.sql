@@ -6,6 +6,217 @@ grant usage on schema private to authenticated;
 alter table public.user_profiles
   add column if not exists is_active boolean not null default true;
 
+do $$
+declare
+  duplicate_profiles text;
+begin
+  select string_agg(
+    duplicate.member_id::text || ' (' || duplicate.profile_count::text || ' perfis)',
+    ', '
+    order by duplicate.member_id::text
+  )
+  into duplicate_profiles
+  from (
+    select up.member_id, count(*) as profile_count
+    from public.user_profiles up
+    where up.member_id is not null
+    group by up.member_id
+    having count(*) > 1
+  ) duplicate;
+
+  if duplicate_profiles is not null then
+    raise exception
+      'Não foi possível garantir um perfil por membro. Corrija os perfis duplicados: %',
+      duplicate_profiles;
+  end if;
+end;
+$$;
+
+create unique index user_profiles_one_profile_per_member
+  on public.user_profiles(member_id)
+  where member_id is not null;
+
+create or replace function private.normalize_audio_video_attendants(
+  p_attendants text[],
+  p_attendants_member_ids uuid[]
+)
+returns table (attendants text[], attendants_member_ids uuid[])
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  normalized_names text[];
+  normalized_ids uuid[];
+begin
+  p_attendants := coalesce(p_attendants, '{}'::text[]);
+  p_attendants_member_ids := coalesce(
+    p_attendants_member_ids,
+    '{}'::uuid[]
+  );
+
+  if cardinality(p_attendants) = cardinality(p_attendants_member_ids) then
+    select
+      coalesce(array_agg(
+        case
+          when member.id is null then names.member_name
+          else member.full_name
+        end
+        order by names.ordinality
+      ), '{}'::text[]),
+      coalesce(array_agg(
+        case
+          when member.id is null then null
+          else ids.member_id
+        end
+        order by names.ordinality
+      ), '{}'::uuid[])
+    into normalized_names, normalized_ids
+    from unnest(p_attendants)
+      with ordinality names(member_name, ordinality)
+    left join lateral unnest(p_attendants_member_ids)
+      with ordinality ids(member_id, ordinality)
+      on ids.ordinality = names.ordinality
+    left join public.members member on member.id = ids.member_id;
+
+  else
+    with name_positions as (
+      select
+        names.member_name,
+        names.ordinality,
+        row_number() over (
+          partition by btrim(names.member_name)
+          order by names.ordinality
+        ) as name_occurrence
+      from unnest(p_attendants)
+        with ordinality names(member_name, ordinality)
+    ),
+    id_positions as (
+      select
+        ids.member_id,
+        ids.ordinality as source_ordinality,
+        member.full_name,
+        row_number() over (
+          partition by btrim(member.full_name)
+          order by ids.ordinality
+        ) as id_occurrence
+      from unnest(p_attendants_member_ids)
+        with ordinality ids(member_id, ordinality)
+      join public.members member on member.id = ids.member_id
+      where ids.member_id is not null
+    ),
+    aligned_names as (
+      select
+        names.ordinality as output_ordinality,
+        names.member_name,
+        ids.member_id,
+        ids.source_ordinality
+      from name_positions names
+      left join id_positions ids
+        on btrim(ids.full_name) = btrim(names.member_name)
+        and ids.id_occurrence = names.name_occurrence
+    ),
+    unmatched_ids as (
+      select
+        cardinality(p_attendants) + row_number() over (
+          order by ids.source_ordinality
+        ) as output_ordinality,
+        ids.full_name as member_name,
+        ids.member_id,
+        ids.source_ordinality
+      from id_positions ids
+      where not exists (
+        select 1
+        from aligned_names aligned
+        where aligned.source_ordinality = ids.source_ordinality
+      )
+    ),
+    combined as (
+      select * from aligned_names
+      union all
+      select * from unmatched_ids
+    )
+    select
+      coalesce(
+        array_agg(combined.member_name order by combined.output_ordinality),
+        '{}'::text[]
+      ),
+      coalesce(
+        array_agg(combined.member_id order by combined.output_ordinality),
+        '{}'::uuid[]
+      )
+    into normalized_names, normalized_ids
+    from combined;
+  end if;
+
+  return query select normalized_names, normalized_ids;
+end;
+$$;
+
+revoke all on function private.normalize_audio_video_attendants(text[], uuid[])
+  from public, anon, authenticated, service_role;
+
+-- Existing rows predate member IDs. Rebuild attendant arrays without guessing:
+-- unresolved names receive an explicit NULL and authoritative IDs are retained.
+with normalized as (
+  select assignment.id, result.attendants, result.attendants_member_ids
+  from public.audio_video_assignments assignment
+  cross join lateral private.normalize_audio_video_attendants(
+    assignment.attendants,
+    assignment.attendants_member_ids
+  ) result
+)
+update public.audio_video_assignments assignment
+set
+  attendants = normalized.attendants,
+  attendants_member_ids = normalized.attendants_member_ids
+from normalized
+where normalized.id = assignment.id
+  and (
+    assignment.attendants is distinct from normalized.attendants
+    or assignment.attendants_member_ids is distinct from
+      normalized.attendants_member_ids
+  );
+
+alter table public.audio_video_assignments
+  add constraint audio_video_attendants_alignment_check
+  check (cardinality(attendants) = cardinality(attendants_member_ids))
+  not valid;
+
+alter table public.audio_video_assignments
+  validate constraint audio_video_attendants_alignment_check;
+
+create or replace function private.align_audio_video_attendants()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  normalized record;
+begin
+  select result.attendants, result.attendants_member_ids
+  into strict normalized
+  from private.normalize_audio_video_attendants(
+    new.attendants,
+    new.attendants_member_ids
+  ) result;
+
+  new.attendants := normalized.attendants;
+  new.attendants_member_ids := normalized.attendants_member_ids;
+  return new;
+end;
+$$;
+
+revoke all on function private.align_audio_video_attendants()
+  from public, anon, authenticated, service_role;
+
+create trigger align_audio_video_attendants
+before insert or update of attendants, attendants_member_ids
+on public.audio_video_assignments
+for each row execute function private.align_audio_video_attendants();
+
 create table public.member_transfers (
   id uuid primary key default gen_random_uuid(),
   member_id uuid not null references public.members(id) on delete restrict,
@@ -55,7 +266,7 @@ create table public.member_transfer_assignment_audit (
 );
 
 create index member_transfer_audit_history_idx
-  on public.member_transfer_assignment_audit(assignment_date desc, member_id);
+  on public.member_transfer_assignment_audit(member_id, assignment_date desc);
 
 alter table public.member_transfers enable row level security;
 alter table public.member_transfer_assignment_audit enable row level security;
@@ -204,12 +415,87 @@ $$;
 
 create or replace function private.preview_member_transfer(p_member_id uuid)
 returns public.member_transfer_impact
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select row(count(*))::public.member_transfer_impact
+declare
+  target_member_name text;
+  name_is_unique boolean;
+  impact public.member_transfer_impact;
+begin
+  select m.full_name
+  into strict target_member_name
+  from public.members m
+  where m.id = p_member_id;
+
+  select count(*) = 1
+  into name_is_unique
+  from public.members m
+  where btrim(m.full_name) = btrim(target_member_name);
+
+  if not name_is_unique and exists (
+    select 1
+    from (
+      select w.closing_prayer_name as legacy_name
+      from public.weekend_meetings w
+      where w.date >= current_date
+        and w.closing_prayer_id is null
+
+      union all
+
+      select slot.legacy_name
+      from public.audio_video_assignments a
+      cross join lateral (values
+        (a.sound, a.sound_member_id),
+        (a.image, a.image_member_id),
+        (a.stage, a.stage_member_id),
+        (a.roving_mic_1, a.roving_mic_1_member_id),
+        (a.roving_mic_2, a.roving_mic_2_member_id)
+      ) slot(legacy_name, member_id)
+      where a.date >= current_date
+        and slot.member_id is null
+
+      union all
+
+      select names.member_name
+      from public.audio_video_assignments a
+      cross join lateral unnest(a.attendants)
+        with ordinality names(member_name, ordinality)
+      left join lateral unnest(a.attendants_member_ids)
+        with ordinality ids(member_id, ordinality)
+        on ids.ordinality = names.ordinality
+      where a.date >= current_date
+        and ids.member_id is null
+
+      union all
+
+      select f.responsible
+      from public.field_service_assignments f
+      where f.responsible_member_id is null
+        and make_date(f.year, f.month, 1) >=
+          date_trunc('month', current_date)::date
+
+      union all
+
+      select slot.legacy_name
+      from public.cart_assignments c
+      cross join lateral (values
+        (c.publisher1, c.publisher1_member_id),
+        (c.publisher2, c.publisher2_member_id)
+      ) slot(legacy_name, member_id)
+      where slot.member_id is null
+        and make_date(c.year, c.month, c.day) >= current_date
+    ) legacy
+    where btrim(legacy.legacy_name) = btrim(target_member_name)
+  ) then
+    raise exception
+      'Existem designações legadas ambíguas para este nome. Vincule-as ao membro antes de transferir.';
+  end if;
+
+  select count(*)
+  into impact.future_assignment_count
   from (
     select 1
     from public.midweek_meetings m
@@ -247,49 +533,97 @@ as $$
 
     select 1
     from public.weekend_meetings w
-    cross join lateral unnest(array[
-      w.president_id,
-      w.closing_prayer_id,
-      w.watchtower_conductor_id,
-      w.watchtower_reader_id
-    ]) slot(member_id)
+    cross join lateral (values
+      (null::text, w.president_id),
+      (w.closing_prayer_name, w.closing_prayer_id),
+      (null::text, w.watchtower_conductor_id),
+      (null::text, w.watchtower_reader_id)
+    ) slot(legacy_name, member_id)
     where w.date >= current_date
-      and slot.member_id = p_member_id
+      and (
+        slot.member_id = p_member_id
+        or (
+          name_is_unique
+          and slot.member_id is null
+          and btrim(slot.legacy_name) = btrim(target_member_name)
+        )
+      )
 
     union all
 
     select 1
     from public.audio_video_assignments a
-    cross join lateral unnest(
-      array[
-        a.sound_member_id,
-        a.image_member_id,
-        a.stage_member_id,
-        a.roving_mic_1_member_id,
-        a.roving_mic_2_member_id
-      ] || coalesce(a.attendants_member_ids, '{}'::uuid[])
-    ) slot(member_id)
+    cross join lateral (values
+      (a.sound, a.sound_member_id),
+      (a.image, a.image_member_id),
+      (a.stage, a.stage_member_id),
+      (a.roving_mic_1, a.roving_mic_1_member_id),
+      (a.roving_mic_2, a.roving_mic_2_member_id)
+    ) slot(legacy_name, member_id)
     where a.date >= current_date
-      and slot.member_id = p_member_id
+      and (
+        slot.member_id = p_member_id
+        or (
+          name_is_unique
+          and slot.member_id is null
+          and btrim(slot.legacy_name) = btrim(target_member_name)
+        )
+      )
+
+    union all
+
+    select 1
+    from public.audio_video_assignments a
+    cross join lateral unnest(a.attendants)
+      with ordinality names(member_name, ordinality)
+    left join lateral unnest(a.attendants_member_ids)
+      with ordinality ids(member_id, ordinality)
+      on ids.ordinality = names.ordinality
+    where a.date >= current_date
+      and (
+        ids.member_id = p_member_id
+        or (
+          name_is_unique
+          and ids.member_id is null
+          and btrim(names.member_name) = btrim(target_member_name)
+        )
+      )
 
     union all
 
     select 1
     from public.field_service_assignments f
-    where f.responsible_member_id = p_member_id
-      and make_date(f.year, f.month, 1) >= date_trunc('month', current_date)::date
+    where make_date(f.year, f.month, 1) >=
+        date_trunc('month', current_date)::date
+      and (
+        f.responsible_member_id = p_member_id
+        or (
+          name_is_unique
+          and f.responsible_member_id is null
+          and btrim(f.responsible) = btrim(target_member_name)
+        )
+      )
 
     union all
 
     select 1
     from public.cart_assignments c
-    cross join lateral unnest(array[
-      c.publisher1_member_id,
-      c.publisher2_member_id
-    ]) slot(member_id)
-    where slot.member_id = p_member_id
-      and make_date(c.year, c.month, c.day) >= current_date
+    cross join lateral (values
+      (c.publisher1, c.publisher1_member_id),
+      (c.publisher2, c.publisher2_member_id)
+    ) slot(legacy_name, member_id)
+    where make_date(c.year, c.month, c.day) >= current_date
+      and (
+        slot.member_id = p_member_id
+        or (
+          name_is_unique
+          and slot.member_id is null
+          and btrim(slot.legacy_name) = btrim(target_member_name)
+        )
+      )
   ) future_slots;
+  return impact;
+end;
 $$;
 
 create or replace function public.preview_member_transfer(p_member_id uuid)
@@ -315,6 +649,8 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  name_is_unique boolean;
 begin
   -- Prevent a concurrent assignment write from landing between the audit scan
   -- and the clearing updates. Transfers are rare, and every caller acquires
@@ -329,6 +665,15 @@ begin
     public.cart_assignments,
     public.member_assignment_notifications
   in share row exclusive mode;
+
+  -- Re-check after locking so a concurrent legacy assignment cannot bypass
+  -- the ambiguity guard between preview and clearing.
+  perform private.preview_member_transfer(p_member_id);
+
+  select count(*) = 1
+  into name_is_unique
+  from public.members m
+  where btrim(m.full_name) = btrim(p_member_name);
 
   insert into public.member_transfer_assignment_audit (
     transfer_id,
@@ -506,6 +851,123 @@ begin
   ) slots
   where slots.member_id = p_member_id;
 
+  insert into public.member_transfer_assignment_audit (
+    transfer_id,
+    source,
+    source_type,
+    source_id,
+    slot_key,
+    role_label,
+    assignment_date,
+    member_id,
+    member_name,
+    details
+  )
+  select
+    p_transfer_id,
+    legacy.source,
+    legacy.source_type,
+    legacy.source_id,
+    legacy.slot_key,
+    legacy.role_label,
+    legacy.assignment_date,
+    p_member_id,
+    p_member_name,
+    legacy.details
+  from (
+    select
+      'weekend'::text as source,
+      'weekend_meeting_role'::text as source_type,
+      w.id as source_id,
+      'closing_prayer_id'::text as slot_key,
+      'Oração Final'::text as role_label,
+      w.date as assignment_date,
+      null::text as details,
+      w.closing_prayer_name as legacy_name
+    from public.weekend_meetings w
+    where w.date >= current_date
+      and w.closing_prayer_id is null
+
+    union all
+
+    select
+      'audio_video',
+      'audio_video_role',
+      a.id,
+      slot.slot_key,
+      slot.role_label,
+      a.date,
+      a.weekday,
+      slot.legacy_name
+    from public.audio_video_assignments a
+    cross join lateral (values
+      ('sound', 'Som', a.sound, a.sound_member_id),
+      ('image', 'Imagem', a.image, a.image_member_id),
+      ('stage', 'Palco', a.stage, a.stage_member_id),
+      ('roving_mic_1', 'Microfone Volante 1', a.roving_mic_1, a.roving_mic_1_member_id),
+      ('roving_mic_2', 'Microfone Volante 2', a.roving_mic_2, a.roving_mic_2_member_id)
+    ) slot(slot_key, role_label, legacy_name, member_id)
+    where a.date >= current_date
+      and slot.member_id is null
+
+    union all
+
+    select
+      'audio_video',
+      'audio_video_role',
+      a.id,
+      'attendant:' || (names.ordinality - 1)::text,
+      'Indicador',
+      a.date,
+      a.weekday,
+      names.member_name
+    from public.audio_video_assignments a
+    cross join lateral unnest(a.attendants)
+      with ordinality names(member_name, ordinality)
+    left join lateral unnest(a.attendants_member_ids)
+      with ordinality ids(member_id, ordinality)
+      on ids.ordinality = names.ordinality
+    where a.date >= current_date
+      and ids.member_id is null
+
+    union all
+
+    select
+      'field_service',
+      'field_service_assignment',
+      f.id,
+      'responsible',
+      'Responsável',
+      make_date(f.year, f.month, 1),
+      f.category || ' - ' || f.weekday,
+      f.responsible
+    from public.field_service_assignments f
+    where f.responsible_member_id is null
+      and make_date(f.year, f.month, 1) >=
+        date_trunc('month', current_date)::date
+
+    union all
+
+    select
+      'cart',
+      'cart_assignment',
+      c.id,
+      slot.slot_key,
+      slot.role_label,
+      make_date(c.year, c.month, c.day),
+      c.location,
+      slot.legacy_name
+    from public.cart_assignments c
+    cross join lateral (values
+      ('publisher1', 'Publicador 1', c.publisher1, c.publisher1_member_id),
+      ('publisher2', 'Publicador 2', c.publisher2, c.publisher2_member_id)
+    ) slot(slot_key, role_label, legacy_name, member_id)
+    where slot.member_id is null
+      and make_date(c.year, c.month, c.day) >= current_date
+  ) legacy
+  where name_is_unique
+    and btrim(legacy.legacy_name) = btrim(p_member_name);
+
   update public.midweek_meetings m
   set
     president_id = case when m.president_id = p_member_id then null else m.president_id end,
@@ -547,47 +1009,136 @@ begin
   update public.weekend_meetings w
   set
     president_id = case when w.president_id = p_member_id then null else w.president_id end,
-    closing_prayer_name = case when w.closing_prayer_id = p_member_id then null else w.closing_prayer_name end,
-    closing_prayer_id = case when w.closing_prayer_id = p_member_id then null else w.closing_prayer_id end,
+    closing_prayer_name = case
+      when w.closing_prayer_id = p_member_id
+        or (
+          name_is_unique
+          and w.closing_prayer_id is null
+          and btrim(w.closing_prayer_name) = btrim(p_member_name)
+        )
+      then null
+      else w.closing_prayer_name
+    end,
+    closing_prayer_id = case
+      when w.closing_prayer_id = p_member_id then null
+      else w.closing_prayer_id
+    end,
     watchtower_conductor_id = case when w.watchtower_conductor_id = p_member_id then null else w.watchtower_conductor_id end,
     watchtower_reader_id = case when w.watchtower_reader_id = p_member_id then null else w.watchtower_reader_id end
   where w.date >= current_date
-    and p_member_id in (
-      w.president_id,
-      w.closing_prayer_id,
-      w.watchtower_conductor_id,
-      w.watchtower_reader_id
+    and (
+      p_member_id in (
+        w.president_id,
+        w.closing_prayer_id,
+        w.watchtower_conductor_id,
+        w.watchtower_reader_id
+      )
+      or (
+        name_is_unique
+        and w.closing_prayer_id is null
+        and btrim(w.closing_prayer_name) = btrim(p_member_name)
+      )
     );
 
   update public.audio_video_assignments a
   set
-    sound = case when a.sound_member_id = p_member_id then '' else a.sound end,
+    sound = case
+      when a.sound_member_id = p_member_id
+        or (
+          name_is_unique and a.sound_member_id is null
+          and btrim(a.sound) = btrim(p_member_name)
+        )
+      then '' else a.sound end,
     sound_member_id = case when a.sound_member_id = p_member_id then null else a.sound_member_id end,
-    image = case when a.image_member_id = p_member_id then '' else a.image end,
+    image = case
+      when a.image_member_id = p_member_id
+        or (
+          name_is_unique and a.image_member_id is null
+          and btrim(a.image) = btrim(p_member_name)
+        )
+      then '' else a.image end,
     image_member_id = case when a.image_member_id = p_member_id then null else a.image_member_id end,
-    stage = case when a.stage_member_id = p_member_id then '' else a.stage end,
+    stage = case
+      when a.stage_member_id = p_member_id
+        or (
+          name_is_unique and a.stage_member_id is null
+          and btrim(a.stage) = btrim(p_member_name)
+        )
+      then '' else a.stage end,
     stage_member_id = case when a.stage_member_id = p_member_id then null else a.stage_member_id end,
-    roving_mic_1 = case when a.roving_mic_1_member_id = p_member_id then '' else a.roving_mic_1 end,
+    roving_mic_1 = case
+      when a.roving_mic_1_member_id = p_member_id
+        or (
+          name_is_unique and a.roving_mic_1_member_id is null
+          and btrim(a.roving_mic_1) = btrim(p_member_name)
+        )
+      then '' else a.roving_mic_1 end,
     roving_mic_1_member_id = case when a.roving_mic_1_member_id = p_member_id then null else a.roving_mic_1_member_id end,
-    roving_mic_2 = case when a.roving_mic_2_member_id = p_member_id then '' else a.roving_mic_2 end,
+    roving_mic_2 = case
+      when a.roving_mic_2_member_id = p_member_id
+        or (
+          name_is_unique and a.roving_mic_2_member_id is null
+          and btrim(a.roving_mic_2) = btrim(p_member_name)
+        )
+      then '' else a.roving_mic_2 end,
     roving_mic_2_member_id = case when a.roving_mic_2_member_id = p_member_id then null else a.roving_mic_2_member_id end,
     attendants = case
-      when p_member_id = any(a.attendants_member_ids) then coalesce((
+      when exists (
+        select 1
+        from unnest(a.attendants) with ordinality names(member_name, ordinality)
+        left join lateral unnest(a.attendants_member_ids)
+          with ordinality ids(member_id, ordinality)
+          on ids.ordinality = names.ordinality
+        where ids.member_id = p_member_id
+          or (
+            name_is_unique
+            and ids.member_id is null
+            and btrim(names.member_name) = btrim(p_member_name)
+          )
+      ) then coalesce((
         select array_agg(names.member_name order by names.ordinality)
         from unnest(a.attendants) with ordinality names(member_name, ordinality)
-        where names.ordinality not in (
-          select ids.ordinality
-          from unnest(a.attendants_member_ids) with ordinality ids(member_id, ordinality)
-          where ids.member_id = p_member_id
+        left join lateral unnest(a.attendants_member_ids)
+          with ordinality ids(member_id, ordinality)
+          on ids.ordinality = names.ordinality
+        where not (
+          ids.member_id is not distinct from p_member_id
+          or (
+            name_is_unique
+            and ids.member_id is null
+            and btrim(names.member_name) = btrim(p_member_name)
+          )
         )
       ), '{}'::text[])
       else a.attendants
     end,
     attendants_member_ids = case
-      when p_member_id = any(a.attendants_member_ids) then coalesce((
+      when exists (
+        select 1
+        from unnest(a.attendants) with ordinality names(member_name, ordinality)
+        left join lateral unnest(a.attendants_member_ids)
+          with ordinality ids(member_id, ordinality)
+          on ids.ordinality = names.ordinality
+        where ids.member_id = p_member_id
+          or (
+            name_is_unique
+            and ids.member_id is null
+            and btrim(names.member_name) = btrim(p_member_name)
+          )
+      ) then coalesce((
         select array_agg(ids.member_id order by ids.ordinality)
         from unnest(a.attendants_member_ids) with ordinality ids(member_id, ordinality)
-        where ids.member_id <> p_member_id
+        left join lateral unnest(a.attendants)
+          with ordinality names(member_name, ordinality)
+          on names.ordinality = ids.ordinality
+        where not (
+          ids.member_id is not distinct from p_member_id
+          or (
+            name_is_unique
+            and ids.member_id is null
+            and btrim(names.member_name) = btrim(p_member_name)
+          )
+        )
       ), '{}'::uuid[])
       else a.attendants_member_ids
     end
@@ -600,24 +1151,86 @@ begin
         a.roving_mic_1_member_id,
         a.roving_mic_2_member_id
       )
-      or p_member_id = any(a.attendants_member_ids)
+      or exists (
+        select 1
+        from unnest(a.attendants) with ordinality names(member_name, ordinality)
+        left join lateral unnest(a.attendants_member_ids)
+          with ordinality ids(member_id, ordinality)
+          on ids.ordinality = names.ordinality
+        where ids.member_id = p_member_id
+          or (
+            name_is_unique
+            and ids.member_id is null
+            and btrim(names.member_name) = btrim(p_member_name)
+          )
+      )
+      or (
+        name_is_unique
+        and (
+          (a.sound_member_id is null and btrim(a.sound) = btrim(p_member_name))
+          or (a.image_member_id is null and btrim(a.image) = btrim(p_member_name))
+          or (a.stage_member_id is null and btrim(a.stage) = btrim(p_member_name))
+          or (
+            a.roving_mic_1_member_id is null
+            and btrim(a.roving_mic_1) = btrim(p_member_name)
+          )
+          or (
+            a.roving_mic_2_member_id is null
+            and btrim(a.roving_mic_2) = btrim(p_member_name)
+          )
+        )
+      )
     );
 
   update public.field_service_assignments f
   set
     responsible = '',
     responsible_member_id = null
-  where f.responsible_member_id = p_member_id
+  where (
+      f.responsible_member_id = p_member_id
+      or (
+        name_is_unique
+        and f.responsible_member_id is null
+        and btrim(f.responsible) = btrim(p_member_name)
+      )
+    )
     and make_date(f.year, f.month, 1) >= date_trunc('month', current_date)::date;
 
   update public.cart_assignments c
   set
-    publisher1 = case when c.publisher1_member_id = p_member_id then '' else c.publisher1 end,
+    publisher1 = case
+      when c.publisher1_member_id = p_member_id
+        or (
+          name_is_unique and c.publisher1_member_id is null
+          and btrim(c.publisher1) = btrim(p_member_name)
+        )
+      then '' else c.publisher1 end,
     publisher1_member_id = case when c.publisher1_member_id = p_member_id then null else c.publisher1_member_id end,
-    publisher2 = case when c.publisher2_member_id = p_member_id then '' else c.publisher2 end,
+    publisher2 = case
+      when c.publisher2_member_id = p_member_id
+        or (
+          name_is_unique and c.publisher2_member_id is null
+          and btrim(c.publisher2) = btrim(p_member_name)
+        )
+      then '' else c.publisher2 end,
     publisher2_member_id = case when c.publisher2_member_id = p_member_id then null else c.publisher2_member_id end
   where make_date(c.year, c.month, c.day) >= current_date
-    and p_member_id in (c.publisher1_member_id, c.publisher2_member_id);
+    and (
+      p_member_id in (c.publisher1_member_id, c.publisher2_member_id)
+      or (
+        name_is_unique
+        and (
+          (
+            c.publisher1_member_id is null
+            and btrim(c.publisher1) = btrim(p_member_name)
+          )
+          or (
+            c.publisher2_member_id is null
+            and btrim(c.publisher2) = btrim(p_member_name)
+          )
+        )
+      )
+    );
 
   update public.member_assignment_notifications n
   set
