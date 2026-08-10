@@ -199,6 +199,9 @@ export function MemberTransferDialog({
                   'Não foi possível carregar o impacto da transferência. Tente novamente.'
                 )}
               </div>
+              <p className="text-sm text-muted-foreground">
+                O acesso ao sistema será bloqueado. As designações removidas não serão restauradas automaticamente.
+              </p>
             </div>
           ) : (
             <div className="space-y-3 text-sm">

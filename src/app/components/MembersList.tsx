@@ -31,6 +31,7 @@ import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { MemberExportDialog } from './MemberExportDialog';
 import { generateMemberListPdf, generateMemberListExcel } from '../lib/member-export';
+import { clearReadCache } from '../lib/offline-cache';
 import { MemberTransferDialog } from './MemberTransferDialog';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import {
@@ -69,6 +70,7 @@ export function MembersList() {
   const [transferImpact, setTransferImpact] = useState<MemberTransferImpact | null>(null);
   const [transferImpactLoading, setTransferImpactLoading] = useState(false);
   const [transferMutationLoading, setTransferMutationLoading] = useState(false);
+  const [transferRefreshPendingIds, setTransferRefreshPendingIds] = useState<Set<string>>(() => new Set());
   const memberCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const memberButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const pendingEditFocusMemberIdRef = useRef<string | null>(null);
@@ -136,7 +138,7 @@ export function MembersList() {
     system_role: 'publicador',
   });
 
-  const fetchMembers = async () => {
+  const fetchMembers = async (propagateError = false) => {
     try {
       setLoading(true);
       const raw = await api.getMembers();
@@ -191,6 +193,7 @@ export function MembersList() {
       const { data: groups } = await supabase.from('field_service_groups').select('*');
       if (groups) setFieldServiceGroups(groups);
     } catch (e) {
+      if (propagateError) throw e;
       console.error(e);
     } finally {
       setLoading(false);
@@ -432,20 +435,47 @@ export function MembersList() {
 
   const handleTransferMember = async (input: TransferMemberInput) => {
     setTransferMutationLoading(true);
+    let result;
     try {
-      const result = await transferMember(input);
-      closeTransferDialog();
-      setExpandedId(null);
-      toast.success(
-        result.removedAssignmentCount === 1
-          ? 'Membro transferido. 1 designação futura removida.'
-          : `Membro transferido. ${result.removedAssignmentCount} designações futuras removidas.`,
-      );
-      await fetchMembers();
+      result = await transferMember(input);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erro ao transferir membro.';
       toast.error(message);
+      setTransferMutationLoading(false);
       throw error;
+    }
+
+    setAllMembers(current => current.map(member => member.id === input.memberId ? {
+      ...member,
+      spiritual_status: 'inativo',
+      groupId: undefined,
+      group_id: undefined,
+      activeTransfer: {
+        id: result.transferId,
+        transferredAt: input.transferredAt,
+        destinationCongregation: input.destinationCongregation || null,
+        createdAt: new Date().toISOString(),
+      },
+    } : member));
+    closeTransferDialog();
+    setExpandedId(null);
+    toast.success(
+      result.removedAssignmentCount === 1
+        ? 'Membro transferido. 1 designação futura removida.'
+        : `Membro transferido. ${result.removedAssignmentCount} designações futuras removidas.`,
+    );
+
+    try {
+      await clearReadCache();
+      await fetchMembers(true);
+      setTransferRefreshPendingIds(current => {
+        const next = new Set(current);
+        next.delete(input.memberId);
+        return next;
+      });
+    } catch {
+      setTransferRefreshPendingIds(current => new Set(current).add(input.memberId));
+      toast.warning('Transferência concluída; atualização pendente. Tente recarregar quando estiver online.');
     } finally {
       setTransferMutationLoading(false);
     }
@@ -453,16 +483,38 @@ export function MembersList() {
 
   const handleCancelMemberTransfer = async (transferId: string) => {
     setTransferMutationLoading(true);
+    const memberId = transferDialogMember?.id;
     try {
       await cancelMemberTransfer(transferId);
-      closeTransferDialog();
-      setExpandedId(null);
-      toast.success('Transferência cancelada. As designações removidas não foram restauradas.');
-      await fetchMembers();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erro ao cancelar transferência.';
       toast.error(message);
+      setTransferMutationLoading(false);
       throw error;
+    }
+
+    if (memberId) {
+      setAllMembers(current => current.map(member => member.id === memberId
+        ? { ...member, activeTransfer: undefined }
+        : member));
+      setTransferRefreshPendingIds(current => new Set(current).add(memberId));
+    }
+    closeTransferDialog();
+    setExpandedId(null);
+    toast.success('Transferência cancelada. As designações removidas não foram restauradas.');
+
+    try {
+      await clearReadCache();
+      await fetchMembers(true);
+      if (memberId) {
+        setTransferRefreshPendingIds(current => {
+          const next = new Set(current);
+          next.delete(memberId);
+          return next;
+        });
+      }
+    } catch {
+      toast.warning('Cancelamento concluído; atualização pendente. Tente recarregar quando estiver online.');
     } finally {
       setTransferMutationLoading(false);
     }
@@ -479,7 +531,8 @@ export function MembersList() {
     try {
       await api.updateMember(editingMember.id, {
         ...editForm,
-        group_id: editForm.group_id || undefined,
+        spiritual_status: editingMember.activeTransfer ? 'inativo' : editForm.spiritual_status,
+        group_id: editingMember.activeTransfer ? undefined : editForm.group_id || undefined,
         family_head_id: editForm.family_head_id || undefined,
       });
       toast.success(`Membro "${editForm.full_name}" atualizado com sucesso!`);
@@ -684,6 +737,11 @@ export function MembersList() {
                 </span>
               </>
             )}
+            {transferRefreshPendingIds.has(member.id) && (
+              <span className="text-amber-700" style={{ fontSize: '0.7rem' }}>
+                Atualização pendente
+              </span>
+            )}
 
             <span
               className="flex items-center gap-0.5 text-primary/70"
@@ -858,7 +916,7 @@ export function MembersList() {
             {/* Action Buttons */}
             {canEdit && (
               <div className="sm:col-span-2 mt-3 flex justify-end gap-3 flex-wrap">
-                {online && !member.activeTransfer && member.id !== authUser?.member_id && (
+                {online && !member.activeTransfer && !transferRefreshPendingIds.has(member.id) && member.id !== authUser?.member_id && (
                   <button
                     type="button"
                     onClick={() => void openTransferDialog(member)}
@@ -1857,8 +1915,13 @@ export function MembersList() {
                 <input type="tel" inputMode="numeric" value={formatPhoneDisplay(editForm.emergency_contact_phone || '')} onChange={e => setEditForm(f => ({ ...f, emergency_contact_phone: e.target.value.replace(/\D/g, '').slice(0, 11) }))} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground" style={{ fontSize: '0.9rem' }} />
               </div>
               <div>
-                <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Situação Espiritual</label>
-                <select value={editForm.spiritual_status || 'publicador'} onChange={e => setEditForm(f => ({ ...f, spiritual_status: e.target.value as any }))} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground" style={{ fontSize: '0.9rem' }}>
+                {editingMember.activeTransfer && (
+                  <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    Cancele a transferência para alterar situação ou grupo.
+                  </p>
+                )}
+                <label htmlFor="edit-spiritual-status" className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Situação Espiritual</label>
+                <select id="edit-spiritual-status" disabled={Boolean(editingMember.activeTransfer)} value={editingMember.activeTransfer ? 'inativo' : editForm.spiritual_status || 'publicador'} onChange={e => setEditForm(f => ({ ...f, spiritual_status: e.target.value as any }))} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground disabled:opacity-50" style={{ fontSize: '0.9rem' }}>
                   <option value="estudante">Estudante</option>
                   <option value="publicador">Publicador Não Batizado</option>
                   <option value="publicador_batizado">Publicador Batizado</option>
@@ -1869,8 +1932,8 @@ export function MembersList() {
                 </select>
               </div>
               <div>
-                <label className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Grupo de Saída</label>
-                <select value={editForm.group_id || ''} onChange={e => setEditForm(f => ({ ...f, group_id: e.target.value }))} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground" style={{ fontSize: '0.9rem' }}>
+                <label htmlFor="edit-field-service-group" className="block text-gray-600 mb-1 font-medium" style={{ fontSize: '0.85rem' }}>Grupo de Saída</label>
+                <select id="edit-field-service-group" disabled={Boolean(editingMember.activeTransfer)} value={editingMember.activeTransfer ? '' : editForm.group_id || ''} onChange={e => setEditForm(f => ({ ...f, group_id: e.target.value }))} className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#35bdf8] text-foreground disabled:opacity-50" style={{ fontSize: '0.9rem' }}>
                   <option value="">Sem grupo</option>
                   {fieldServiceGroups.map(g => (<option key={g.id} value={g.id}>{g.name}</option>))}
                 </select>

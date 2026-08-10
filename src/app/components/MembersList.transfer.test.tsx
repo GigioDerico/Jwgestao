@@ -5,11 +5,14 @@ import { MembersList } from './MembersList';
 
 const mocks = vi.hoisted(() => ({
   getMembers: vi.fn(),
+  updateMember: vi.fn(),
+  clearReadCache: vi.fn(),
   previewMemberTransfer: vi.fn(),
   transferMember: vi.fn(),
   cancelMemberTransfer: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
+  toastWarning: vi.fn(),
   canEdit: true,
   authUser: {
     id: 'auth-user-uuid',
@@ -21,7 +24,12 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../lib/api', () => ({
   api: {
     getMembers: mocks.getMembers,
+    updateMember: mocks.updateMember,
   },
+}));
+
+vi.mock('../lib/offline-cache', () => ({
+  clearReadCache: mocks.clearReadCache,
 }));
 
 vi.mock('../lib/member-transfer', () => ({
@@ -57,6 +65,7 @@ vi.mock('sonner', () => ({
   toast: {
     success: mocks.toastSuccess,
     error: mocks.toastError,
+    warning: mocks.toastWarning,
     info: vi.fn(),
     loading: vi.fn(),
     dismiss: vi.fn(),
@@ -128,6 +137,8 @@ describe('MembersList member transfer workflow', () => {
     mocks.previewMemberTransfer.mockResolvedValue({ futureAssignmentCount: 2 });
     mocks.transferMember.mockResolvedValue({ transferId: 'new-transfer-id', removedAssignmentCount: 2 });
     mocks.cancelMemberTransfer.mockResolvedValue(undefined);
+    mocks.updateMember.mockResolvedValue(undefined);
+    mocks.clearReadCache.mockResolvedValue(undefined);
   });
 
   it('shows actions only with permission, online, not self, and according to active transfer', async () => {
@@ -222,6 +233,15 @@ describe('MembersList member transfer workflow', () => {
   });
 
   it('cancels by transfer id, refetches, collapses and explains assignments are not restored', async () => {
+    const active = rawMember('transferred-member-id', 'Membro já transferido', {
+      id: 'active-transfer-id',
+      transferredAt: '2026-08-09',
+      destinationCongregation: 'Congregação Norte',
+      createdAt: '2026-08-09T12:00:00Z',
+    });
+    mocks.getMembers
+      .mockResolvedValueOnce([active])
+      .mockResolvedValueOnce([rawMember('transferred-member-id', 'Membro já transferido')]);
     const user = userEvent.setup();
     render(<MembersList />);
     await screen.findByText('Membro já transferido');
@@ -233,9 +253,13 @@ describe('MembersList member transfer workflow', () => {
 
     await waitFor(() => expect(mocks.cancelMemberTransfer).toHaveBeenCalledWith('active-transfer-id'));
     await waitFor(() => expect(mocks.getMembers).toHaveBeenCalledTimes(2));
+    expect(mocks.clearReadCache).toHaveBeenCalledTimes(1);
+    expect(mocks.clearReadCache.mock.invocationCallOrder[0]).toBeLessThan(mocks.getMembers.mock.invocationCallOrder[1]);
     expect(mocks.toastSuccess).toHaveBeenCalledWith(expect.stringMatching(/designações removidas não foram restauradas/i));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cancelar transferência' })).not.toBeInTheDocument();
+    await user.click(memberCard('Membro já transferido'));
+    expect(screen.getByRole('button', { name: 'Transferir de congregação' })).toBeInTheDocument();
   });
 
   it('keeps the dialog open and exposes transfer errors in the dialog and toast', async () => {
@@ -252,6 +276,79 @@ describe('MembersList member transfer workflow', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Erro do servidor');
     expect(mocks.toastError).toHaveBeenCalledWith('Erro do servidor');
     expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirmar transferência' })).toBeEnabled();
     expect(mocks.getMembers).toHaveBeenCalledTimes(1);
+  });
+
+  it('prevents an active transfer from being reactivated or regrouped in the editor', async () => {
+    const user = userEvent.setup();
+    render(<MembersList />);
+    await screen.findByText('Membro já transferido');
+
+    await user.click(memberCard('Membro já transferido'));
+    await user.click(screen.getByRole('button', { name: 'Editar Membro' }));
+
+    expect(screen.getByText(/cancele a transferência para alterar situação ou grupo/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Situação Espiritual')).toBeDisabled();
+    expect(screen.getByLabelText('Grupo de Saída')).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Salvar Alterações' }));
+
+    await waitFor(() => expect(mocks.updateMember).toHaveBeenCalledWith(
+      'transferred-member-id',
+      expect.objectContaining({ spiritual_status: 'inativo', group_id: undefined }),
+    ));
+  });
+
+  it('clears read cache before refetch and renders the fresh transferred state', async () => {
+    const initial = rawMember('eligible-member-id', 'Membro elegível');
+    const transferred = {
+      ...rawMember('eligible-member-id', 'Membro elegível', {
+        id: 'new-transfer-id',
+        transferredAt: '2026-08-10',
+        destinationCongregation: 'Congregação Sul',
+        createdAt: '2026-08-10T12:00:00Z',
+      }),
+      spiritual_status: 'inativo',
+    };
+    mocks.getMembers.mockResolvedValueOnce([initial]).mockResolvedValueOnce([transferred]);
+    const user = userEvent.setup();
+    render(<MembersList />);
+    await screen.findByText('Membro elegível');
+
+    await user.click(memberCard('Membro elegível'));
+    await user.click(screen.getByRole('button', { name: 'Transferir de congregação' }));
+    await screen.findByText(/2 designações futuras serão removidas/i);
+    await user.click(screen.getByRole('button', { name: 'Confirmar transferência' }));
+
+    await waitFor(() => expect(mocks.getMembers).toHaveBeenCalledTimes(2));
+    expect(mocks.clearReadCache).toHaveBeenCalledTimes(1);
+    expect(mocks.clearReadCache.mock.invocationCallOrder[0]).toBeLessThan(mocks.getMembers.mock.invocationCallOrder[1]);
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
+    await user.click(screen.getByRole('button', { name: 'Inativos/Desass.' }));
+    await user.click(memberCard('Membro elegível'));
+    expect(screen.getByText('Transferido')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancelar transferência' })).toBeInTheDocument();
+  });
+
+  it('keeps an optimistic transferred state when refresh fails without repeating the RPC', async () => {
+    mocks.getMembers
+      .mockResolvedValueOnce([rawMember('eligible-member-id', 'Membro elegível')])
+      .mockRejectedValueOnce(new Error('Sem rede'));
+    const user = userEvent.setup();
+    render(<MembersList />);
+    await screen.findByText('Membro elegível');
+
+    await user.click(memberCard('Membro elegível'));
+    await user.click(screen.getByRole('button', { name: 'Transferir de congregação' }));
+    await screen.findByText(/2 designações futuras serão removidas/i);
+    await user.click(screen.getByRole('button', { name: 'Confirmar transferência' }));
+    await waitFor(() => expect(mocks.toastWarning).toHaveBeenCalledWith(expect.stringMatching(/atualização pendente/i)));
+
+    await user.click(screen.getByRole('button', { name: 'Filtros' }));
+    await user.click(screen.getByRole('button', { name: 'Inativos/Desass.' }));
+    await user.click(memberCard('Membro elegível'));
+    expect(screen.getByText('Transferido')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancelar transferência' })).toBeInTheDocument();
+    expect(mocks.transferMember).toHaveBeenCalledTimes(1);
   });
 });

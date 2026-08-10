@@ -47,6 +47,8 @@ describe('MemberTransferDialog', () => {
     expect(screen.getByLabelText('Data da transferência')).toHaveAttribute('max', '2026-08-10');
     expect(screen.getByLabelText('Congregação de destino')).toHaveAttribute('maxlength', '150');
     expect(screen.getByText(/3 designações futuras serão removidas/i)).toBeInTheDocument();
+    expect(screen.getByText(/o acesso ao sistema será bloqueado/i)).toBeInTheDocument();
+    expect(screen.getByText(/designações removidas não serão restauradas automaticamente/i)).toBeInTheDocument();
   });
 
   it.each([

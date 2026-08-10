@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(204);
+select plan(211);
 
 select has_table('public', 'member_transfers', 'member_transfers exists');
 select has_table('public', 'member_transfer_assignment_audit', 'assignment audit exists');
@@ -1828,6 +1828,50 @@ select is_empty(
   'transfer functions use private definers, public invokers and empty search paths'
 );
 
+select is_empty(
+  $test$
+    with expected(signature) as (
+      values
+        ('private.guard_active_member_transfer()'),
+        ('private.guard_active_profile_transfer()')
+    )
+    select expected.signature
+    from expected
+    left join pg_catalog.pg_proc function_definition
+      on function_definition.oid = pg_catalog.to_regprocedure(expected.signature)
+    where function_definition.oid is null
+      or not function_definition.prosecdef
+      or function_definition.proconfig is distinct from array['search_path=""']::text[]
+  $test$,
+  'active-transfer guards are private definers with empty search paths'
+);
+
+select has_trigger(
+  'public', 'members', 'guard_active_member_transfer',
+  'members are protected by the active-transfer guard'
+);
+
+select has_trigger(
+  'public', 'user_profiles', 'guard_active_profile_transfer',
+  'profiles are protected by the active-transfer guard'
+);
+
+select is_empty(
+  $test$
+    with target(function_oid) as (
+      values
+        ('private.guard_active_member_transfer()'::regprocedure::oid),
+        ('private.guard_active_profile_transfer()'::regprocedure::oid)
+    )
+    select database_role.rolname
+    from target
+    cross join (values ('anon'), ('authenticated'), ('service_role')) requested(role_name)
+    join pg_catalog.pg_roles database_role on database_role.rolname = requested.role_name
+    where pg_catalog.has_function_privilege(database_role.oid, target.function_oid, 'execute')
+  $test$,
+  'client roles cannot execute active-transfer guard functions directly'
+);
+
 select is(
   (
     with target(signature) as (
@@ -2003,6 +2047,38 @@ select is(
   false,
   'transfer blocks member access'
 );
+
+select throws_ok(
+  $$update public.members
+    set spiritual_status = 'publicador'
+    where id = '21000000-0000-0000-0000-000000000002'$$,
+  'P0001',
+  'Membro transferido deve permanecer inativo e sem grupo. Cancele a transferência primeiro.',
+  'old clients cannot reactivate a transferred member directly'
+);
+
+select throws_ok(
+  $$update public.members
+    set group_id = '21000000-0000-0000-0000-000000000010'
+    where id = '21000000-0000-0000-0000-000000000002'$$,
+  'P0001',
+  'Membro transferido deve permanecer inativo e sem grupo. Cancele a transferência primeiro.',
+  'old clients cannot regroup a transferred member directly'
+);
+
+reset role;
+
+select throws_ok(
+  $$update public.user_profiles
+    set is_active = true
+    where member_id = '21000000-0000-0000-0000-000000000002'$$,
+  'P0001',
+  'O acesso de um membro transferido deve permanecer bloqueado. Cancele a transferência primeiro.',
+  'old clients cannot reactivate a transferred profile directly'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '10000000-0000-0000-0000-000000000001', true);
 
 select results_eq(
   $$select previous_spiritual_status::text, previous_group_id, previous_profile_is_active, transferred_by

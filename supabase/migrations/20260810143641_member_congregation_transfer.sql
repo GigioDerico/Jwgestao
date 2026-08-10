@@ -309,6 +309,65 @@ create table public.member_transfer_assignment_audit (
 create index member_transfer_audit_history_idx
   on public.member_transfer_assignment_audit(member_id, assignment_date desc);
 
+create or replace function private.guard_active_member_transfer()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if exists (
+    select 1
+    from public.member_transfers transfer
+    where transfer.member_id = old.id
+      and transfer.cancelled_at is null
+  ) and (
+    new.spiritual_status is distinct from 'inativo'::public.spiritual_status_enum
+    or new.group_id is not null
+  ) then
+    raise exception
+      'Membro transferido deve permanecer inativo e sem grupo. Cancele a transferência primeiro.';
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function private.guard_active_member_transfer()
+  from public, anon, authenticated, service_role;
+
+create trigger guard_active_member_transfer
+before update of spiritual_status, group_id on public.members
+for each row execute function private.guard_active_member_transfer();
+
+create or replace function private.guard_active_profile_transfer()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.is_active and new.member_id is not null and exists (
+    select 1
+    from public.member_transfers transfer
+    where transfer.member_id = new.member_id
+      and transfer.cancelled_at is null
+  ) then
+    raise exception
+      'O acesso de um membro transferido deve permanecer bloqueado. Cancele a transferência primeiro.';
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function private.guard_active_profile_transfer()
+  from public, anon, authenticated, service_role;
+
+create trigger guard_active_profile_transfer
+before update of is_active, member_id on public.user_profiles
+for each row execute function private.guard_active_profile_transfer();
+
 alter table public.member_transfers enable row level security;
 alter table public.member_transfer_assignment_audit enable row level security;
 
@@ -1426,6 +1485,12 @@ begin
 
   perform private.assert_can_transfer_member(transfer_row.member_id);
 
+  update public.member_transfers
+  set
+    cancelled_at = now(),
+    cancelled_by = (select auth.uid())
+  where id = p_transfer_id;
+
   update public.members
   set
     spiritual_status = transfer_row.previous_spiritual_status,
@@ -1435,12 +1500,6 @@ begin
   update public.user_profiles
   set is_active = transfer_row.previous_profile_is_active
   where member_id = transfer_row.member_id;
-
-  update public.member_transfers
-  set
-    cancelled_at = now(),
-    cancelled_by = (select auth.uid())
-  where id = p_transfer_id;
 end;
 $$;
 
