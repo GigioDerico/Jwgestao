@@ -88,7 +88,10 @@ begin
         row_number() over (
           partition by btrim(names.member_name)
           order by names.ordinality
-        ) as name_occurrence
+        ) as name_occurrence,
+        count(*) over (
+          partition by btrim(names.member_name)
+        ) as name_count
       from unnest(p_attendants)
         with ordinality names(member_name, ordinality)
     ),
@@ -100,7 +103,10 @@ begin
         row_number() over (
           partition by btrim(member.full_name)
           order by ids.ordinality
-        ) as id_occurrence
+        ) as id_occurrence,
+        count(*) over (
+          partition by btrim(member.full_name)
+        ) as id_name_count
       from unnest(p_attendants_member_ids)
         with ordinality ids(member_id, ordinality)
       join public.members member on member.id = ids.member_id
@@ -116,6 +122,8 @@ begin
       left join id_positions ids
         on btrim(ids.full_name) = btrim(names.member_name)
         and ids.id_occurrence = names.name_occurrence
+        and ids.id_name_count = 1
+        and names.name_count = 1
     ),
     unmatched_ids as (
       select

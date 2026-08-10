@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(161);
+select plan(163);
 
 select has_table('public', 'member_transfers', 'member_transfers exists');
 select has_table('public', 'member_transfer_assignment_audit', 'assignment audit exists');
@@ -1565,6 +1565,46 @@ select results_eq(
     )$$,
   $$values (array['Nome preservado']::text[], array[null::uuid])$$,
   'normalization preserves a legacy name and nulls its orphan member ID'
+);
+
+select results_eq(
+  $$select attendants, attendants_member_ids
+    from private.normalize_audio_video_attendants(
+      array['Nome Ambíguo RPC', 'Nome Ambíguo RPC'],
+      array['21000000-0000-0000-0000-000000000008'::uuid]
+    )$$,
+  $$values (
+    array[
+      'Nome Ambíguo RPC',
+      'Nome Ambíguo RPC',
+      'Nome Ambíguo RPC'
+    ]::text[],
+    array[
+      null::uuid,
+      null::uuid,
+      '21000000-0000-0000-0000-000000000008'::uuid
+    ]
+  )$$,
+  'compressed ID for duplicate names is appended without inferring a position'
+);
+
+select results_eq(
+  $$select attendants, attendants_member_ids
+    from private.normalize_audio_video_attendants(
+      array['Nome Ambíguo RPC', 'Nome Ambíguo RPC'],
+      array[
+        '21000000-0000-0000-0000-000000000007'::uuid,
+        '21000000-0000-0000-0000-000000000008'::uuid
+      ]
+    )$$,
+  $$values (
+    array['Nome Ambíguo RPC', 'Nome Ambíguo RPC']::text[],
+    array[
+      '21000000-0000-0000-0000-000000000007'::uuid,
+      '21000000-0000-0000-0000-000000000008'::uuid
+    ]
+  )$$,
+  'complete positional arrays preserve explicit duplicate-name associations'
 );
 
 update public.user_profiles
