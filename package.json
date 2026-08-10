@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:db": "supabase test db",
     "dev": "vite --host 0.0.0.0 --port 5173",
     "import:historico-designacoes": "node scripts/import-historico-designacoes.mjs",
     "check:android-java": "node scripts/check-android-java.mjs",
@@ -87,12 +90,17 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.1.12",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/luxon": "^3.7.1",
     "@vitejs/plugin-react": "4.7.0",
+    "jsdom": "^26.1.0",
     "sharp": "^0.34.5",
     "tailwindcss": "4.1.12",
     "vite": "6.3.5",
-    "vite-plugin-pwa": "^1.2.0"
+    "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^3.2.4"
   },
   "peerDependencies": {
     "react": "18.3.1",
