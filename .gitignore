@@ -13,3 +13,4 @@ seed.js
 android/
 ios/
 .agent/
+.worktrees/
