@@ -14,6 +14,11 @@ cacheDb.version(1).stores({
     reads: 'key',
 });
 
+/** Remove somente as cópias locais das leituras compartilhadas da congregação. */
+export async function clearReadCache(): Promise<void> {
+    await cacheDb.reads.clear();
+}
+
 /**
  * Leitura network-first com fallback offline: busca do servidor e guarda
  * uma cópia local; se a busca falhar (sem internet, sinal fraco), retorna

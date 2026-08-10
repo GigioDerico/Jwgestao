@@ -1,8 +1,23 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
+import { clearReadCache } from '../lib/offline-cache';
 import type { Session, User } from '@supabase/supabase-js';
 
 const PHONE_EMAIL_DOMAIN = 'jwgestao.app';
+const INACTIVE_ACCESS_MESSAGE = 'Seu acesso a esta congregação foi encerrado.';
+
+class InactiveMemberAccessError extends Error {
+  constructor() {
+    super(INACTIVE_ACCESS_MESSAGE);
+    this.name = 'InactiveMemberAccessError';
+  }
+}
+
+async function assertActiveAccess(): Promise<void> {
+  const { data, error } = await supabase.rpc('get_my_access_status');
+  if (error) throw error;
+  if (!data) throw new InactiveMemberAccessError();
+}
 
 export function phoneToEmail(phone: string): string {
   const digits = phone.replace(/\D/g, '');
@@ -52,6 +67,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const mountedRef = useRef(true);
+  const authOperationRef = useRef(0);
+  const blockedUserIdsRef = useRef(new Set<string>());
+  const blockingPromisesRef = useRef(new Map<string, Promise<void>>());
 
   // Última versão do perfil montado, por usuário — usada como fallback
   // quando as consultas ao Supabase falham (ex: offline em território rural).
@@ -74,9 +93,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const removeCachedAuthUser = useCallback((userId: string) => {
+    try {
+      localStorage.removeItem(authUserCacheKey(userId));
+    } catch {
+      // A indisponibilidade do storage não deve impedir o bloqueio local.
+    }
+  }, []);
+
+  const blockInactiveAccess = useCallback((userId: string): Promise<void> => {
+    authOperationRef.current += 1;
+    removeCachedAuthUser(userId);
+
+    if (mountedRef.current) {
+      setUser(null);
+      setSession(null);
+      setLoading(false);
+    }
+
+    const pendingBlock = blockingPromisesRef.current.get(userId);
+    if (pendingBlock) return pendingBlock;
+    if (blockedUserIdsRef.current.has(userId)) return Promise.resolve();
+
+    blockedUserIdsRef.current.add(userId);
+    const blockPromise = Promise.allSettled([
+      Promise.resolve().then(() => clearReadCache()),
+      Promise.resolve().then(() => supabase.auth.signOut()),
+    ]).then(results => {
+      if (results[0].status === 'rejected') {
+        console.warn('[Auth] Falha ao limpar cache de leituras após bloqueio:', results[0].reason);
+      }
+      if (results[1].status === 'rejected') {
+        console.warn('[Auth] Falha ao encerrar sessão remota após bloqueio:', results[1].reason);
+      }
+    }).finally(() => {
+      blockingPromisesRef.current.delete(userId);
+    });
+
+    blockingPromisesRef.current.set(userId, blockPromise);
+    return blockPromise;
+  }, [removeCachedAuthUser]);
+
   const buildAuthUser = useCallback(async (supaUser: User): Promise<AuthUser> => {
     const phoneDigits = supaUser.email?.replace(`@${PHONE_EMAIL_DOMAIN}`, '') || '';
     try {
+      await assertActiveAccess();
+      blockedUserIdsRef.current.delete(supaUser.id);
+
       const { data: profileRows, error: profileError } = await supabase
         .from('user_profiles')
         .select('system_role, member_id')
@@ -150,7 +213,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       writeCachedAuthUser(baseUser);
       return baseUser;
-    } catch {
+    } catch (error) {
+      if (error instanceof InactiveMemberAccessError) throw error;
       // Offline ou Supabase indisponível: usa o último perfil conhecido
       // pra manter nome, papel e permissões do usuário.
       return readCachedAuthUser(supaUser.id) ?? {
@@ -164,8 +228,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    mountedRef.current = true;
 
     const initSession = async () => {
+      const operation = ++authOperationRef.current;
       try {
         const sessionResult = await Promise.race([
           supabase.auth.getSession(),
@@ -176,12 +242,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const { data: { session: s } } = sessionResult;
 
-        if (cancelled) return;
-
-        setSession(s);
         if (s?.user) {
-          const authUser = await buildAuthUser(s.user);
-          if (!cancelled) setUser(authUser);
+          try {
+            const authUser = await buildAuthUser(s.user);
+            if (!cancelled && operation === authOperationRef.current) {
+              setSession(s);
+              setUser(authUser);
+            }
+          } catch (error) {
+            if (error instanceof InactiveMemberAccessError) {
+              if (operation === authOperationRef.current) {
+                await blockInactiveAccess(s.user.id);
+              }
+            } else {
+              throw error;
+            }
+          }
+        } else if (!cancelled && operation === authOperationRef.current) {
+          setSession(null);
+          setUser(null);
         }
       } catch (err) {
         if (err instanceof Error && err.message === 'SESSION_TIMEOUT') {
@@ -190,7 +269,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.warn('[Auth] Falha ao restaurar sessão:', err);
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && operation === authOperationRef.current) setLoading(false);
       }
     };
 
@@ -198,11 +277,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, s) => {
-        setSession(s);
+        const operation = ++authOperationRef.current;
 
         if (!s?.user) {
-          setUser(null);
-          setLoading(false);
+          if (!cancelled) {
+            setSession(null);
+            setUser(null);
+            setLoading(false);
+          }
           return;
         }
 
@@ -210,13 +292,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Doing so can deadlock calls like auth.updateUser().
         setTimeout(() => {
           void (async () => {
+            if (cancelled) return;
             try {
               const authUser = await buildAuthUser(s.user);
-              if (!cancelled) {
+              if (!cancelled && operation === authOperationRef.current) {
+                setSession(s);
                 setUser(authUser);
               }
+            } catch (error) {
+              if (error instanceof InactiveMemberAccessError) {
+                if (operation === authOperationRef.current) {
+                  await blockInactiveAccess(s.user.id);
+                }
+              } else {
+                console.warn('[Auth] Falha ao atualizar sessão autenticada:', error);
+              }
             } finally {
-              if (!cancelled) {
+              if (!cancelled && operation === authOperationRef.current) {
                 setLoading(false);
               }
             }
@@ -227,23 +319,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       cancelled = true;
+      mountedRef.current = false;
+      authOperationRef.current += 1;
       subscription.unsubscribe();
     };
-  }, [buildAuthUser]);
+  }, [blockInactiveAccess, buildAuthUser]);
 
   const login = async (phone: string, password: string): Promise<string | null> => {
     const email = phoneToEmail(phone);
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return error.message;
 
-    setSession(data.session ?? null);
+    if (data.user) blockedUserIdsRef.current.delete(data.user.id);
+    const operation = ++authOperationRef.current;
 
     if (data.user) {
-      const authUser = await buildAuthUser(data.user);
-      setUser(authUser);
+      try {
+        const authUser = await buildAuthUser(data.user);
+        if (mountedRef.current && operation === authOperationRef.current) {
+          setSession(data.session ?? null);
+          setUser(authUser);
+        }
+      } catch (buildError) {
+        if (buildError instanceof InactiveMemberAccessError && operation === authOperationRef.current) {
+          await blockInactiveAccess(data.user.id);
+          return buildError.message;
+        }
+        throw buildError;
+      }
+    } else if (mountedRef.current && operation === authOperationRef.current) {
+      setSession(data.session ?? null);
+      setUser(null);
     }
 
-    setLoading(false);
+    if (mountedRef.current && operation === authOperationRef.current) setLoading(false);
 
     return null;
   };
@@ -265,8 +374,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = async () => {
     if (!session?.user) return;
-    const updated = await buildAuthUser(session.user);
-    setUser(updated);
+    const operation = ++authOperationRef.current;
+    try {
+      const updated = await buildAuthUser(session.user);
+      if (mountedRef.current && operation === authOperationRef.current) setUser(updated);
+    } catch (error) {
+      if (error instanceof InactiveMemberAccessError && operation === authOperationRef.current) {
+        await blockInactiveAccess(session.user.id);
+        return;
+      }
+      throw error;
+    }
   };
 
   return (
