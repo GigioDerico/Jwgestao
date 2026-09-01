@@ -1111,7 +1111,11 @@ export function FieldServiceAssignments({
                                   )}
                                 </td>
                                 <td className="px-2.5 py-1 text-center text-gray-700" style={{ lineHeight: 1.05 }}>{row.displayTime || 'A definir'}</td>
-                                <td className="px-2.5 py-1 text-gray-700" style={{ lineHeight: 1.05 }}>{row.displayResponsible || 'A definir'}</td>
+                                <td className="px-2.5 py-1 text-gray-700" style={{ lineHeight: 1.05 }}>
+                                  {row.displayResponsible2
+                                    ? `${row.displayResponsible || 'A definir'} / ${row.displayResponsible2}`
+                                    : row.displayResponsible || 'A definir'}
+                                </td>
                                 <td className="px-2.5 py-1 text-gray-700" style={{ lineHeight: 1.05 }}>{row.displayLocation || 'Sem local'}</td>
                               </>
                             )}
