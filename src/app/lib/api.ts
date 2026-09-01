@@ -924,6 +924,17 @@ export const api = {
       title: 'Nova designação de saída de campo',
       message: `Você foi designado para responsável em ${data.weekday} às ${data.time}.`,
     });
+
+    await upsertAssignmentNotificationSlot({
+      memberId: data.responsible_2_member_id,
+      sourceType: 'field_service_assignment',
+      sourceId: data.id,
+      slotKey: 'responsible_2',
+      category: 'field_service',
+      assignmentDate: null,
+      title: 'Nova designação de saída de campo',
+      message: `Você foi designado para responsável em ${data.weekday} às ${data.time}.`,
+    });
   },
 
   async syncCartAssignmentNotifications(assignmentId: string) {

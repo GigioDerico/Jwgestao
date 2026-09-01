@@ -79,3 +79,59 @@ describe('field service assignments mapping', () => {
     expect(assignment.responsible2MemberId).toBeNull();
   });
 });
+
+describe('field service assignment notifications', () => {
+  beforeEach(() => {
+    from.mockClear();
+    responses.clear();
+    queries.length = 0;
+  });
+
+  const notificationSlots = () =>
+    queries
+      .filter(query => query.table === 'member_assignment_notifications')
+      .flatMap(query =>
+        query.operations
+          .filter(([method]) => method === 'eq')
+          .filter(([, column]) => column === 'slot_key')
+          .map(([, , value]) => value),
+      );
+
+  it('creates a notification slot for the second responsible', async () => {
+    responses.set('field_service_assignments', {
+      data: {
+        ...baseRow,
+        responsible_2: 'Maria Souza',
+        responsible_2_member_id: 'member-2',
+      },
+      error: null,
+    });
+
+    await api.syncFieldServiceAssignmentNotifications('assignment-1');
+
+    expect(notificationSlots()).toContain('responsible');
+    expect(notificationSlots()).toContain('responsible_2');
+  });
+
+  it('revokes the second slot when the second responsible is removed', async () => {
+    responses.set('field_service_assignments', {
+      data: { ...baseRow, responsible_2: null, responsible_2_member_id: null },
+      error: null,
+    });
+
+    await api.syncFieldServiceAssignmentNotifications('assignment-1');
+
+    // O slot continua sendo visitado mesmo sem membro: é assim que uma
+    // notificação anterior do segundo dirigente é revogada.
+    expect(notificationSlots()).toContain('responsible_2');
+
+    const revoked = queries
+      .filter(query => query.table === 'member_assignment_notifications')
+      .some(query =>
+        query.operations.some(([method, column, value]) =>
+          method === 'update' || (column === 'slot_key' && value === 'responsible_2'),
+        ),
+      );
+    expect(revoked).toBe(true);
+  });
+});
