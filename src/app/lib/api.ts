@@ -2400,7 +2400,7 @@ export const api = {
 
     const { data: fieldServiceRows, error: fieldServiceError } = await supabase
       .from('field_service_assignments')
-      .select('id, month, year, category, weekday, responsible, responsible_member_id')
+      .select('id, month, year, category, weekday, responsible, responsible_member_id, responsible_2, responsible_2_member_id')
       .gte('year', startYear)
       .lte('year', endYear)
       .order('year', { ascending: false })
@@ -2424,6 +2424,17 @@ export const api = {
         roleLabel: 'Responsável',
         memberId: row.responsible_member_id,
         fallbackName: row.responsible,
+        details: `${row.category} - ${row.weekday}`,
+      });
+
+      addEntry({
+        date: syntheticDate,
+        source: 'field_service',
+        sourceId: row.id,
+        roleKey: 'responsible_2',
+        roleLabel: 'Responsável',
+        memberId: row.responsible_2_member_id,
+        fallbackName: row.responsible_2,
         details: `${row.category} - ${row.weekday}`,
       });
     }

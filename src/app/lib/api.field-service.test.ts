@@ -138,3 +138,78 @@ describe('field service assignment notifications', () => {
     expect(revokedResponsible2).toBe(true);
   });
 });
+
+describe('field service designation history', () => {
+  beforeEach(() => {
+    from.mockClear();
+    responses.clear();
+    queries.length = 0;
+  });
+
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
+
+  it('emits one entry per responsible when both are set', async () => {
+    responses.set('members', {
+      data: [
+        { id: 'member-1', full_name: 'João Silva' },
+        { id: 'member-2', full_name: 'Maria Souza' },
+      ],
+      error: null,
+    });
+    responses.set('field_service_assignments', {
+      data: [{
+        id: 'assignment-1',
+        month: currentMonth,
+        year: currentYear,
+        category: 'Segunda-feira',
+        weekday: 'Segunda-feira',
+        responsible: 'João Silva',
+        responsible_member_id: 'member-1',
+        responsible_2: 'Maria Souza',
+        responsible_2_member_id: 'member-2',
+      }],
+      error: null,
+    });
+
+    const result = await api.getDesignationHistory(1);
+    const fieldService = result.filter(entry => entry.source === 'field_service');
+
+    expect(fieldService.map(entry => entry.memberName).sort()).toEqual([
+      'João Silva',
+      'Maria Souza',
+    ]);
+    expect(fieldService.map(entry => entry.roleKey).sort()).toEqual([
+      'responsible',
+      'responsible_2',
+    ]);
+    expect(fieldService.every(entry => entry.roleLabel === 'Responsável')).toBe(true);
+  });
+
+  it('emits a single entry when there is no second responsible', async () => {
+    responses.set('members', {
+      data: [{ id: 'member-1', full_name: 'João Silva' }],
+      error: null,
+    });
+    responses.set('field_service_assignments', {
+      data: [{
+        id: 'assignment-1',
+        month: currentMonth,
+        year: currentYear,
+        category: 'Segunda-feira',
+        weekday: 'Segunda-feira',
+        responsible: 'João Silva',
+        responsible_member_id: 'member-1',
+        responsible_2: null,
+        responsible_2_member_id: null,
+      }],
+      error: null,
+    });
+
+    const result = await api.getDesignationHistory(1);
+    const fieldService = result.filter(entry => entry.source === 'field_service');
+
+    expect(fieldService).toHaveLength(1);
+    expect(fieldService[0].memberName).toBe('João Silva');
+  });
+});
