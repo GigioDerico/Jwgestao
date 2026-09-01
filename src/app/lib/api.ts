@@ -261,6 +261,8 @@ function mapFieldServiceAssignment(row: any) {
     time: row.time,
     responsible: row.responsible,
     responsibleMemberId: row.responsible_member_id || null,
+    responsible2: row.responsible_2 || null,
+    responsible2MemberId: row.responsible_2_member_id || null,
     location: row.location,
     category: row.category,
   };
