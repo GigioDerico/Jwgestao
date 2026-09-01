@@ -56,29 +56,41 @@ values ('11111111-1111-1111-1111-111111111111', 'Irmão Inativo', 'inativo', 'M'
 insert into public.members (id, full_name, spiritual_status, gender)
 values ('22222222-2222-2222-2222-222222222222', 'Irmão Ativo', 'publicador', 'M');
 
+-- month/year são calculados a partir de current_date (em vez de fixos) para
+-- que a linha sempre caia no mês corrente ou futuro: a checagem de
+-- elegibilidade do trigger só roda para designações futuras, então uma data
+-- fixa se tornaria "passada" com o tempo e o teste pararia de validar nada.
 select throws_ok(
-  $test$
+  format(
+    $fmt$
     insert into public.field_service_assignments
       (month, year, weekday, time, responsible, location, category,
        responsible_2, responsible_2_member_id)
     values
-      (9, 2026, 'Segunda-feira', '08:45', 'A definir', 'Salão do Reino',
+      (%s, %s, 'Segunda-feira', '08:45', 'A definir', 'Salão do Reino',
        'Segunda-feira', 'Irmão Inativo', '11111111-1111-1111-1111-111111111111')
-  $test$,
+    $fmt$,
+    extract(month from current_date)::int,
+    extract(year from current_date)::int
+  ),
   'P0001',
   'Membro inativo não pode receber designações.',
   'second responsible rejects ineligible members'
 );
 
 select lives_ok(
-  $test$
+  format(
+    $fmt$
     insert into public.field_service_assignments
       (month, year, weekday, time, responsible, location, category,
        responsible_2, responsible_2_member_id)
     values
-      (9, 2026, 'Terça-feira', '16:30', 'A definir', 'Salão do Reino',
+      (%s, %s, 'Terça-feira', '16:30', 'A definir', 'Salão do Reino',
        'Terça-feira', 'Irmão Ativo', '22222222-2222-2222-2222-222222222222')
-  $test$,
+    $fmt$,
+    extract(month from current_date)::int,
+    extract(year from current_date)::int
+  ),
   'second responsible accepts eligible members'
 );
 
