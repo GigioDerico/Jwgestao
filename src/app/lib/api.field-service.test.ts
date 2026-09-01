@@ -123,15 +123,18 @@ describe('field service assignment notifications', () => {
 
     // O slot continua sendo visitado mesmo sem membro: é assim que uma
     // notificação anterior do segundo dirigente é revogada.
-    expect(notificationSlots()).toContain('responsible_2');
-
-    const revoked = queries
+    const revokedResponsible2 = queries
       .filter(query => query.table === 'member_assignment_notifications')
-      .some(query =>
+      .filter(query =>
         query.operations.some(([method, column, value]) =>
-          method === 'update' || (column === 'slot_key' && value === 'responsible_2'),
+          method === 'eq' && column === 'slot_key' && value === 'responsible_2',
+        ),
+      )
+      .some(query =>
+        query.operations.some(([method, payload]) =>
+          method === 'update' && (payload as { status?: string })?.status === 'revoked',
         ),
       );
-    expect(revoked).toBe(true);
+    expect(revokedResponsible2).toBe(true);
   });
 });
