@@ -1050,7 +1050,7 @@ export function FieldServiceAssignments({
                       {group.emptyMessage}
                     </div>
                   ) : (
-                    <table className="w-full" style={{ fontSize: '0.82rem' }}>
+                    <table className="w-full" style={{ fontSize: '0.82rem', tableLayout: 'fixed' }}>
                       <thead>
                         {isSunday ? (
                           <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
@@ -1111,7 +1111,10 @@ export function FieldServiceAssignments({
                                   )}
                                 </td>
                                 <td className="px-2.5 py-1 text-center text-gray-700" style={{ lineHeight: 1.05 }}>{row.displayTime || 'A definir'}</td>
-                                <td className="px-2.5 py-1 text-gray-700" style={{ lineHeight: 1.05 }}>
+                                <td
+                                  className="px-2.5 py-1 text-gray-700"
+                                  style={{ lineHeight: 1.05, overflowWrap: 'break-word', wordBreak: 'break-word' }}
+                                >
                                   {row.displayResponsible2
                                     ? `${row.displayResponsible || 'A definir'} / ${row.displayResponsible2}`
                                     : row.displayResponsible || 'A definir'}
