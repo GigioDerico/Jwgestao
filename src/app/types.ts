@@ -162,6 +162,8 @@ export interface FieldServiceAssignment {
   time: string;
   responsible: string;
   responsibleMemberId?: string | null;
+  responsible2?: string | null;
+  responsible2MemberId?: string | null;
   location: string;
   category: string;
 }

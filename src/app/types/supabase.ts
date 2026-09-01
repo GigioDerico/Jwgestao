@@ -192,6 +192,8 @@ export type Database = {
           month: number
           responsible: string
           responsible_member_id: string | null
+          responsible_2: string | null
+          responsible_2_member_id: string | null
           time: string
           weekday: string
           year: number
@@ -204,6 +206,8 @@ export type Database = {
           month: number
           responsible: string
           responsible_member_id?: string | null
+          responsible_2?: string | null
+          responsible_2_member_id?: string | null
           time: string
           weekday: string
           year: number
@@ -216,6 +220,8 @@ export type Database = {
           month?: number
           responsible?: string
           responsible_member_id?: string | null
+          responsible_2?: string | null
+          responsible_2_member_id?: string | null
           time?: string
           weekday?: string
           year?: number
@@ -224,6 +230,13 @@ export type Database = {
           {
             foreignKeyName: "field_service_assignments_responsible_member_id_fkey"
             columns: ["responsible_member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "field_service_assignments_responsible_2_member_id_fkey"
+            columns: ["responsible_2_member_id"]
             isOneToOne: false
             referencedRelation: "members"
             referencedColumns: ["id"]

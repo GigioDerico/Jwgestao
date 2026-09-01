@@ -166,6 +166,8 @@ export interface CreateFieldServiceAssignmentInput {
   time: string;
   responsible: string;
   responsible_member_id?: string | null;
+  responsible_2?: string | null;
+  responsible_2_member_id?: string | null;
   location: string;
   category: string;
 }
