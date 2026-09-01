@@ -29,6 +29,7 @@ interface FieldServiceTemplateRow {
   dayLabel: string;
   displayTime: string;
   displayResponsible: string;
+  displayResponsible2: string | null;
   displayLocation: string;
   groupName?: string;
 }
@@ -78,7 +79,11 @@ export function FieldServiceAssignments({
   const [data, setData] = useState<FieldServiceAssignment[]>([]);
   const [members, setMembers] = useState<{ id: string; full_name: string }[]>([]);
   const [groups, setGroups] = useState<FieldServiceGroupOption[]>([]);
-  const [memberEditModal, setMemberEditModal] = useState<{ id: string; currentValue: string } | null>(null);
+  const [memberEditModal, setMemberEditModal] = useState<{
+    id: string;
+    field: 'responsible' | 'responsible_2';
+    currentValue: string;
+  } | null>(null);
   const [textEditModal, setTextEditModal] = useState<{
     id: string;
     field: 'time' | 'location';
@@ -201,7 +206,10 @@ export function FieldServiceAssignments({
     }
   };
 
-  const handleEditResponsible = (assignment: FieldServiceAssignment | null) => {
+  const handleEditResponsible = (
+    assignment: FieldServiceAssignment | null,
+    field: 'responsible' | 'responsible_2' = 'responsible',
+  ) => {
     if (!canEdit) {
       return;
     }
@@ -210,9 +218,12 @@ export function FieldServiceAssignments({
       return;
     }
 
+    const rawValue = field === 'responsible' ? assignment.responsible : assignment.responsible2;
+
     setMemberEditModal({
       id: assignment.id,
-      currentValue: assignment.responsible === 'A definir' ? '' : assignment.responsible,
+      field,
+      currentValue: rawValue && rawValue !== 'A definir' ? rawValue : '',
     });
   };
 
@@ -221,15 +232,23 @@ export function FieldServiceAssignments({
       return;
     }
 
-    try {
-      setSaving(true);
-      const updated = await api.updateFieldServiceAssignment(memberEditModal.id, {
+    const isSecond = memberEditModal.field === 'responsible_2';
+    const payload = isSecond
+      ? {
+        responsible_2: newValue || null,
+        responsible_2_member_id: newValue ? findMemberIdByName(newValue) : null,
+      }
+      : {
         responsible: newValue || 'A definir',
         responsible_member_id: newValue ? findMemberIdByName(newValue) : null,
-      });
+      };
+
+    try {
+      setSaving(true);
+      const updated = await api.updateFieldServiceAssignment(memberEditModal.id, payload);
       setData(prev => prev.map(item => (item.id === memberEditModal.id ? updated : item)));
       setMemberEditModal(null);
-      toast.success('Responsável atualizado!');
+      toast.success(isSecond ? '2º dirigente atualizado!' : 'Responsável atualizado!');
     } catch (err: any) {
       toast.error(err.message || 'Erro ao atualizar responsável.');
     } finally {
@@ -429,6 +448,7 @@ export function FieldServiceAssignments({
             dayLabel: item.weekday,
             displayTime: item.time,
             displayResponsible: item.responsible,
+            displayResponsible2: item.responsible2 || null,
             displayLocation: item.location,
           }))
           : [{
@@ -438,6 +458,7 @@ export function FieldServiceAssignments({
             dayLabel: category,
             displayTime: defaults.time,
             displayResponsible: 'A definir',
+            displayResponsible2: null,
             displayLocation: defaults.location,
           }],
       });
@@ -455,6 +476,7 @@ export function FieldServiceAssignments({
         dayLabel: item.weekday,
         displayTime: item.time,
         displayResponsible: item.responsible,
+        displayResponsible2: item.responsible2 || null,
         displayLocation: item.location,
       }));
 
@@ -474,6 +496,7 @@ export function FieldServiceAssignments({
         dayLabel: item.weekday,
         displayTime: item.time,
         displayResponsible: item.responsible,
+        displayResponsible2: item.responsible2 || null,
         displayLocation: item.location,
       })),
       emptyMessage: ruralItems.length === 0 ? 'Nenhuma linha de sábado rural adicionada neste mês.' : undefined,
@@ -490,6 +513,7 @@ export function FieldServiceAssignments({
         dayLabel: 'Domingo',
         displayTime: item.time,
         displayResponsible: item.responsible,
+        displayResponsible2: null,
         displayLocation: item.location,
         groupName: item.responsible,
       }));
@@ -539,23 +563,54 @@ export function FieldServiceAssignments({
   };
 
   const renderResponsibleButton = (row: FieldServiceTemplateRow) => {
+    const hasSecond = Boolean(row.displayResponsible2);
+
     if (!canEdit) {
       return (
         <div className={`w-full rounded-lg px-3 py-2 text-left ${row.assignment ? 'text-gray-700' : 'text-gray-400'}`}>
           <span className={row.displayResponsible === 'A definir' ? 'italic' : ''}>{row.displayResponsible}</span>
+          {hasSecond && <span className="text-gray-700"> / {row.displayResponsible2}</span>}
         </div>
       );
     }
 
     return (
-      <button
-        type="button"
-        onClick={() => handleEditResponsible(row.assignment)}
-        disabled={loading || generating || saving}
-        className={`w-full rounded-lg px-3 py-1.5 text-left transition-colors ${row.assignment ? 'text-gray-700 hover:bg-green-100/70' : 'text-gray-400 hover:bg-gray-50'} disabled:cursor-not-allowed disabled:opacity-60`}
-      >
-        <span className={row.displayResponsible === 'A definir' ? 'italic' : ''}>{row.displayResponsible}</span>
-      </button>
+      <div className="w-full">
+        <div className="flex flex-wrap items-center">
+          <button
+            type="button"
+            onClick={() => handleEditResponsible(row.assignment, 'responsible')}
+            disabled={loading || generating || saving}
+            className={`rounded-lg px-3 py-1.5 text-left transition-colors ${row.assignment ? 'text-gray-700 hover:bg-green-100/70' : 'text-gray-400 hover:bg-gray-50'} disabled:cursor-not-allowed disabled:opacity-60`}
+          >
+            <span className={row.displayResponsible === 'A definir' ? 'italic' : ''}>{row.displayResponsible}</span>
+          </button>
+          {hasSecond && (
+            <>
+              <span className="text-gray-400">/</span>
+              <button
+                type="button"
+                onClick={() => handleEditResponsible(row.assignment, 'responsible_2')}
+                disabled={loading || generating || saving}
+                className="rounded-lg px-3 py-1.5 text-left text-gray-700 transition-colors hover:bg-green-100/70 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {row.displayResponsible2}
+              </button>
+            </>
+          )}
+        </div>
+        {!hasSecond && row.assignment && (
+          <button
+            type="button"
+            onClick={() => handleEditResponsible(row.assignment, 'responsible_2')}
+            disabled={loading || generating || saving}
+            className="ml-3 text-gray-400 transition-colors hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-60"
+            style={{ fontSize: '0.75rem' }}
+          >
+            + 2º dirigente
+          </button>
+        )}
+      </div>
     );
   };
 
@@ -903,12 +958,22 @@ export function FieldServiceAssignments({
 
       {canEdit && memberEditModal && (
         <MemberSelectModal
-          label="Responsável pela Saída de Campo"
+          label={
+            memberEditModal.field === 'responsible_2'
+              ? '2º Dirigente da Saída de Campo'
+              : 'Responsável pela Saída de Campo'
+          }
           currentValue={memberEditModal.currentValue}
           onClose={() => setMemberEditModal(null)}
           onSave={handleSaveResponsible}
           members={members}
           saving={saving}
+          allowRemove={memberEditModal.field === 'responsible_2'}
+          excludeName={
+            memberEditModal.field === 'responsible_2'
+              ? data.find(item => item.id === memberEditModal.id)?.responsible ?? null
+              : data.find(item => item.id === memberEditModal.id)?.responsible2 ?? null
+          }
         />
       )}
 
@@ -1079,6 +1144,8 @@ function MemberSelectModal({
   onSave,
   members,
   saving,
+  allowRemove = false,
+  excludeName = null,
 }: {
   label: string;
   currentValue: string;
@@ -1086,6 +1153,8 @@ function MemberSelectModal({
   onSave: (value: string) => void;
   members: { id: string; full_name: string }[];
   saving: boolean;
+  allowRemove?: boolean;
+  excludeName?: string | null;
 }) {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(currentValue);
@@ -1095,6 +1164,7 @@ function MemberSelectModal({
 
   const filtered = members.filter(member =>
     member.full_name.toLowerCase().includes(search.toLowerCase())
+    && member.full_name !== excludeName
   );
 
   return (
@@ -1156,6 +1226,16 @@ function MemberSelectModal({
           ))}
         </div>
         <div className="p-3 border-t border-gray-100 flex gap-3 justify-end shrink-0">
+          {allowRemove && (
+            <button
+              onClick={() => onSave('')}
+              disabled={saving}
+              className="mr-auto px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition disabled:cursor-not-allowed disabled:opacity-60"
+              style={{ fontSize: '0.9rem' }}
+            >
+              Remover
+            </button>
+          )}
           <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition" style={{ fontSize: '0.9rem' }}>
             Cancelar
           </button>
