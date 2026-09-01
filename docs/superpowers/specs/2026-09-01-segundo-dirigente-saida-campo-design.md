@@ -45,6 +45,8 @@ Consumidores desse par:
 
 `cart_assignments` já resolve exatamente esse problema com `publisher1`/`publisher2` (+ os respectivos `_member_id`). O design abaixo replica esse padrão.
 
+A transferência de congregação (`private.preview_member_transfer` e `private.clear_future_member_assignments`, ambas em `supabase/migrations/20260810143641_member_congregation_transfer.sql`) também trata esse par de colunas: limpa designações futuras de um membro transferido e registra auditoria. Essa lógica precisa aprender sobre `responsible_2`/`responsible_2_member_id` da mesma forma que já trata `publisher1`/`publisher2` — do contrário, um membro transferido continuaria aparecendo como segundo dirigente indefinidamente.
+
 ## Design
 
 ### Banco

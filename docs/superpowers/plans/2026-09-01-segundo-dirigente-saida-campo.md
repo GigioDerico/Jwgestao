@@ -144,6 +144,48 @@ git commit -m "feat: add second responsible columns to field service assignments
 
 ---
 
+### Task 1b: Transferência de congregação trata o segundo dirigente
+
+Adicionada durante a revisão de qualidade da Task 1: `private.preview_member_transfer` e `private.clear_future_member_assignments` (ambas em `supabase/migrations/20260810143641_member_congregation_transfer.sql`) já tratam `field_service_assignments.responsible`/`responsible_member_id`, mas ainda não conheciam `responsible_2`/`responsible_2_member_id`. Sem essa correção, um membro transferido para outra congregação continuaria aparecendo — e sendo notificado — como segundo dirigente em designações futuras, ao contrário de todo outro slot de designação do sistema (que já é limpo na transferência).
+
+**Files:**
+- Create: `supabase/migrations/20260901120001_field_service_second_responsible_transfer_support.sql`
+- Test: `supabase/tests/database/field_service_second_responsible_transfer.test.sql`
+
+A migration recria as duas funções (`create or replace function`) com o campo `field_service_assignments` tratado por slot, no mesmo padrão já usado para `cart_assignments.publisher1`/`publisher2` em três pontos:
+1. Checagem de ambiguidade de nome legado em `preview_member_transfer` — passa a fazer `cross join lateral (values (f.responsible, f.responsible_member_id), (f.responsible_2, f.responsible_2_member_id))` em vez de olhar só o primeiro slot.
+2. Contagem de impacto (`future_assignment_count`) na mesma função — mesmo tratamento por slot.
+3. Em `clear_future_member_assignments`: os dois `insert` de auditoria (um para casamento por `member_id`, outro para casamento por nome legado) passam a iterar os dois slots; e o `update public.field_service_assignments` deixa de ser uma limpeza incondicional da linha inteira e passa a ser um `case` por slot — `responsible` continua virando `''` (coluna `NOT NULL`), mas `responsible_2` vira `null` (coluna nullable, consistente com "nulo = sem segundo dirigente").
+
+Nenhuma outra função do arquivo é tocada. Todo o resto do corpo das duas funções permanece byte-idêntico ao original — só os blocos listados acima mudam.
+
+O teste é um arquivo pgTAP autocontido (não depende de `member_congregation_transfer.test.sql`, que já tem contagens exatas hardcoded e seria frágil de editar): cria seu próprio ator admin e membro, insere três linhas de saída de campo (casamento por `responsible_2_member_id`, casamento só por nome, e uma linha de mês passado que deve ser preservada), chama `public.transfer_member` e verifica que os dois slots futuros são limpos e auditados sob `slot_key = 'responsible_2'`, enquanto o mês passado fica intacto.
+
+- [ ] **Step 1: Conferir que só os blocos pretendidos mudaram**
+
+Run: `diff <(sed -n '516,727p' supabase/migrations/20260810143641_member_congregation_transfer.sql) <(awk '/^create or replace function private.preview_member_transfer/{f=1} f{print} f&&/^\$\$;$/{exit}' supabase/migrations/20260901120001_field_service_second_responsible_transfer_support.sql)`
+
+Expected: a única diferença é a checagem de ambiguidade e o bloco de `future_assignment_count` passando de acesso direto a `f.responsible`/`f.responsible_member_id` para o `cross join lateral` de dois slots.
+
+Repetir para a segunda função: `diff <(sed -n '742,1357p' supabase/migrations/20260810143641_member_congregation_transfer.sql) <(awk '/^create or replace function private.clear_future_member_assignments/{f=1} f{print} f&&/^\$\$;$/{exit}' supabase/migrations/20260901120001_field_service_second_responsible_transfer_support.sql)`
+
+Expected: só os dois `insert` de auditoria de `field_service` e o `update public.field_service_assignments` mudam.
+
+- [ ] **Step 2: Rodar o teste pgTAP quando houver Docker disponível**
+
+Run: `npm run test:db`
+
+Expected: `field_service_second_responsible_transfer.test.sql .. ok`, 6 asserções.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add supabase/migrations/20260901120001_field_service_second_responsible_transfer_support.sql supabase/tests/database/field_service_second_responsible_transfer.test.sql
+git commit -m "fix: clear second field service responsible on member transfer"
+```
+
+---
+
 ### Task 2: Trigger rejeita membro inelegível no segundo slot
 
 Valida que a extensão do trigger da Task 1 realmente cobre a nova coluna, e não só que ela existe.
