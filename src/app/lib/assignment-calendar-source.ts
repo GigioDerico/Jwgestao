@@ -108,7 +108,7 @@ export async function resolveAssignmentCalendarSource(
     if (row.time?.includes('/')) throw new Error('Defina um único horário antes de adicionar ao calendário.');
     if (!startTime) throw new Error('Defina o horário da designação de saída de campo antes de adicionar ao calendário.');
     result = { kind: 'field_service', ...common, roleLabel: roleLabel(notification.slotKey), year: row.year, month: row.month, weekday: weekdayNumber(row.weekday), startTime, location: row.location || undefined, recurring: !row.date };
-    if (row.date) (result as any).date = row.date;
+    if (row.date) result.date = row.date;
   } else {
     let meeting: any;
     let part: any;

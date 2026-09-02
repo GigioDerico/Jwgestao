@@ -30,6 +30,7 @@ export interface FieldServiceCalendarInput {
   month: number;
   weekday: number;
   startTime: string;
+  date?: string;
   location?: string;
   description: string;
 }
@@ -168,7 +169,9 @@ export function buildFieldServiceEvents(
   scope: FieldServiceCalendarScope,
   now = new Date(),
 ): AssignmentCalendarEvent[] {
-  const dates = remainingWeekdayDatesInMonth(input.year, input.month, input.weekday, now);
+  const dates = input.date
+    ? [input.date]
+    : remainingWeekdayDatesInMonth(input.year, input.month, input.weekday, now);
   const selectedDates = scope === 'next' ? dates.slice(0, 1) : dates;
 
   return selectedDates.map(date => {
