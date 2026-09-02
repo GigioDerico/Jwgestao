@@ -111,6 +111,19 @@ const meetingInput = {
 };
 
 describe('event builders', () => {
+  it('derives distinct UIDs from source and slot when occurrences share a date', () => {
+    const firstEvent = buildCartEvent(cartInput);
+    const secondEvent = buildCartEvent({
+      ...cartInput,
+      sourceId: 'cart-2',
+      slotKey: 'publisher2',
+    });
+
+    expect(firstEvent.uid).toBe('notification-1:cart-1:publisher1:2026-09-14@jwgestao');
+    expect(secondEvent.uid).toBe('notification-1:cart-2:publisher2:2026-09-14@jwgestao');
+    expect(firstEvent.uid).not.toBe(secondEvent.uid);
+  });
+
   it.each([
     ['09:00 às 10:00', 60],
     ['09:00 às 11:00', 120],
@@ -119,7 +132,7 @@ describe('event builders', () => {
 
     expect(event.endsAt.getTime() - event.startsAt.getTime()).toBe(durationMinutes * 60 * 1000);
     expect(event).toMatchObject({
-      uid: 'notification-1:2026-09-14@jwgestao',
+      uid: 'notification-1:cart-1:publisher1:2026-09-14@jwgestao',
       title: 'Designação — Publicador 1',
       reminderMinutesBefore: 4320,
     });
@@ -142,9 +155,9 @@ describe('event builders', () => {
     expect(monthEvents.map(event => event.startsAt.getDate())).toEqual([14, 21, 28]);
     expect(monthEvents.every(event => event.endsAt.getTime() - event.startsAt.getTime() === 120 * 60 * 1000)).toBe(true);
     expect(monthEvents.map(event => event.uid)).toEqual([
-      'notification-2:2026-09-14@jwgestao',
-      'notification-2:2026-09-21@jwgestao',
-      'notification-2:2026-09-28@jwgestao',
+      'notification-2:field-service-1:responsible:2026-09-14@jwgestao',
+      'notification-2:field-service-1:responsible:2026-09-21@jwgestao',
+      'notification-2:field-service-1:responsible:2026-09-28@jwgestao',
     ]);
     expect(nextEvents).toEqual([monthEvents[0]]);
   });
@@ -176,7 +189,7 @@ describe('serializeCalendar', () => {
 
     expect(ics).toContain('BEGIN:VCALENDAR\r\n');
     expect(ics).toContain('BEGIN:VEVENT\r\n');
-    expect(ics).toContain('UID:notification-1:2026-09-14@jwgestao\r\n');
+    expect(ics).toContain('UID:notification-1:cart-1:publisher1:2026-09-14@jwgestao\r\n');
     expect(ics).toContain('DTSTART:20260914T090000\r\n');
     expect(ics).toContain('DTEND:20260914T110000\r\n');
     expect(ics).toContain('SUMMARY:Designação — Carrinho\\, setor\\; norte\\\\sul\r\n');

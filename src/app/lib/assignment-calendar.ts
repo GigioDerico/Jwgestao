@@ -124,18 +124,18 @@ export function remainingWeekdayDatesInMonth(
   return dates;
 }
 
-function eventUid(notificationId: string, date: string): string {
-  return `${notificationId}:${date}@jwgestao`;
+function eventUid(notificationId: string, sourceId: string, slotKey: string, date: string): string {
+  return `${notificationId}:${sourceId}:${slotKey}:${date}@jwgestao`;
 }
 
 function buildEvent(
-  input: Pick<CartCalendarInput, 'notificationId' | 'roleLabel' | 'location' | 'description'>,
+  input: Pick<CartCalendarInput, 'notificationId' | 'sourceId' | 'slotKey' | 'roleLabel' | 'location' | 'description'>,
   date: string,
   startsAt: Date,
   endsAt: Date,
 ): AssignmentCalendarEvent {
   return {
-    uid: eventUid(input.notificationId, date),
+    uid: eventUid(input.notificationId, input.sourceId, input.slotKey, date),
     title: `Designação — ${input.roleLabel}`,
     description: input.description,
     location: input.location,
