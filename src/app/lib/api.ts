@@ -1369,7 +1369,7 @@ export const api = {
   async getAudioVideoAssignmentById(id: string) {
     const { data, error } = await supabase
       .from('audio_video_assignments')
-      .select('*, midweek_meeting:midweek_meetings(*), weekend_meeting:weekend_meetings(*)')
+      .select('*')
       .eq('id', id)
       .maybeSingle();
     if (error) throw error;
@@ -2578,6 +2578,17 @@ export const api = {
     return data;
   },
 
+  async getWeekendMeetingByDate(date: string) {
+    const { data, error } = await supabase
+      .from('weekend_meetings')
+      .select('*')
+      .eq('date', date)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
+  },
+
   async getMidweekMinistryPartCalendarSource(id: string) {
     const { data, error } = await supabase
       .from('midweek_ministry_parts')
@@ -2616,6 +2627,17 @@ export const api = {
       `)
       .eq('id', id)
       .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async getMidweekMeetingByDate(date: string) {
+    const { data, error } = await supabase
+      .from('midweek_meetings')
+      .select('*')
+      .eq('date', date)
+      .maybeSingle();
 
     if (error) throw error;
     return data;

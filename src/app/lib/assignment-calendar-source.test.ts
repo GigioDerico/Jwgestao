@@ -41,6 +41,8 @@ function createApi(overrides: Partial<AssignmentCalendarApi> = {}): AssignmentCa
     getMidweekChristianLifePartCalendarSource: vi.fn().mockResolvedValue(null),
     getMidweekMeetingById: vi.fn().mockResolvedValue(null),
     getWeekendMeetingById: vi.fn().mockResolvedValue(null),
+    getMidweekMeetingByDate: vi.fn().mockResolvedValue(null),
+    getWeekendMeetingByDate: vi.fn().mockResolvedValue(null),
     getAppSetting: vi.fn().mockResolvedValue(null),
     ...overrides,
   };
@@ -142,13 +144,53 @@ describe('resolveAssignmentCalendarSource', () => {
   });
 
   it('associates audio/video with the meeting on the assignment date', async () => {
+    const weekendMeeting = {
+      id: 'weekend-1',
+      date: '2026-09-20',
+      start_time: '18:30:00',
+      end_time: '20:15:00',
+    };
+    const api = createApi({
+      getAudioVideoAssignmentById: vi.fn().mockResolvedValue({
+        id: 'audio-1',
+        date: '2026-09-19',
+        weekday: 'Sábado',
+        time: '17:00',
+      }),
+      getMidweekMeetingByDate: vi.fn().mockResolvedValue(null),
+      getWeekendMeetingByDate: vi.fn().mockResolvedValue(weekendMeeting),
+    });
+
+    const result = await resolveAssignmentCalendarSource(notification({
+      category: 'audio_video',
+      sourceType: 'audio_video_role',
+      sourceId: 'audio-1',
+      assignmentDate: '2026-09-20',
+      slotKey: 'sound',
+    }), api, { weekendTime: '18:00' });
+
+    expect(result).toMatchObject({
+      kind: 'meeting',
+      roleLabel: 'Som',
+      date: '2026-09-20',
+      startTime: '18:30',
+      endTime: '20:15',
+    });
+    expect(api.getMidweekMeetingByDate).toHaveBeenCalledWith('2026-09-20');
+    expect(api.getWeekendMeetingByDate).toHaveBeenCalledWith('2026-09-20');
+  });
+
+  it('falls back to the audio/video row date and the configured meeting time', async () => {
     const api = createApi({
       getAudioVideoAssignmentById: vi.fn().mockResolvedValue({
         id: 'audio-1',
         date: '2026-09-16',
-        weekday: 'Quarta',
-        midweek_meeting: midweekMeeting,
-        weekend_meeting: null,
+        time: '17:00',
+      }),
+      getMidweekMeetingByDate: vi.fn().mockResolvedValue({
+        id: 'midweek-1',
+        closing_comments_time: '21:10:00',
+        closing_comments_duration: 5,
       }),
     });
 
@@ -156,16 +198,72 @@ describe('resolveAssignmentCalendarSource', () => {
       category: 'audio_video',
       sourceType: 'audio_video_role',
       sourceId: 'audio-1',
-      slotKey: 'sound',
-    }), api, { midweekTime: '19:00' });
+      assignmentDate: null,
+      slotKey: 'image',
+    }), api, { midweekTime: '19:15', weekendTime: null });
 
     expect(result).toMatchObject({
       kind: 'meeting',
-      roleLabel: 'Som',
       date: '2026-09-16',
-      startTime: '19:30',
+      startTime: '19:15',
       endTime: '21:15',
     });
+    expect(result.startTime).not.toBe('17:00');
+  });
+
+  it.each([
+    ['president', 'Presidente', 'midweek_meeting_role'],
+    ['opening_prayer', 'Oração Inicial', 'midweek_meeting_role'],
+    ['closing_prayer', 'Oração Final', 'midweek_meeting_role'],
+    ['treasure_talk_speaker_id', 'Tesouros da Palavra', 'midweek_meeting_role'],
+    ['treasure_gems_speaker_id', 'Joias Espirituais', 'midweek_meeting_role'],
+    ['treasure_reading_student_id', 'Leitura da Bíblia', 'midweek_meeting_role'],
+    ['cbs_conductor_id', 'Dirigente do Estudo', 'midweek_meeting_role'],
+    ['cbs_reader_id', 'Leitor do Estudo', 'midweek_meeting_role'],
+    ['student_id', 'Estudante', 'midweek_ministry_part'],
+    ['assistant_id', 'Ajudante', 'midweek_ministry_part'],
+    ['speaker_id', 'Orador', 'midweek_christian_life_part'],
+    ['sound', 'Som', 'audio_video_role'],
+    ['image', 'Imagem', 'audio_video_role'],
+    ['stage', 'Palco', 'audio_video_role'],
+    ['roving_mic_1', 'Microfone Volante 1', 'audio_video_role'],
+    ['roving_mic_2', 'Microfone Volante 2', 'audio_video_role'],
+    ['attendant:0', 'Indicador 1', 'audio_video_role'],
+    ['attendant:2', 'Indicador 3', 'audio_video_role'],
+    ['responsible', 'Responsável', 'field_service_assignment'],
+    ['responsible_2', 'Responsável', 'field_service_assignment'],
+    ['publisher1', 'Publicador 1', 'cart_assignment'],
+    ['publisher2', 'Publicador 2', 'cart_assignment'],
+  ] as const)('maps slot %s to %s', async (slotKey, expected, sourceType) => {
+    const api = createApi({
+      getMidweekMeetingById: vi.fn().mockResolvedValue(midweekMeeting),
+      getMidweekMinistryPartCalendarSource: vi.fn().mockResolvedValue({
+        id: 'part-1', meeting: midweekMeeting,
+      }),
+      getMidweekChristianLifePartCalendarSource: vi.fn().mockResolvedValue({
+        id: 'part-1', meeting: midweekMeeting,
+      }),
+      getAudioVideoAssignmentById: vi.fn().mockResolvedValue({
+        id: 'audio-1', date: '2026-09-16',
+      }),
+      getMidweekMeetingByDate: vi.fn().mockResolvedValue(midweekMeeting),
+      getFieldServiceAssignmentById: vi.fn().mockResolvedValue({
+        id: 'field-1', date: '2026-09-16', year: 2026, month: 9,
+        weekday: 'Quarta-feira', time: '08:45', location: '',
+      }),
+      getCartAssignmentById: vi.fn().mockResolvedValue({
+        id: 'cart-1', year: 2026, month: 9, day: 16,
+        time: '09:00 às 11:00', location: '',
+      }),
+    });
+
+    const result = await resolveAssignmentCalendarSource(notification({
+      sourceType,
+      sourceId: sourceType === 'midweek_meeting_role' ? 'midweek-1' : 'source-1',
+      slotKey,
+    }), api, {});
+
+    expect(result.roleLabel).toBe(expected);
   });
 
   it('derives the cart date and preserves its interval and location', async () => {
@@ -262,6 +360,22 @@ describe('resolveAssignmentCalendarSource', () => {
     }), createApi({
       getWeekendMeetingById: vi.fn().mockResolvedValue({ id: 'weekend-1', date: '2026-09-20' }),
     }), {})).rejects.toThrow('Defina o horário da reunião');
+  });
+
+  it('rejects audio/video assignments with missing dates or meetings', async () => {
+    const missingDateApi = createApi({
+      getAudioVideoAssignmentById: vi.fn().mockResolvedValue({ id: 'audio-1', date: null }),
+    });
+    const missingMeetingApi = createApi({
+      getAudioVideoAssignmentById: vi.fn().mockResolvedValue({ id: 'audio-1', date: '2026-09-16' }),
+    });
+
+    await expect(resolveAssignmentCalendarSource(notification({
+      sourceType: 'audio_video_role', assignmentDate: null,
+    }), missingDateApi, {})).rejects.toThrow('data');
+    await expect(resolveAssignmentCalendarSource(notification({
+      sourceType: 'audio_video_role', assignmentDate: null,
+    }), missingMeetingApi, {})).rejects.toThrow('reunião');
   });
 
   it('rejects missing and ambiguous assignment times', async () => {

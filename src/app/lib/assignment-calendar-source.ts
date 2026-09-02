@@ -14,6 +14,8 @@ export interface AssignmentCalendarApi {
   getMidweekChristianLifePartCalendarSource(id: string): Promise<any | null>;
   getMidweekMeetingById(id: string): Promise<any | null>;
   getWeekendMeetingById(id: string): Promise<any | null>;
+  getMidweekMeetingByDate(date: string): Promise<any | null>;
+  getWeekendMeetingByDate(date: string): Promise<any | null>;
   getAppSetting(key: string): Promise<string | null>;
 }
 
@@ -23,21 +25,29 @@ export type AssignmentCalendarSource =
   | (FieldServiceCalendarInput & { kind: 'field_service'; recurring: boolean });
 
 export interface AssignmentCalendarOptions {
-  midweekTime?: string;
-  weekendTime?: string;
+  midweekTime?: string | null;
+  weekendTime?: string | null;
 }
 
 const ROLE_LABELS: Record<string, string> = {
-  president_id: 'Presidente', opening_prayer_id: 'Oração inicial', closing_prayer_id: 'Oração final',
+  president: 'Presidente', president_id: 'Presidente',
+  opening_prayer: 'Oração Inicial', opening_prayer_id: 'Oração Inicial',
+  closing_prayer: 'Oração Final', closing_prayer_id: 'Oração Final',
+  treasure_talk_speaker_id: 'Tesouros da Palavra', treasure_gems_speaker_id: 'Joias Espirituais',
+  treasure_reading_student_id: 'Leitura da Bíblia', cbs_conductor_id: 'Dirigente do Estudo',
+  cbs_reader_id: 'Leitor do Estudo', student_id: 'Estudante', assistant_id: 'Ajudante', speaker_id: 'Orador',
   watchtower_conductor_id: 'Dirigente da Sentinela', watchtower_reader_id: 'Leitor da Sentinela',
-  sound: 'Som', image: 'Imagem', stage: 'Palco', roving_mic_1: 'Microfone volante 1', roving_mic_2: 'Microfone volante 2',
+  sound: 'Som', image: 'Imagem', stage: 'Palco', roving_mic_1: 'Microfone Volante 1', roving_mic_2: 'Microfone Volante 2',
   publisher1: 'Publicador 1', publisher2: 'Publicador 2', responsible: 'Responsável', responsible_2: 'Responsável',
 };
 
 function roleLabel(slotKey: string, title?: string): string {
+  const attendant = /^attendant:(\d+)$/.exec(slotKey);
+  if (attendant) return `Indicador ${Number(attendant[1]) + 1}`;
   const base = ROLE_LABELS[slotKey] || title || slotKey;
-  if (slotKey === 'assistant_id') return `${title || 'Parte'} — Ajudante`;
-  if (slotKey === 'speaker_id') return `${title || 'Parte'} — Orador`;
+  if (title && slotKey === 'assistant_id') return `${title} — ${base}`;
+  if (title && slotKey === 'speaker_id') return `${title} — ${base}`;
+  if (title && slotKey === 'student_id') return title;
   return base;
 }
 
@@ -101,23 +111,32 @@ export async function resolveAssignmentCalendarSource(
     if (row.date) (result as any).date = row.date;
   } else {
     let meeting: any;
-    let audioIsMidweek = false;
     let part: any;
+    let resolvedDate = notification.assignmentDate;
     const isMidweek = notification.sourceType.startsWith('midweek');
+    let meetingIsMidweek = isMidweek;
     if (notification.sourceType === 'midweek_ministry_part') part = await api.getMidweekMinistryPartCalendarSource(notification.sourceId);
     else if (notification.sourceType === 'midweek_christian_life_part') part = await api.getMidweekChristianLifePartCalendarSource(notification.sourceId);
     else if (notification.sourceType === 'midweek_meeting_role') meeting = await api.getMidweekMeetingById(notification.sourceId);
     else if (notification.sourceType === 'weekend_meeting_role') meeting = await api.getWeekendMeetingById(notification.sourceId);
     else if (notification.sourceType === 'audio_video_role') {
       const row = await api.getAudioVideoAssignmentById(notification.sourceId);
-      if (row) { audioIsMidweek = Boolean(row.midweek_meeting); meeting = row.midweek_meeting || row.weekend_meeting; if (!meeting && row.date === notification.assignmentDate) meeting = row; }
+      if (!row) throw new Error('Não foi possível encontrar a designação de áudio e vídeo.');
+      const assignmentDate = notification.assignmentDate || row.date;
+      if (!assignmentDate) throw new Error('Defina a data da designação de áudio e vídeo antes de adicionar ao calendário.');
+      resolvedDate = assignmentDate;
+      const [midweekMeeting, weekendMeeting] = await Promise.all([
+        api.getMidweekMeetingByDate(assignmentDate),
+        api.getWeekendMeetingByDate(assignmentDate),
+      ]);
+      meeting = midweekMeeting || weekendMeeting;
+      meetingIsMidweek = Boolean(midweekMeeting);
     } else throw new Error('Esta designação não é compatível com o calendário.');
     if (part) meeting = part.meeting;
     if (!meeting) throw new Error('Não foi possível encontrar a designação da reunião.');
-    const meetingIsMidweek = notification.sourceType === 'audio_video_role' ? audioIsMidweek : isMidweek;
     const times = meetingTimes(meeting, await settingOr(options, meetingIsMidweek ? 'midweekTime' : 'weekendTime', api), meetingIsMidweek);
     const label = roleLabel(notification.slotKey, part?.title);
-    result = { kind: 'meeting', ...common, roleLabel: label, description: description(notification, label), date: meeting.date || notification.assignmentDate!, ...times, location: part?.room || meeting.location || undefined };
+    result = { kind: 'meeting', ...common, roleLabel: label, description: description(notification, label), date: meeting.date || resolvedDate!, ...times, location: part?.room || meeting.location || undefined };
   }
   if (!result) throw new Error('Não foi possível encontrar a designação para o calendário.');
   return result;
