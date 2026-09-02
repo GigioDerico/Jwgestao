@@ -73,6 +73,12 @@ describe('remainingWeekdayDatesInMonth', () => {
   it.each([0, 13])('rejects month %s outside 1-12', month => {
     expect(() => remainingWeekdayDatesInMonth(2026, month, 1)).toThrow('Mês inválido');
   });
+
+  it.each([-1, 7, 1.5])('rejects weekday %s outside 0-6', weekday => {
+    expect(() => remainingWeekdayDatesInMonth(2026, 9, weekday)).toThrow(
+      'Dia da semana inválido',
+    );
+  });
 });
 
 const cartInput = {
@@ -210,13 +216,15 @@ describe('serializeCalendar', () => {
 });
 
 describe('downloadCalendarFile', () => {
-  it('downloads a calendar Blob and revokes its temporary URL', () => {
+  it('downloads a calendar Blob and revokes its temporary URL after the download window', () => {
+    vi.useFakeTimers();
     const createObjectURL = vi.fn(() => 'blob:calendar');
     const revokeObjectURL = vi.fn();
     vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
     const click = vi.fn();
     const anchor = document.createElement('a');
     anchor.click = click;
+    vi.spyOn(anchor, 'remove');
     vi.spyOn(document, 'createElement').mockReturnValue(anchor);
 
     downloadCalendarFile([buildMeetingEvent(meetingInput)], 'minha-designacao.ics');
@@ -227,6 +235,32 @@ describe('downloadCalendarFile', () => {
     expect(anchor.download).toBe('minha-designacao.ics');
     expect(anchor.href).toBe('blob:calendar');
     expect(click).toHaveBeenCalledOnce();
+    expect(anchor.remove).not.toHaveBeenCalled();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(29_999);
+    expect(anchor.remove).not.toHaveBeenCalled();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(anchor.remove).toHaveBeenCalledOnce();
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:calendar');
+  });
+
+  it('opens the calendar URL when anchor downloads are unsupported', () => {
+    const createObjectURL = vi.fn(() => 'blob:calendar');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
+    const anchor = document.createElement('a');
+    vi.spyOn(anchor, 'click');
+    const open = vi.spyOn(window, 'open').mockReturnValue({} as Window);
+    vi.stubGlobal('HTMLAnchorElement', class UnsupportedAnchor {});
+    vi.spyOn(document, 'createElement').mockReturnValue(anchor);
+
+    downloadCalendarFile([buildMeetingEvent(meetingInput)]);
+
+    expect(open).toHaveBeenCalledWith('blob:calendar', '_blank', 'noopener,noreferrer');
+    expect(anchor.click).not.toHaveBeenCalled();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
   });
 });

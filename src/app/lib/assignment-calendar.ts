@@ -109,6 +109,9 @@ export function remainingWeekdayDatesInMonth(
   if (!Number.isInteger(month) || month < 1 || month > 12) {
     throw new Error('Mês inválido para o calendário.');
   }
+  if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
+    throw new Error('Dia da semana inválido para o calendário.');
+  }
 
   const dates: string[] = [];
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -256,12 +259,21 @@ export function downloadCalendarFile(
   const blob = new Blob([serializeCalendar(events)], { type: 'text/calendar' });
   const objectUrl = URL.createObjectURL(blob);
 
-  try {
-    const anchor = document.createElement('a');
+  const anchor = document.createElement('a');
+  if ('download' in HTMLAnchorElement.prototype) {
     anchor.href = objectUrl;
     anchor.download = filename;
+    document.body.appendChild(anchor);
     anchor.click();
-  } finally {
-    URL.revokeObjectURL(objectUrl);
+  } else {
+    const popup = window.open(objectUrl, '_blank', 'noopener,noreferrer');
+    if (!popup) {
+      window.location.assign(objectUrl);
+    }
   }
+
+  window.setTimeout(() => {
+    anchor.remove();
+    URL.revokeObjectURL(objectUrl);
+  }, 30_000);
 }
