@@ -5,6 +5,7 @@ import { useNotifications } from '../context/NotificationsContext';
 import { api } from '../lib/api';
 import { formatPhoneDisplay } from '../helpers';
 import { toast } from 'sonner';
+import { AssignmentCalendarActions } from './AssignmentCalendarActions';
 import {
   Users,
   CalendarDays,
@@ -362,27 +363,10 @@ export function Dashboard() {
                           </button>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-1 shrink-0">
-                          <span
-                            className="rounded-full bg-green-50 px-3 py-1 font-medium text-green-700"
-                            style={{ fontSize: '0.75rem' }}
-                          >
-                            Confirmado ✓
-                          </span>
-                          <button
-                            onClick={async () => {
-                              try {
-                                await hideNotification(notification.id);
-                              } catch (e) {
-                                toast.error('Erro ao ocultar');
-                              }
-                            }}
-                            className="p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600 rounded-full transition-colors"
-                            title="Ocultar do painel"
-                          >
-                            <X size={16} />
-                          </button>
-                        </div>
+                        <AssignmentCalendarActions
+                          notification={notification}
+                          onHide={hideNotification}
+                        />
                       )}
                     </div>
                   ))}

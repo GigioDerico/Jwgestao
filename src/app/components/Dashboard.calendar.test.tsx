@@ -1,0 +1,81 @@
+import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { AssignmentNotification } from '../types';
+import { Dashboard } from './Dashboard';
+
+const { confirm, hideNotification, notifications, apiMock } = vi.hoisted(() => ({
+  confirm: vi.fn(),
+  hideNotification: vi.fn(),
+  notifications: [] as AssignmentNotification[],
+  apiMock: {
+    getMembers: vi.fn().mockResolvedValue([]),
+    getMidweekMeetings: vi.fn().mockResolvedValue([]),
+    getWeekendMeetings: vi.fn().mockResolvedValue([]),
+    getAppSetting: vi.fn().mockResolvedValue(null),
+  },
+}));
+
+vi.mock('../context/AuthContext', () => ({
+  useAuth: () => ({ user: { name: 'Maria Teste' }, isAdmin: false }),
+}));
+vi.mock('../context/NotificationsContext', () => ({
+  useNotifications: () => ({ notifications, confirm, hideNotification }),
+}));
+vi.mock('react-router', () => ({ useNavigate: () => vi.fn() }));
+vi.mock('../lib/api', () => ({
+  api: apiMock,
+}));
+vi.mock('./AssignmentCalendarActions', () => ({
+  AssignmentCalendarActions: ({ notification }: { notification: AssignmentNotification }) => (
+    <button data-testid={`calendar-action-${notification.id}`}>Adicionar ao calendário</button>
+  ),
+}));
+
+function notification(status: AssignmentNotification['status'], id: string): AssignmentNotification {
+  return {
+    id,
+    memberId: 'member-1',
+    category: 'midweek',
+    sourceType: 'midweek_meeting_role',
+    sourceId: 'meeting-1',
+    slotKey: 'president',
+    title: 'Presidente',
+    message: 'Você foi designado para presidente em 15/09/2026.',
+    assignmentDate: '2026-09-15',
+    status,
+    isRead: true,
+    createdAt: '2026-09-01T12:00:00Z',
+  };
+}
+
+describe('Dashboard calendar actions', () => {
+  beforeEach(() => {
+    notifications.splice(0, notifications.length);
+    confirm.mockReset();
+    hideNotification.mockReset();
+    apiMock.getMembers.mockResolvedValue([]);
+    apiMock.getMidweekMeetings.mockResolvedValue([]);
+    apiMock.getWeekendMeetings.mockResolvedValue([]);
+    apiMock.getAppSetting.mockResolvedValue(null);
+  });
+
+  it('renders calendar action only in the confirmed assignment row', async () => {
+    notifications.push(notification('confirmed', 'confirmed-1'));
+
+    render(<Dashboard />);
+
+    expect(await screen.findByTestId('calendar-action-confirmed-1')).toBeVisible();
+    expect(screen.getByText('Minhas Designações')).toBeVisible();
+    expect(screen.getAllByTestId('calendar-action-confirmed-1')).toHaveLength(1);
+  });
+
+  it('keeps pending rows on confirmation and hide actions without calendar action', async () => {
+    notifications.push(notification('pending_confirmation', 'pending-1'));
+
+    render(<Dashboard />);
+
+    expect(await screen.findByRole('button', { name: 'Confirmar' })).toBeVisible();
+    expect(screen.queryByTestId('calendar-action-pending-1')).not.toBeInTheDocument();
+    expect(screen.getByTitle('Ocultar do painel')).toBeVisible();
+  });
+});
