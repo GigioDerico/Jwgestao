@@ -38,6 +38,9 @@ importers:
       '@capawesome-team/capacitor-android-foreground-service':
         specifier: ^8.0.1
         version: 8.0.1(@capacitor/core@8.1.0)
+      '@ebarooni/capacitor-calendar':
+        specifier: ^8.3.0
+        version: 8.4.0(@capacitor/core@8.1.0)
       '@emotion/react':
         specifier: 11.14.0
         version: 11.14.0(@types/react@19.2.14)(react@18.3.1)
@@ -850,6 +853,11 @@ packages:
   '@csstools/css-tokenizer@3.0.4':
     resolution: {integrity: sha512-Vd/9EVDiu6PPJt9yAh6roZP6El1xHrdvIVGjyBsHR0RYwNHgL7FJPyIIW4fANJNG6FtyZfvlRPpFI4ZM/lubvw==}
     engines: {node: '>=18'}
+
+  '@ebarooni/capacitor-calendar@8.4.0':
+    resolution: {integrity: sha512-aOmo4flqf+WeITG4xVg3gJ0m92lLRD1i6RoD3EyiXXMpJwZPh4b6JMr0ODFdb83E38RsD1IdWf6RKAd89Za9xA==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
 
   '@emnapi/runtime@1.8.1':
     resolution: {integrity: sha512-mehfKSMWjjNol8659Z8KxEMrdSJDDot5SXMq00dM8BN4o+CLNXQ0xH2V7EchNHV4RmbZLmmPdEaXZc5H2FXmDg==}
@@ -4583,6 +4591,10 @@ snapshots:
       picocolors: 1.1.1
 
   '@babel/compat-data@7.29.0': {}
+
+  '@ebarooni/capacitor-calendar@8.4.0(@capacitor/core@8.1.0)':
+    dependencies:
+      '@capacitor/core': 8.1.0
 
   '@babel/core@7.29.0':
     dependencies:
