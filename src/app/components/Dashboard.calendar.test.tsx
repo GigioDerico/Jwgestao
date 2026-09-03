@@ -3,10 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AssignmentNotification } from '../types';
 import { Dashboard } from './Dashboard';
 
-const { confirm, hideNotification, notifications, apiMock } = vi.hoisted(() => ({
+const { confirm, hideNotification, notifications, apiMock, calendarActionProps } = vi.hoisted(() => ({
   confirm: vi.fn(),
   hideNotification: vi.fn(),
   notifications: [] as AssignmentNotification[],
+  calendarActionProps: [] as Array<{
+    notification: AssignmentNotification;
+    onHide: (id: string) => Promise<void>;
+  }>,
   apiMock: {
     getMembers: vi.fn().mockResolvedValue([]),
     getMidweekMeetings: vi.fn().mockResolvedValue([]),
@@ -26,9 +30,15 @@ vi.mock('../lib/api', () => ({
   api: apiMock,
 }));
 vi.mock('./AssignmentCalendarActions', () => ({
-  AssignmentCalendarActions: ({ notification }: { notification: AssignmentNotification }) => (
-    <button data-testid={`calendar-action-${notification.id}`}>Adicionar ao calendário</button>
-  ),
+  AssignmentCalendarActions: (props: {
+    notification: AssignmentNotification;
+    onHide: (id: string) => Promise<void>;
+  }) => {
+    calendarActionProps.push(props);
+    return (
+      <button data-testid={`calendar-action-${props.notification.id}`}>Adicionar ao calendário</button>
+    );
+  },
 }));
 
 function notification(status: AssignmentNotification['status'], id: string): AssignmentNotification {
@@ -51,6 +61,7 @@ function notification(status: AssignmentNotification['status'], id: string): Ass
 describe('Dashboard calendar actions', () => {
   beforeEach(() => {
     notifications.splice(0, notifications.length);
+    calendarActionProps.splice(0, calendarActionProps.length);
     confirm.mockReset();
     hideNotification.mockReset();
     apiMock.getMembers.mockResolvedValue([]);
@@ -67,6 +78,35 @@ describe('Dashboard calendar actions', () => {
     expect(await screen.findByTestId('calendar-action-confirmed-1')).toBeVisible();
     expect(screen.getByText('Minhas Designações')).toBeVisible();
     expect(screen.getAllByTestId('calendar-action-confirmed-1')).toHaveLength(1);
+  });
+
+  it('passes the notification hide callback to the confirmed assignment action', async () => {
+    notifications.push(notification('confirmed', 'confirmed-1'));
+
+    render(<Dashboard />);
+
+    await screen.findByTestId('calendar-action-confirmed-1');
+    expect(calendarActionProps.length).toBeGreaterThan(0);
+    expect(calendarActionProps).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        notification: expect.objectContaining({ id: 'confirmed-1' }),
+        onHide: hideNotification,
+      }),
+    ]));
+    expect(calendarActionProps.every(props => props.onHide === hideNotification)).toBe(true);
+  });
+
+  it('wraps confirmed assignment actions below readable text on narrow screens', async () => {
+    notifications.push(notification('confirmed', 'confirmed-1'));
+
+    render(<Dashboard />);
+
+    const action = await screen.findByTestId('calendar-action-confirmed-1');
+    const actionWrapper = action.parentElement;
+    const notificationRow = actionWrapper?.parentElement;
+
+    expect(notificationRow).toHaveClass('flex-wrap');
+    expect(actionWrapper).toHaveClass('w-full', 'min-w-0', 'sm:w-auto');
   });
 
   it('keeps pending rows on confirmation and hide actions without calendar action', async () => {

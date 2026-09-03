@@ -324,7 +324,7 @@ export function Dashboard() {
                 </div>
                 <div className="divide-y divide-border">
                   {group.items.map((notification) => (
-                    <div key={notification.id} className="px-4 md:px-5 py-3.5 flex items-start gap-3 hover:bg-muted/30 transition-colors">
+                    <div key={notification.id} className="px-4 md:px-5 py-3.5 flex flex-wrap items-start gap-3 hover:bg-muted/30 transition-colors">
                       <div className={`mt-0.5 shrink-0 ${notification.status === 'confirmed' ? 'text-green-500' : 'text-amber-500'}`}>
                         {notification.status === 'confirmed' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
                       </div>
@@ -363,10 +363,12 @@ export function Dashboard() {
                           </button>
                         </div>
                       ) : (
-                        <AssignmentCalendarActions
-                          notification={notification}
-                          onHide={hideNotification}
-                        />
+                        <div className="w-full min-w-0 sm:w-auto">
+                          <AssignmentCalendarActions
+                            notification={notification}
+                            onHide={hideNotification}
+                          />
+                        </div>
                       )}
                     </div>
                   ))}
