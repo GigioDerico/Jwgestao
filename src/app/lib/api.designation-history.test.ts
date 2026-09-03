@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type QueryResult = { data: unknown[] | null; error: { message: string } | null };
 
@@ -34,6 +34,12 @@ describe('api.getDesignationHistory transfer audit', () => {
     from.mockClear();
     responses.clear();
     queries.length = 0;
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-10T12:00:00'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('queries the requested date range and merges audit entries in existing order', async () => {
