@@ -61,7 +61,11 @@ function timeOnly(value: unknown): string | undefined {
   return match?.[1].padStart(5, '0');
 }
 
-function weekdayNumber(value: string): number {
+function weekdayNumber(value: unknown): number {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error('Defina o dia da semana da saída de campo antes de adicionar ao calendário.');
+  }
+
   const normalized = value.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const names = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
   const index = names.findIndex(name => normalized.includes(name));

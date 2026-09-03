@@ -117,6 +117,20 @@ const meetingInput = {
 };
 
 describe('event builders', () => {
+  it('rejects a cart event whose start time has already passed', () => {
+    const now = new Date(2026, 8, 14, 11, 0);
+
+    expect(() => buildCartEvent(cartInput, now)).toThrow(
+      'A designação já começou e não pode ser adicionada ao calendário.',
+    );
+  });
+
+  it('keeps a cart event whose start time is still in the future', () => {
+    const event = buildCartEvent(cartInput, new Date(2026, 8, 14, 8, 59));
+
+    expect(event.startsAt).toEqual(new Date(2026, 8, 14, 9, 0));
+  });
+
   it('derives distinct UIDs from source and slot when occurrences share a date', () => {
     const firstEvent = buildCartEvent(cartInput);
     const secondEvent = buildCartEvent({
@@ -152,7 +166,7 @@ describe('event builders', () => {
 
   it('builds the next or all remaining field-service occurrences with two-hour durations', () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(2026, 8, 14, 12));
+    vi.setSystemTime(new Date(2026, 8, 14, 8));
 
     const monthEvents = buildFieldServiceEvents(fieldServiceInput, 'month');
     const nextEvents = buildFieldServiceEvents(fieldServiceInput, 'next');
@@ -166,6 +180,40 @@ describe('event builders', () => {
       'notification-2:field-service-1:responsible:2026-09-28@jwgestao',
     ]);
     expect(nextEvents).toEqual([monthEvents[0]]);
+  });
+
+  it('skips a recurring field-service occurrence whose start time has passed today', () => {
+    const events = buildFieldServiceEvents(
+      fieldServiceInput,
+      'month',
+      new Date(2026, 8, 14, 9, 0),
+    );
+
+    expect(events.map(event => event.startsAt.getDate())).toEqual([21, 28]);
+  });
+
+  it('rejects an explicit field-service event whose start time has passed', () => {
+    expect(() => buildFieldServiceEvents(
+      { ...fieldServiceInput, date: '2026-09-14' },
+      'next',
+      new Date(2026, 8, 14, 9, 0),
+    )).toThrow('A designação já começou e não pode ser adicionada ao calendário.');
+  });
+
+  it('rejects a meeting event whose start time has already passed', () => {
+    expect(() => buildMeetingEvent(
+      meetingInput,
+      new Date(2026, 8, 17, 19, 31),
+    )).toThrow('A designação já começou e não pode ser adicionada ao calendário.');
+  });
+
+  it('keeps a meeting event whose start time is still in the future', () => {
+    const event = buildMeetingEvent(
+      meetingInput,
+      new Date(2026, 8, 17, 19, 29),
+    );
+
+    expect(event.startsAt).toEqual(new Date(2026, 8, 17, 19, 30));
   });
 
   it('uses the meeting end time when provided', () => {

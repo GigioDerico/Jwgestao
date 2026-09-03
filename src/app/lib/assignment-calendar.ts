@@ -155,11 +155,21 @@ function assertEndAfterStart(startsAt: Date, endsAt: Date): void {
   }
 }
 
-export function buildCartEvent(input: CartCalendarInput): AssignmentCalendarEvent {
+function assertNotStarted(startsAt: Date, now: Date): void {
+  if (startsAt <= now) {
+    throw new Error('A designação já começou e não pode ser adicionada ao calendário.');
+  }
+}
+
+export function buildCartEvent(
+  input: CartCalendarInput,
+  now = new Date(),
+): AssignmentCalendarEvent {
   const [startTime, endTime] = parseTimeRange(input.timeRange);
   const startsAt = combineLocalDateTime(input.date, startTime);
   const endsAt = combineLocalDateTime(input.date, endTime);
   assertEndAfterStart(startsAt, endsAt);
+  assertNotStarted(startsAt, now);
 
   return buildEvent(input, input.date, startsAt, endsAt);
 }
@@ -172,7 +182,15 @@ export function buildFieldServiceEvents(
   const dates = input.date
     ? [input.date]
     : remainingWeekdayDatesInMonth(input.year, input.month, input.weekday, now);
-  const selectedDates = scope === 'next' ? dates.slice(0, 1) : dates;
+  const futureDates = dates.filter(date => {
+    const startsAt = combineLocalDateTime(date, input.startTime);
+    if (startsAt <= now) {
+      if (input.date) assertNotStarted(startsAt, now);
+      return false;
+    }
+    return true;
+  });
+  const selectedDates = scope === 'next' ? futureDates.slice(0, 1) : futureDates;
 
   return selectedDates.map(date => {
     const startsAt = combineLocalDateTime(date, input.startTime);
@@ -181,12 +199,16 @@ export function buildFieldServiceEvents(
   });
 }
 
-export function buildMeetingEvent(input: MeetingCalendarInput): AssignmentCalendarEvent {
+export function buildMeetingEvent(
+  input: MeetingCalendarInput,
+  now = new Date(),
+): AssignmentCalendarEvent {
   const startsAt = combineLocalDateTime(input.date, input.startTime);
   const endsAt = input.endTime
     ? combineLocalDateTime(input.date, input.endTime)
     : new Date(startsAt.getTime() + 105 * 60 * 1000);
   assertEndAfterStart(startsAt, endsAt);
+  assertNotStarted(startsAt, now);
 
   return buildEvent(input, input.date, startsAt, endsAt);
 }

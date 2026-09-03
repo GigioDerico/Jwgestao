@@ -398,4 +398,17 @@ describe('resolveAssignmentCalendarSource', () => {
       sourceType: 'field_service_assignment', sourceId: 'field-1', slotKey: 'responsible',
     }), ambiguousFieldTime, {})).rejects.toThrow('Defina um único horário');
   });
+
+  it('rejects a field-service source without a weekday with a clear error', async () => {
+    const api = createApi({
+      getFieldServiceAssignmentById: vi.fn().mockResolvedValue({
+        id: 'field-1', date: null, year: 2026, month: 9,
+        weekday: null, time: '08:30', location: '',
+      }),
+    });
+
+    await expect(resolveAssignmentCalendarSource(notification({
+      sourceType: 'field_service_assignment', sourceId: 'field-1', slotKey: 'responsible',
+    }), api, {})).rejects.toThrow('Defina o dia da semana');
+  });
 });

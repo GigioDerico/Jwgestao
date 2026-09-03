@@ -149,6 +149,7 @@ describe('AssignmentCalendarActions', () => {
   });
 
   it('opens recurring field-service choices and reports the monthly count before delivery', async () => {
+    vi.setSystemTime(new Date(2026, 8, 14, 8));
     vi.mocked(resolveAssignmentCalendarSource).mockResolvedValue(recurringFieldSource);
     const user = userEvent.setup();
     render(<AssignmentCalendarActions notification={confirmedField} onHide={vi.fn()} />);
@@ -198,6 +199,7 @@ describe('AssignmentCalendarActions', () => {
   });
 
   it('delivers all recurring events and shows the plural success toast', async () => {
+    vi.setSystemTime(new Date(2026, 8, 14, 8));
     vi.mocked(resolveAssignmentCalendarSource).mockResolvedValue(recurringFieldSource);
     vi.mocked(deliverCalendarEvents).mockResolvedValue({
       mode: 'native',
