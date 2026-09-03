@@ -1366,6 +1366,16 @@ export const api = {
     return (data || []).map(mapAudioVideoAssignment);
   },
 
+  async getAudioVideoAssignmentById(id: string) {
+    const { data, error } = await supabase
+      .from('audio_video_assignments')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+
   async createAudioVideoAssignment(input: CreateAudioVideoAssignmentInput) {
     const { data, error } = await supabase
       .from('audio_video_assignments')
@@ -1465,6 +1475,16 @@ export const api = {
 
     if (error) throw new Error(`Erro ao buscar saídas de campo: ${error.message} `);
     return (data || []).map(mapFieldServiceAssignment);
+  },
+
+  async getFieldServiceAssignmentById(id: string) {
+    const { data, error } = await supabase
+      .from('field_service_assignments')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
   },
 
   async getFieldServiceGroups(): Promise<FieldServiceGroupOption[]> {
@@ -1617,6 +1637,16 @@ export const api = {
 
     if (error) throw new Error(`Erro ao buscar designações de carrinho: ${error.message} `);
     return (data || []).map(mapCartAssignment);
+  },
+
+  async getCartAssignmentById(id: string) {
+    const { data, error } = await supabase
+      .from('cart_assignments')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
   },
 
   async createCartAssignment(input: CreateCartAssignmentInput) {
@@ -2548,6 +2578,37 @@ export const api = {
     return data;
   },
 
+  async getWeekendMeetingByDate(date: string) {
+    const { data, error } = await supabase
+      .from('weekend_meetings')
+      .select('*')
+      .eq('date', date)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async getMidweekMinistryPartCalendarSource(id: string) {
+    const { data, error } = await supabase
+      .from('midweek_ministry_parts')
+      .select('*, meeting:midweek_meetings(*)')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+
+  async getMidweekChristianLifePartCalendarSource(id: string) {
+    const { data, error } = await supabase
+      .from('midweek_christian_life_parts')
+      .select('*, meeting:midweek_meetings(*)')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+
   async getMidweekMeetingById(id: string) {
     const { data, error } = await supabase
       .from('midweek_meetings')
@@ -2566,6 +2627,17 @@ export const api = {
       `)
       .eq('id', id)
       .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async getMidweekMeetingByDate(date: string) {
+    const { data, error } = await supabase
+      .from('midweek_meetings')
+      .select('*')
+      .eq('date', date)
+      .maybeSingle();
 
     if (error) throw error;
     return data;

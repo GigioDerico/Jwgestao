@@ -5,6 +5,7 @@ import { useNotifications } from '../context/NotificationsContext';
 import { api } from '../lib/api';
 import { formatPhoneDisplay } from '../helpers';
 import { toast } from 'sonner';
+import { AssignmentCalendarActions } from './AssignmentCalendarActions';
 import {
   Users,
   CalendarDays,
@@ -323,7 +324,7 @@ export function Dashboard() {
                 </div>
                 <div className="divide-y divide-border">
                   {group.items.map((notification) => (
-                    <div key={notification.id} className="px-4 md:px-5 py-3.5 flex items-start gap-3 hover:bg-muted/30 transition-colors">
+                    <div key={notification.id} className="px-4 md:px-5 py-3.5 flex flex-wrap items-start gap-3 hover:bg-muted/30 transition-colors">
                       <div className={`mt-0.5 shrink-0 ${notification.status === 'confirmed' ? 'text-green-500' : 'text-amber-500'}`}>
                         {notification.status === 'confirmed' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
                       </div>
@@ -362,26 +363,11 @@ export function Dashboard() {
                           </button>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-1 shrink-0">
-                          <span
-                            className="rounded-full bg-green-50 px-3 py-1 font-medium text-green-700"
-                            style={{ fontSize: '0.75rem' }}
-                          >
-                            Confirmado ✓
-                          </span>
-                          <button
-                            onClick={async () => {
-                              try {
-                                await hideNotification(notification.id);
-                              } catch (e) {
-                                toast.error('Erro ao ocultar');
-                              }
-                            }}
-                            className="p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600 rounded-full transition-colors"
-                            title="Ocultar do painel"
-                          >
-                            <X size={16} />
-                          </button>
+                        <div className="w-full min-w-0 sm:w-auto">
+                          <AssignmentCalendarActions
+                            notification={notification}
+                            onHide={hideNotification}
+                          />
                         </div>
                       )}
                     </div>
