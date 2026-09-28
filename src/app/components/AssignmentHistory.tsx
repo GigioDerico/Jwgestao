@@ -39,10 +39,10 @@ const DESIGNATION_PRIVILEGE_FIELDS: Record<string, string[]> = {
   watchtower_conductor: ['approved_presidente_reuniao'],
   watchtower_reader: ['approved_leitor_atalaia'],
   // Áudio e Vídeo (chaves de getDesignationIdentity)
-  audio_video_sound: ['approved_sound', 'approved_audio_video'],
-  audio_video_image: ['approved_image', 'approved_audio_video'],
-  audio_video_stage: ['approved_stage', 'approved_audio_video'],
-  audio_video_volantes: ['approved_roving_mic', 'approved_audio_video'],
+  audio_video_sound: ['approved_sound'],
+  audio_video_image: ['approved_image'],
+  audio_video_stage: ['approved_stage'],
+  audio_video_volantes: ['approved_roving_mic'],
   audio_video_indicadores: ['approved_indicadores'],
 };
 

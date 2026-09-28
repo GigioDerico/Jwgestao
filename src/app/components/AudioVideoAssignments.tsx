@@ -64,19 +64,19 @@ const SINGLE_ROLE_LABELS = SINGLE_ROLE_CONFIG.reduce<Record<AudioVideoRoleKey, s
 
 function hasPrivilegeForRole(member: MemberOption, role: AudioVideoFilterRoleKey): boolean {
   if (role === 'sound') {
-    return Boolean(member.approved_sound || member.approved_audio_video);
+    return Boolean(member.approved_sound);
   }
 
   if (role === 'image') {
-    return Boolean(member.approved_image || member.approved_audio_video);
+    return Boolean(member.approved_image);
   }
 
   if (role === 'stage') {
-    return Boolean(member.approved_stage || member.approved_audio_video);
+    return Boolean(member.approved_stage);
   }
 
   if (role === 'rovingMic1' || role === 'rovingMic2') {
-    return Boolean(member.approved_roving_mic || member.approved_audio_video);
+    return Boolean(member.approved_roving_mic);
   }
 
   return Boolean(member.approved_indicadores);
