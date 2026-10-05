@@ -71,12 +71,14 @@ export function Layout() {
       { path: '/assignments/field-service', label: 'Saída de Campo' },
       { path: '/assignments/cart', label: 'Carrinho' },
     ]
-    : [
-      ...(canAccessAudioVideo
-        ? [{ path: '/assignments/audio-video', label: 'Áudio e Vídeo' }]
-        : []),
-      ...(user?.approved_carrinho ? [{ path: '/assignments/cart', label: 'Carrinho' }] : []),
-    ];
+    : user?.role === 'publicador'
+      ? [{ path: '/assignments/meetings', label: 'Reunião' }]
+      : [
+        ...(canAccessAudioVideo
+          ? [{ path: '/assignments/audio-video', label: 'Áudio e Vídeo' }]
+          : []),
+        ...(user?.approved_carrinho ? [{ path: '/assignments/cart', label: 'Carrinho' }] : []),
+      ];
 
   const navItems = [
     { path: '/dashboard', label: 'Painel', icon: LayoutDashboard, roles: ['coordenador', 'secretario', 'designador', 'publicador'] },
