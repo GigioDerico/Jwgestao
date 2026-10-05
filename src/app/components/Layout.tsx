@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Outlet, useNavigate, useLocation, Navigate } from 'react-router';
+import { Outlet, useNavigate, useLocation, Navigate, Link } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationsContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { ProfileDrawer } from './ProfileDrawer';
 import { ministryApi } from '../lib/ministry-api';
 import { toast } from 'sonner';
+import { buildMeetingResponseReviewPath, isMeetingDatePast } from '../lib/meeting-assignments';
 import {
   LayoutDashboard,
   Users,
@@ -516,7 +517,10 @@ export function Layout() {
                                   Marcar como lida
                                 </button>
                               )}
-                              {notification.status === 'pending_confirmation' ? (
+                              {notification.status === 'pending_confirmation'
+                                && !(['midweek', 'weekend'].includes(notification.category)
+                                  && Boolean(notification.assignmentDate)
+                                  && isMeetingDatePast(notification.assignmentDate!)) ? (
                                 <button
                                   onClick={async () => {
                                     try {
@@ -530,6 +534,10 @@ export function Layout() {
                                 >
                                   Confirmar
                                 </button>
+                              ) : notification.status === 'pending_confirmation' ? (
+                                <span className="inline-flex items-center gap-1 rounded-lg bg-muted px-2.5 py-1 text-muted-foreground" style={{ fontSize: '0.74rem' }}>
+                                  Reunião no histórico
+                                </span>
                               ) : notification.status === 'declined' ? (
                                 <span className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1 text-rose-700" style={{ fontSize: '0.74rem' }}>
                                   <X size={12} />
@@ -544,6 +552,15 @@ export function Layout() {
                                   <Check size={12} />
                                   Confirmada
                                 </span>
+                              )}
+                              {['midweek', 'weekend'].includes(notification.category) && (
+                                <Link
+                                  to={buildMeetingResponseReviewPath(notification.id, notification.assignmentRevision)}
+                                  className="rounded-lg border border-border px-2.5 py-1 text-primary transition-colors hover:bg-muted"
+                                  style={{ fontSize: '0.74rem' }}
+                                >
+                                  {notification.assignmentDate && isMeetingDatePast(notification.assignmentDate) ? 'Ver histórico' : 'Ver designação'}
+                                </Link>
                               )}
                             </div>
                           </div>

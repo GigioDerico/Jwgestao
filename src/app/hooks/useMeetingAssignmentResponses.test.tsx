@@ -52,4 +52,37 @@ describe('useMeetingAssignmentResponses', () => {
     expect(removeChannel).toHaveBeenCalledTimes(1);
     expect(getResponses).toHaveBeenCalledTimes(3);
   });
+
+  it('clears responses on meeting changes and ignores older overlapping requests', async () => {
+    let resolveFirst!: (rows: any[]) => void;
+    let resolveSecond!: (rows: any[]) => void;
+    let resolveNewMeeting!: (rows: any[]) => void;
+    getResponses
+      .mockReturnValueOnce(new Promise(resolve => { resolveFirst = resolve; }))
+      .mockReturnValueOnce(new Promise(resolve => { resolveSecond = resolve; }))
+      .mockReturnValueOnce(new Promise(resolve => { resolveNewMeeting = resolve; }));
+    const stale = { id: 'old', memberName: 'Designação antiga' } as any;
+    const refreshed = { id: 'refreshed', memberName: 'Resposta atualizada' } as any;
+    const current = { id: 'current', memberName: 'Designação atual' } as any;
+    const { result, rerender } = renderHook(
+      ({ meetingId }) => useMeetingAssignmentResponses('midweek', meetingId, [meetingId], true),
+      { initialProps: { meetingId: 'meeting-1' } },
+    );
+    await waitFor(() => expect(getResponses).toHaveBeenCalledTimes(1));
+
+    act(() => window.dispatchEvent(new Event('focus')));
+    await waitFor(() => expect(getResponses).toHaveBeenCalledTimes(2));
+    resolveSecond([refreshed]);
+    await waitFor(() => expect(result.current).toEqual([refreshed]));
+    resolveFirst([stale]);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(result.current).toEqual([refreshed]);
+
+    rerender({ meetingId: 'meeting-2' });
+    expect(result.current).toEqual([]);
+    await waitFor(() => expect(getResponses).toHaveBeenCalledTimes(3));
+    resolveNewMeeting([current]);
+    await waitFor(() => expect(result.current).toEqual([current]));
+    expect(result.current).toEqual([current]);
+  });
 });

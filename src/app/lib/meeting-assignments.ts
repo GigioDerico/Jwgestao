@@ -48,6 +48,12 @@ export interface ManagedMeetingAssignmentResponse extends AssignmentNotification
   partNumber: number | null;
 }
 
+export function buildMeetingResponseReviewPath(notificationId: string, revision?: string | null): string {
+  const query = new URLSearchParams({ notificationId });
+  if (revision) query.set('revision', revision);
+  return `/assignments/meetings?${query.toString()}`;
+}
+
 function throwRPCError(error: unknown): never {
   throw new Error(`Erro ao acessar designação da reunião: ${(error as { message?: string })?.message || 'falha desconhecida'}`);
 }

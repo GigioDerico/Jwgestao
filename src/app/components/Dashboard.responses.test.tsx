@@ -18,7 +18,14 @@ const { confirm, hideNotification, notifications, apiMock, calendarActionProps }
 
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: { name: 'Maria Teste' }, isAdmin: false }) }));
 vi.mock('../context/NotificationsContext', () => ({ useNotifications: () => ({ notifications, confirm, hideNotification }) }));
-vi.mock('react-router', () => ({ useNavigate: () => vi.fn() }));
+vi.mock('react-router', () => ({
+  useNavigate: () => vi.fn(),
+  Link: (props: any) => <a href={props.to}>{props.children}</a>,
+}));
+vi.mock('../lib/meeting-assignments', () => ({
+  buildMeetingResponseReviewPath: (id: string, revision?: string) => `/assignments/meetings?notificationId=${id}${revision ? `&revision=${revision}` : ''}`,
+  isMeetingDatePast: (date: string) => date < '2026-10-05',
+}));
 vi.mock('../lib/api', () => ({ api: apiMock }));
 vi.mock('./AssignmentCalendarActions', () => ({
   AssignmentCalendarActions: (props: { notification: AssignmentNotification; onHide: (id: string) => Promise<void> }) => {
@@ -66,5 +73,16 @@ describe('Dashboard meeting responses', () => {
 
     expect(await screen.findByText('Nenhuma designação pendente')).toBeVisible();
     expect(screen.queryByText('Presidente')).not.toBeInTheDocument();
+  });
+
+  it('keeps a path to the meeting response page beside quick confirmation', async () => {
+    notifications.push(meetingNotification('pending_confirmation', 'pending-1', { assignmentRevision: 'rev-1' }));
+
+    render(<Dashboard />);
+
+    expect(await screen.findByRole('link', { name: 'Ver designação' })).toHaveAttribute(
+      'href', '/assignments/meetings?notificationId=pending-1&revision=rev-1',
+    );
+    expect(screen.getAllByRole('button', { name: 'Confirmar' }).length).toBeGreaterThan(0);
   });
 });

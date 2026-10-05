@@ -25,7 +25,14 @@ vi.mock('../context/AuthContext', () => ({
 vi.mock('../context/NotificationsContext', () => ({
   useNotifications: () => ({ notifications, confirm, hideNotification }),
 }));
-vi.mock('react-router', () => ({ useNavigate: () => vi.fn() }));
+vi.mock('react-router', () => ({
+  useNavigate: () => vi.fn(),
+  Link: (props: any) => <a href={props.to}>{props.children}</a>,
+}));
+vi.mock('../lib/meeting-assignments', () => ({
+  buildMeetingResponseReviewPath: (id: string, revision?: string) => `/assignments/meetings?notificationId=${id}${revision ? `&revision=${revision}` : ''}`,
+  isMeetingDatePast: (date: string) => date < '2026-10-05',
+}));
 vi.mock('../lib/api', () => ({
   api: apiMock,
 }));

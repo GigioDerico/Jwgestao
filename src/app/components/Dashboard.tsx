@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationsContext';
 import { api } from '../lib/api';
 import { formatPhoneDisplay } from '../helpers';
 import { toast } from 'sonner';
 import { AssignmentCalendarActions } from './AssignmentCalendarActions';
+import { buildMeetingResponseReviewPath, isMeetingDatePast } from '../lib/meeting-assignments';
 import {
   Users,
   CalendarDays,
@@ -192,6 +193,10 @@ export function Dashboard() {
         return true;
       }
 
+      if (['midweek', 'weekend'].includes(notification.category)) {
+        return !isMeetingDatePast(notification.assignmentDate);
+      }
+
       const assignmentDate = new Date(`${notification.assignmentDate}T12:00:00`);
       assignmentDate.setHours(0, 0, 0, 0);
       return !Number.isNaN(assignmentDate.getTime()) && assignmentDate.getTime() >= today.getTime();
@@ -372,6 +377,14 @@ export function Dashboard() {
                           />
                         </div>
                       )}
+                      {['midweek', 'weekend'].includes(notification.category) && (
+                        <Link
+                          to={buildMeetingResponseReviewPath(notification.id, notification.assignmentRevision)}
+                          className="shrink-0 rounded-full border border-primary/25 px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/5"
+                        >
+                          Ver designação
+                        </Link>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -470,6 +483,13 @@ export function Dashboard() {
                         </button>
                       </div>
                     )}
+                    <Link
+                      to={buildMeetingResponseReviewPath(notification.id, notification.assignmentRevision)}
+                      className="mt-2 inline-flex rounded-full border border-white/25 px-3 py-1 text-white/90 transition-colors hover:bg-white/10"
+                      style={{ fontSize: '0.72rem' }}
+                    >
+                      Ver designação
+                    </Link>
                   </div>
                 );
               })
@@ -550,6 +570,13 @@ export function Dashboard() {
                         </button>
                       </div>
                     )}
+                    <Link
+                      to={buildMeetingResponseReviewPath(notification.id, notification.assignmentRevision)}
+                      className="mt-2 inline-flex rounded-full border border-[#082c45]/25 px-3 py-1 text-[#082c45] transition-colors hover:bg-white/30"
+                      style={{ fontSize: '0.72rem' }}
+                    >
+                      Ver designação
+                    </Link>
                   </div>
                 );
               })

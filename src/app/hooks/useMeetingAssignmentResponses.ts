@@ -12,24 +12,31 @@ export function useMeetingAssignmentResponses(
   sourceIds: string[],
   enabled: boolean,
 ) {
-  const [responses, setResponses] = useState<ManagedMeetingAssignmentResponse[]>([]);
+  const [responseState, setResponseState] = useState<{
+    key: string | null;
+    rows: ManagedMeetingAssignmentResponse[];
+  }>({ key: null, rows: [] });
+  const responseKey = enabled && meetingId ? `${kind}:${meetingId}` : null;
   const sourceIdsKey = [...new Set(sourceIds)].sort().join('|');
 
   useEffect(() => {
-    if (!enabled || !meetingId) {
-      setResponses([]);
+    if (!responseKey || !meetingId) {
+      setResponseState({ key: null, rows: [] });
       return;
     }
 
     let active = true;
+    let latestRequest = 0;
     const relevantSourceIds = new Set(sourceIdsKey.split('|').filter(Boolean));
+    setResponseState({ key: responseKey, rows: [] });
     const refresh = async () => {
+      const requestId = ++latestRequest;
       try {
         const rows = await getMeetingAssignmentResponses(kind, meetingId);
-        if (active) setResponses(rows);
+        if (active && requestId === latestRequest) setResponseState({ key: responseKey, rows });
       } catch (error) {
         console.error('Error fetching meeting assignment responses', error);
-        if (active) setResponses([]);
+        if (active && requestId === latestRequest) setResponseState({ key: responseKey, rows: [] });
       }
     };
 
@@ -50,7 +57,7 @@ export function useMeetingAssignmentResponses(
       window.removeEventListener('focus', refresh);
       void supabase.removeChannel(channel);
     };
-  }, [enabled, kind, meetingId, sourceIdsKey]);
+  }, [responseKey, enabled, kind, meetingId, sourceIdsKey]);
 
-  return responses;
+  return responseState.key === responseKey ? responseState.rows : [];
 }

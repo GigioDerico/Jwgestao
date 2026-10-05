@@ -2,6 +2,10 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Layout } from './Layout';
+vi.mock('../lib/meeting-assignments', () => ({
+  buildMeetingResponseReviewPath: (id: string, revision?: string) => `/assignments/meetings?notificationId=${id}${revision ? `&revision=${revision}` : ''}`,
+  isMeetingDatePast: (date: string) => date < '2026-10-05',
+}));
 
 let role = 'publicador';
 let viewPermission = true;
@@ -83,5 +87,20 @@ describe('Layout assignment navigation', () => {
     expect(await screen.findByText('Recusa enviada')).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Confirmar' })).not.toBeInTheDocument();
     expect(screen.queryByText('Confirmada')).not.toBeInTheDocument();
+  });
+
+  it('does not offer quick confirmation for a past meeting and links to its history', async () => {
+    notifications.push({
+      id: 'past-n1', memberId: 'm1', category: 'midweek', sourceType: 'midweek_meeting_role', sourceId: 'meeting1',
+      slotKey: 'president_id', title: 'Presidente', message: 'Presidente em 15/09/2026', assignmentDate: '2026-09-15',
+      status: 'pending_confirmation', isRead: true, createdAt: '2026-09-01T00:00:00Z', assignmentRevision: 'rev-1',
+    });
+    renderLayout();
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir notificações' }));
+
+    expect(await screen.findByRole('link', { name: 'Ver histórico' })).toHaveAttribute(
+      'href', '/assignments/meetings?notificationId=past-n1&revision=rev-1',
+    );
+    expect(screen.queryByRole('button', { name: 'Confirmar' })).not.toBeInTheDocument();
   });
 });
