@@ -54,6 +54,25 @@ export function buildMeetingResponseReviewPath(notificationId: string, revision?
   return `/assignments/meetings?${query.toString()}`;
 }
 
+export function isMeetingAssignmentNotification(
+  notification: Pick<AssignmentNotification, 'category' | 'sourceType' | 'slotKey'>,
+): boolean {
+  if (notification.category === 'midweek') {
+    if (notification.sourceType === 'midweek_meeting_role') {
+      return ['president_id', 'opening_prayer_id', 'closing_prayer_id', 'treasure_talk_speaker_id',
+        'treasure_gems_speaker_id', 'treasure_reading_student_id', 'cbs_conductor_id', 'cbs_reader_id']
+        .includes(notification.slotKey);
+    }
+    if (notification.sourceType === 'midweek_ministry_part') {
+      return ['student_id', 'assistant_id'].includes(notification.slotKey);
+    }
+    return notification.sourceType === 'midweek_christian_life_part' && notification.slotKey === 'speaker_id';
+  }
+
+  return notification.category === 'weekend' && notification.sourceType === 'weekend_meeting_role'
+    && ['president_id', 'watchtower_conductor_id', 'watchtower_reader_id', 'closing_prayer_id'].includes(notification.slotKey);
+}
+
 function throwRPCError(error: unknown): never {
   throw new Error(`Erro ao acessar designação da reunião: ${(error as { message?: string })?.message || 'falha desconhecida'}`);
 }
