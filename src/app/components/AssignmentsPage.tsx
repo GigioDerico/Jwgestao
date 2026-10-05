@@ -51,6 +51,7 @@ const MINISTRY_PART_TYPES = [
   'Explicando suas crenças',
   'Fazendo discípulos',
   'Discurso',
+  'Consideração',
 ] as const;
 
 const MONTHS = [
