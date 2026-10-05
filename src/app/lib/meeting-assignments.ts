@@ -54,7 +54,7 @@ export interface ManagedMeetingAssignmentResponse extends AssignmentNotification
 
 export function buildMeetingResponseReviewPath(notificationId: string, revision?: string | null): string {
   const query = new URLSearchParams({ assignment: notificationId });
-  if (revision) query.set('revision', revision);
+  if (revision) { query.set('revision', revision); query.set('view', 'personal'); }
   return `/assignments/meetings?${query.toString()}`;
 }
 
@@ -167,8 +167,12 @@ export async function resolvePersonalAssignment(notificationId: string, revision
   if (error) throwRPCError(error);
   if (data?.kind === 'unavailable') return { kind: 'unavailable' };
   if (data?.kind === 'changed') {
-    const currentPath = getSafeReturnPath(data.current_path);
-    if (currentPath.startsWith('/assignments/meetings')) return { kind: 'changed', currentPath };
+    const safePath = getSafeReturnPath(data.current_path);
+    if (safePath.startsWith('/assignments/meetings?assignment=')) {
+      const params = new URLSearchParams(safePath.split('?')[1]);
+      params.set('view', 'personal');
+      return { kind: 'changed', currentPath: `/assignments/meetings?${params.toString()}` };
+    }
   }
   if (data?.kind !== 'current' || !data.assignment?.notification || typeof data.assignment.revision !== 'string') {
     return { kind: 'unavailable' };

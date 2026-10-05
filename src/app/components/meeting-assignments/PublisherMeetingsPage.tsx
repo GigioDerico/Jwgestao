@@ -23,11 +23,11 @@ export function PublisherMeetingsPage() {
   const { user } = useAuth();
   const { respondToMeetingAssignment, hideNotification } = useNotifications();
   const memberId = user?.member_id || null;
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const targetAssignmentId = searchParams.get('assignment') || searchParams.get('notificationId');
   const targetRevision = searchParams.get('revision');
   const targetIdentity = `${user?.id || ''}:${memberId || ''}:${targetAssignmentId || ''}:${targetRevision || ''}`;
-  const [targetState, setTargetState] = useState<{ key: string; status: 'loading' | 'ready' | 'unavailable' | 'changed'; changedPath?: string }>({ key: '', status: 'loading' });
+  const [targetState, setTargetState] = useState<{ key: string; status: 'loading' | 'ready' | 'unavailable' | 'changed' | 'resolver-error' | 'list-error'; changedPath?: string }>({ key: '', status: 'loading' });
   const memberLinked = Boolean(memberId);
   const [period, setPeriod] = useState<Period>('upcoming');
   const [meetings, setMeetings] = useState<MeetingSummary[]>([]);
@@ -58,6 +58,7 @@ export function PublisherMeetingsPage() {
     const identity = listIdentity(requestedMember, requestedPeriod);
     setLoadingMeetings(true);
     setLoadError('');
+    let resolvingTarget = false;
     try {
       let targetAssignment: PersonalMeetingAssignment | null = null;
       if (targetAssignmentId || targetRevision) {
@@ -68,7 +69,9 @@ export function PublisherMeetingsPage() {
           setSelected(null); setAssignments([]); setDetailsReady(false);
           return;
         }
+        resolvingTarget = true;
         const resolution = await resolvePersonalAssignment(targetAssignmentId, targetRevision);
+        resolvingTarget = false;
         if (requestId !== meetingsRequestRef.current || memberIdRef.current !== requestedMember || periodRef.current !== requestedPeriod) return;
         if (resolution.kind === 'changed') {
           setTargetState({ key: targetIdentity, status: 'changed', changedPath: resolution.currentPath });
@@ -91,6 +94,7 @@ export function PublisherMeetingsPage() {
           return;
         }
       }
+      if (targetAssignment) resolvingTarget = false;
       const result = await getPersonalMeetings(requestedPeriod);
       if (requestId !== meetingsRequestRef.current || memberIdRef.current !== requestedMember || periodRef.current !== requestedPeriod) return;
       setMeetings(result);
@@ -114,9 +118,11 @@ export function PublisherMeetingsPage() {
         setDetailsReady(false);
         setSelected(next);
       }
+      if (targetAssignment) setMobileDetail(true);
     } catch {
       if (requestId === meetingsRequestRef.current && memberIdRef.current === requestedMember && periodRef.current === requestedPeriod) {
-        setLoadError('Não foi possível carregar as reuniões.');
+        if (targetAssignmentId || targetRevision) setTargetState({ key: targetIdentity, status: resolvingTarget ? 'resolver-error' : 'list-error' });
+        else setLoadError('Não foi possível carregar as reuniões.');
       }
     } finally {
       if (requestId === meetingsRequestRef.current && memberIdRef.current === requestedMember && periodRef.current === requestedPeriod) {
@@ -128,6 +134,10 @@ export function PublisherMeetingsPage() {
   useEffect(() => { void loadMeetings(period); }, [loadMeetings, period]);
 
   const selectMeeting = (meeting: MeetingSummary | null) => {
+    if (targetAssignmentId || targetRevision) {
+      setSearchParams({}, { replace: true });
+      setTargetState({ key: '', status: 'loading' });
+    }
     const nextKey = meeting && memberId ? meetingIdentity(memberId, period, meeting) : null;
     if (nextKey && nextKey === selectedIdentityRef.current) return;
     selectedIdentityRef.current = nextKey;
@@ -179,6 +189,10 @@ export function PublisherMeetingsPage() {
   const pendingCount = useMemo(() => meetings.reduce((sum, meeting) => sum + meeting.pendingCount, 0), [meetings]);
   const choosePeriod = (next: Period) => {
     if (next === period) return;
+    if (targetAssignmentId || targetRevision) {
+      setSearchParams({}, { replace: true });
+      setTargetState({ key: '', status: 'loading' });
+    }
     periodRef.current = next;
     selectedIdentityRef.current = null;
     selectedRef.current = null;
@@ -257,16 +271,6 @@ export function PublisherMeetingsPage() {
     element.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [targetIsActive, detailsAreCurrent, visibleTargetState?.status, targetAssignmentId, assignments]);
 
-  if (targetIsActive && (!visibleTargetState || visibleTargetState.status === 'loading')) {
-    return <main className="mx-auto max-w-3xl p-6" role="status">Verificando sua designação…</main>;
-  }
-  if (targetIsActive && visibleTargetState?.status === 'changed') {
-    return <main className="mx-auto max-w-3xl p-6"><h1 className="text-xl font-semibold">Esta designação foi atualizada</h1><p className="my-3">O link é de uma versão anterior. Confira a designação atual antes de responder.</p><Link className="text-sky-700 underline" to={getSafeReturnPath(visibleTargetState.changedPath)}>Ver designação atual</Link></main>;
-  }
-  if (targetIsActive && visibleTargetState?.status === 'unavailable') {
-    return <main className="mx-auto max-w-3xl p-6"><h1 className="text-xl font-semibold">Designação indisponível</h1><p className="my-3">Não foi possível localizar esta designação para sua conta.</p><Link className="text-sky-700 underline" to="/assignments/meetings">Ir para Reunião</Link></main>;
-  }
-
   if (!memberLinked) return (
     <main className="mx-auto w-full max-w-5xl p-5 sm:p-8">
       <PageTitle pendingCount={0} />
@@ -277,6 +281,17 @@ export function PublisherMeetingsPage() {
       </div>
     </main>
   );
+
+  if (targetIsActive && (!visibleTargetState || visibleTargetState.status === 'loading')) {
+    return <main className="mx-auto max-w-3xl p-6" role="status">Verificando sua designação…</main>;
+  }
+  if (targetIsActive && visibleTargetState?.status === 'changed') {
+    return <main className="mx-auto max-w-3xl p-6"><h1 className="text-xl font-semibold">Esta designação foi atualizada</h1><p className="my-3">O link é de uma versão anterior. Confira a designação atual antes de responder.</p><Link className="text-sky-700 underline" to={getSafeReturnPath(visibleTargetState.changedPath)}>Ver designação atual</Link></main>;
+  }
+  if (targetIsActive && visibleTargetState?.status === 'unavailable') {
+    return <main className="mx-auto max-w-3xl p-6"><h1 className="text-xl font-semibold">Designação indisponível</h1><p className="my-3">Não foi possível localizar esta designação para sua conta.</p><Link className="text-sky-700 underline" to="/assignments/meetings">Ir para Reunião</Link></main>;
+  }
+  if (targetIsActive && (visibleTargetState?.status === 'resolver-error' || visibleTargetState?.status === 'list-error')) return <main className="mx-auto max-w-3xl p-6"><ErrorState message={visibleTargetState.status === 'resolver-error' ? 'Não foi possível verificar esta designação.' : 'Não foi possível carregar as reuniões desta designação.'} onRetry={() => void loadMeetings(period)} /></main>;
 
   return (
     <main className="mx-auto w-full max-w-7xl p-4 sm:p-7 lg:px-10 lg:py-9">

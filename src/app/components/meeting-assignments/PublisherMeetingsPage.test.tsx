@@ -82,13 +82,61 @@ describe('PublisherMeetingsPage', () => {
     await waitFor(() => expect(card.closest('[data-notification-id]')).toHaveAttribute('data-notification-id', notificationId));
     expect(document.activeElement).toHaveAttribute('data-notification-id', notificationId);
     expect(scrollIntoView).toHaveBeenCalled();
+    expect(screen.getByRole('region', { name: 'Detalhes de Reunião de fim de semana' }).parentElement?.className).toBe('block');
+    expect(screen.getByLabelText('Reuniões cadastradas').parentElement?.className).toBe('hidden md:block');
     expect(resolvePersonalAssignment).toHaveBeenCalledWith(notificationId, revision);
+  });
+
+  it('shows the unlinked account message before trying to resolve a target', async () => {
+    currentMemberId = null;
+    renderPublisher('/assignments/meetings?assignment=123e4567-e89b-42d3-a456-426614174000&revision=123e4567-e89b-42d3-a456-426614174001');
+    expect(await screen.findByText('Sua conta ainda não está vinculada a um membro')).toBeVisible();
+    expect(screen.queryByText('Verificando sua designação…')).not.toBeInTheDocument();
+    expect(resolvePersonalAssignment).not.toHaveBeenCalled();
+  });
+
+  it('offers a retry when target resolution fails', async () => {
+    const id = '123e4567-e89b-42d3-a456-426614174000';
+    const revision = '123e4567-e89b-42d3-a456-426614174001';
+    const target = { ...assignment, notification: { ...assignment.notification, id, assignmentRevision: revision }, revision };
+    vi.mocked(resolvePersonalAssignment).mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce({ kind: 'current', assignment: target });
+    vi.mocked(getPersonalMeetingAssignments).mockResolvedValue([target]);
+    renderPublisher(`/assignments/meetings?assignment=${id}&revision=${revision}`);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível verificar esta designação.');
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    expect(await screen.findByRole('heading', { name: /Iniciando conversas/ })).toBeVisible();
+  });
+
+  it('offers an independent retry when the meeting list for a valid target fails', async () => {
+    const id = '123e4567-e89b-42d3-a456-426614174000';
+    const revision = '123e4567-e89b-42d3-a456-426614174001';
+    const target = { ...assignment, notification: { ...assignment.notification, id, assignmentRevision: revision }, revision };
+    vi.mocked(resolvePersonalAssignment).mockResolvedValue({ kind: 'current', assignment: target });
+    vi.mocked(getPersonalMeetingAssignments).mockResolvedValue([target]);
+    vi.mocked(getPersonalMeetings).mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce(meetings);
+    renderPublisher(`/assignments/meetings?assignment=${id}&revision=${revision}`);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Não foi possível carregar as reuniões desta designação.');
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    expect(await screen.findByRole('heading', { name: /Iniciando conversas/ })).toBeVisible();
+  });
+
+  it('clears the initial target when the user deliberately selects another meeting', async () => {
+    const id = '123e4567-e89b-42d3-a456-426614174000';
+    const revision = '123e4567-e89b-42d3-a456-426614174001';
+    const target = { ...assignment, notification: { ...assignment.notification, id, assignmentRevision: revision }, revision };
+    vi.mocked(resolvePersonalAssignment).mockResolvedValue({ kind: 'current', assignment: target });
+    vi.mocked(getPersonalMeetingAssignments).mockImplementation(async (_kind, meetingId) => meetingId === 'meeting-1' ? [target] : []);
+    renderPublisher(`/assignments/meetings?assignment=${id}&revision=${revision}`);
+    await screen.findByRole('heading', { name: /Iniciando conversas/ });
+    await userEvent.setup().click(screen.getByRole('button', { name: /Reunião de fim de semana/ }));
+    expect(await screen.findByText('Você não tem designação nesta reunião')).toBeVisible();
+    expect(screen.queryByText('Verificando sua designação…')).not.toBeInTheDocument();
   });
 
   it('lists registered meetings and shows only personal assignments, without the meeting schedule', async () => {
     renderPublisher();
     expect(await screen.findByRole('heading', { name: 'Suas próximas reuniões' })).toBeVisible();
-    expect(screen.getByText('Não informado')).toBeVisible();
+    expect(screen.getAllByText('Não informado').length).toBeGreaterThan(0);
     expect(await screen.findByRole('heading', { name: /4\. Iniciando conversas/ })).toBeVisible();
     const region = screen.getByRole('region', { name: 'Reuniões e designações pessoais' });
     expect(region.className).toContain('md:grid-cols-');

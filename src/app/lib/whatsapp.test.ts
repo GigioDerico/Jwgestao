@@ -33,6 +33,21 @@ describe('meeting designation WhatsApp modes', () => {
     expect(decodeURIComponent(popup.location.href)).toContain(url);
     open.mockRestore();
   });
+  it('keeps the explicit WhatsApp intent for browser Android in the reserved window', async () => {
+    const popup = { location: { href: '' }, close: vi.fn(), opener: {} } as any;
+    const open = vi.spyOn(window, 'open').mockReturnValue(popup);
+    const userAgent = Object.getOwnPropertyDescriptor(window.navigator, 'userAgent');
+    Object.defineProperty(window.navigator, 'userAgent', { configurable: true, value: 'Mozilla/5.0 (Linux; Android 14)' });
+    try {
+      await openDesignationInWhatsAppWithLink(data, async () => url);
+      expect(popup.location.href).toMatch(/^intent:\/\/send\?/);
+      expect(popup.location.href).toContain('package=com.whatsapp');
+      expect(popup.location.href).toContain('S.browser_fallback_url=');
+    } finally {
+      if (userAgent) Object.defineProperty(window.navigator, 'userAgent', userAgent);
+      open.mockRestore();
+    }
+  });
   it('closes the reserved window when preparing the link fails', async () => {
     const popup = { location: { href: '' }, close: vi.fn(), opener: {} } as any;
     vi.spyOn(window, 'open').mockReturnValue(popup);

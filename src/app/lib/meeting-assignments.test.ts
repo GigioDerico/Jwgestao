@@ -46,14 +46,14 @@ describe('personal meeting assignment API', () => {
   it('does not replace a stale link version with the fresh version', async () => {
     rpc.mockResolvedValue({ data: { kind: 'changed', current_path: '/assignments/meetings?assignment=123e4567-e89b-42d3-a456-426614174002&revision=123e4567-e89b-42d3-a456-426614174003' }, error: null });
     await expect(resolvePersonalAssignment('123e4567-e89b-42d3-a456-426614174000', '123e4567-e89b-42d3-a456-426614174001')).resolves.toEqual({
-      kind: 'changed', currentPath: '/assignments/meetings?assignment=123e4567-e89b-42d3-a456-426614174002&revision=123e4567-e89b-42d3-a456-426614174003',
+      kind: 'changed', currentPath: '/assignments/meetings?assignment=123e4567-e89b-42d3-a456-426614174002&revision=123e4567-e89b-42d3-a456-426614174003&view=personal',
     });
   });
 
   it('builds the RPC current-path contract with the assignment parameter', async () => {
     const { buildMeetingResponseReviewPath } = await import('./meeting-assignments');
     expect(buildMeetingResponseReviewPath('123e4567-e89b-42d3-a456-426614174000', '123e4567-e89b-42d3-a456-426614174001'))
-      .toBe('/assignments/meetings?assignment=123e4567-e89b-42d3-a456-426614174000&revision=123e4567-e89b-42d3-a456-426614174001');
+      .toBe('/assignments/meetings?assignment=123e4567-e89b-42d3-a456-426614174000&revision=123e4567-e89b-42d3-a456-426614174001&view=personal');
   });
 
   it('rejects malformed notification IDs or revisions before calling the response RPC', async () => {
@@ -61,11 +61,9 @@ describe('personal meeting assignment API', () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it('accepts only the internal meetings list as a safe changed destination', async () => {
+  it('rejects a changed destination that does not identify the current version', async () => {
     rpc.mockResolvedValue({ data: { kind: 'changed', current_path: '/assignments/meetings' }, error: null });
-    await expect(resolvePersonalAssignment('123e4567-e89b-42d3-a456-426614174000', '123e4567-e89b-42d3-a456-426614174001')).resolves.toEqual({
-      kind: 'changed', currentPath: '/assignments/meetings',
-    });
+    await expect(resolvePersonalAssignment('123e4567-e89b-42d3-a456-426614174000', '123e4567-e89b-42d3-a456-426614174001')).resolves.toEqual({ kind: 'unavailable' });
   });
 
   it('requires the loaded revision when writing a response', async () => {

@@ -28,10 +28,12 @@ export function getSafeReturnPath(value: unknown): string {
     const revision = params.get('revision');
     const id = assignment || notificationId;
     const expectedIdKey = assignment ? 'assignment' : 'notificationId';
+    const view = params.get('view');
     if (id && !(assignment && notificationId) && revision && uuid.test(id) && uuid.test(revision)
       && params.getAll(expectedIdKey).length === 1 && params.getAll('revision').length === 1
-      && [...params.keys()].every(key => key === expectedIdKey || key === 'revision')) {
-      return `${pathname}?assignment=${encodeURIComponent(id)}&revision=${encodeURIComponent(revision)}`;
+      && (view === null || (view === 'personal' && params.getAll('view').length === 1))
+      && [...params.keys()].every(key => key === expectedIdKey || key === 'revision' || key === 'view')) {
+      return `${pathname}?assignment=${encodeURIComponent(id)}&revision=${encodeURIComponent(revision)}${view ? '&view=personal' : ''}`;
     }
     return '/dashboard';
   }

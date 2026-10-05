@@ -8,6 +8,10 @@ describe('getSafeReturnPath', () => {
     expect(getSafeReturnPath(value)).toBe('/dashboard');
   });
   it('allows the RPC current-designation route using assignment and revision', () => expect(getSafeReturnPath('/assignments/meetings?assignment=123e4567-e89b-42d3-a456-426614174000&revision=123e4567-e89b-42d3-a456-426614174001')).toBe('/assignments/meetings?assignment=123e4567-e89b-42d3-a456-426614174000&revision=123e4567-e89b-42d3-a456-426614174001'));
+  it('preserves personal recipient view only with a validated assignment and revision', () => {
+    expect(getSafeReturnPath('/assignments/meetings?assignment=123e4567-e89b-42d3-a456-426614174000&revision=123e4567-e89b-42d3-a456-426614174001&view=personal')).toContain('view=personal');
+    expect(getSafeReturnPath('/assignments/meetings?view=personal')).toBe('/dashboard');
+  });
   it('retains backwards-compatible notificationId review paths', () => expect(getSafeReturnPath('/assignments/meetings?notificationId=123e4567-e89b-42d3-a456-426614174000&revision=123e4567-e89b-42d3-a456-426614174001')).toContain('assignment='));
   it('rejects conflicting or duplicate assignment identifiers', () => {
     expect(getSafeReturnPath('/assignments/meetings?assignment=123e4567-e89b-42d3-a456-426614174000&notificationId=123e4567-e89b-42d3-a456-426614174000&revision=123e4567-e89b-42d3-a456-426614174001')).toBe('/dashboard');

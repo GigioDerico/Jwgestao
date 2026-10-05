@@ -152,7 +152,12 @@ async function openWaMeLink(phone: string, text: string, reservedWindow?: Window
     const link = buildWaMeLink(phone, text);
     if (reservedWindow) {
         reservedWindow.opener = null;
-        reservedWindow.location.href = link;
+        if (/Android/i.test(navigator.userAgent)) {
+            const number = formatPhoneForWhatsApp(phone);
+            reservedWindow.location.href =
+                `intent://send?phone=${number}&text=${encodeURIComponent(text)}` +
+                `#Intent;scheme=whatsapp;package=com.whatsapp;S.browser_fallback_url=${encodeURIComponent(link)};end`;
+        } else reservedWindow.location.href = link;
         return;
     }
 
