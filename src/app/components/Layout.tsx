@@ -208,7 +208,7 @@ export function Layout() {
   }
 
   if (!user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={`/?returnTo=${encodeURIComponent(location.pathname + location.search)}`} replace />;
   }
 
   return (

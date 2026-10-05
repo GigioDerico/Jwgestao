@@ -20,6 +20,7 @@ export interface DesignationMessageData {
     meetingTitle?: string;
     assignmentLabel?: string;
     observationText?: string;
+    assignmentUrl?: string;
 }
 
 export interface PlainWhatsAppMessageData {
@@ -116,7 +117,7 @@ function formatPhoneForWhatsApp(phone: string) {
     return formattedPhone;
 }
 
-function buildDesignationMessage(data: DesignationMessageData): string {
+export function buildDesignationMessage(data: DesignationMessageData): string {
     const title = data.meetingTitle || 'DESIGNAÇÃO PARA A REUNIÃO NOSSA VIDA E MINISTÉRIO CRISTÃO';
     const assignmentLabel =
         data.assignmentLabel ||
@@ -138,7 +139,7 @@ ${assignmentLabel}: ${data.partNumber}
 
 Local: ${data.location}
 
-Observação: ${observationText}`;
+Observação: ${observationText}${data.assignmentUrl ? `\n\nConfira os detalhes e confirme sua participação ou informe se não puder participar:\n${data.assignmentUrl}` : ''}`;
 }
 
 // Link "click to chat" oficial: abre o WhatsApp do próprio usuário (app ou

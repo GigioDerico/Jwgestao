@@ -25,6 +25,8 @@ import { sendDesignationWhatsApp, openDesignationInWhatsApp } from '../lib/whats
 import { AssignmentHistory } from './AssignmentHistory';
 import { AssignmentResponseBadge } from './meeting-assignments/AssignmentResponseBadge';
 import { useMeetingAssignmentResponses } from '../hooks/useMeetingAssignmentResponses';
+import { getMeetingAssignmentResponses } from '../lib/meeting-assignments';
+import { getRecipientMeetingAssignmentUrl } from '../lib/meeting-assignment-links';
 
 type MeetingEditField = {
   label: string;
@@ -838,26 +840,44 @@ function MeetingsAssignmentsContent({
     member => member.spiritual_status === 'anciao' || member.spiritual_status === 'servo_ministerial',
   );
 
-  const sendWhatsAppDesignation = async (payload: Parameters<typeof sendDesignationWhatsApp>[0]) => {
+  const getAssignmentUrl = async (meetingId: string, sourceType: string, sourceId: string, slotKey: string, memberId?: string | null) => {
+    if (!memberId) throw new Error('Não foi possível identificar o membro desta designação para criar um link de resposta.');
+    if (meetingType === 'weekend') await api.syncWeekendMeetingNotifications(meetingId);
+    else if (sourceType === 'midweek_ministry_part') await api.syncMidweekMinistryPartNotifications(sourceId);
+    else if (sourceType === 'midweek_christian_life_part') await api.syncMidweekChristianLifePartNotifications(sourceId);
+    else await api.syncMidweekMeetingNotifications(meetingId);
+    const rows = await getMeetingAssignmentResponses(meetingType, meetingId);
+    return getRecipientMeetingAssignmentUrl(rows, memberId, sourceType, sourceId, slotKey);
+  };
+  const sendWithAssignmentLink = async (payload: Parameters<typeof sendDesignationWhatsApp>[0], resolveUrl?: () => Promise<string | undefined>) => {
+    const assignmentUrl = resolveUrl ? await resolveUrl() : undefined;
+    return sendDesignationWhatsApp({ ...payload, ...(assignmentUrl ? { assignmentUrl } : {}) });
+  };
+  const openWithAssignmentLink = async (payload: Parameters<typeof sendDesignationWhatsApp>[0], resolveUrl?: () => Promise<string | undefined>) => {
+    const assignmentUrl = resolveUrl ? await resolveUrl() : undefined;
+    return openDesignationInWhatsApp({ ...payload, ...(assignmentUrl ? { assignmentUrl } : {}) });
+  };
+
+  const sendWhatsAppDesignation = async (payload: Parameters<typeof sendDesignationWhatsApp>[0], resolveUrl?: () => Promise<string | undefined>) => {
     const toastId = toast.loading('Enviando WhatsApp...');
 
     try {
-      await sendDesignationWhatsApp(payload);
+      await sendWithAssignmentLink(payload, resolveUrl);
       toast.success('Designação enviada com sucesso!', { id: toastId });
     } catch (err: any) {
       toast.error(err.message || 'Erro ao enviar WhatsApp.', { id: toastId });
     }
   };
 
-  const openDesignationOnMyWhatsApp = async (payload: Parameters<typeof sendDesignationWhatsApp>[0]) => {
+  const openDesignationOnMyWhatsApp = async (payload: Parameters<typeof sendDesignationWhatsApp>[0], resolveUrl?: () => Promise<string | undefined>) => {
     try {
-      await openDesignationInWhatsApp(payload);
+      await openWithAssignmentLink(payload, resolveUrl);
     } catch (err: any) {
       toast.error(err.message || 'Erro ao abrir o WhatsApp.');
     }
   };
 
-  const renderWhatsAppButton = (payload: Parameters<typeof sendDesignationWhatsApp>[0] | null) => {
+  const renderWhatsAppButton = (payload: Parameters<typeof sendDesignationWhatsApp>[0] | null, resolveUrl?: () => Promise<string | undefined>) => {
     if (!payload?.phone) {
       return null;
     }
@@ -865,14 +885,14 @@ function MeetingsAssignmentsContent({
     return (
       <div className="flex justify-end gap-2 pr-3 pt-1">
         <button
-          onClick={() => openDesignationOnMyWhatsApp(payload)}
+          onClick={() => openDesignationOnMyWhatsApp(payload, resolveUrl)}
           className="flex items-center gap-1.5 text-[0.8rem] font-medium text-emerald-700 hover:text-emerald-800 bg-white hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors border border-emerald-200"
         >
           <MessageCircle size={15} />
           Pelo meu WhatsApp
         </button>
         <button
-          onClick={() => sendWhatsAppDesignation(payload)}
+          onClick={() => sendWhatsAppDesignation(payload, resolveUrl)}
           className="flex items-center gap-1.5 text-[0.8rem] font-medium text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition-colors border border-green-100"
         >
           <MessageCircle size={15} />
@@ -1399,7 +1419,8 @@ function MeetingsAssignmentsContent({
                   location: MIDWEEK_PRIMARY_ROOM,
                   phone: meeting.treasure_reading_student.phone,
                 }
-                : null
+                : null,
+              () => getAssignmentUrl(meeting.id, 'midweek_meeting_role', meeting.id, 'treasure_reading_student_id', meeting.treasure_reading_student_id)
             )}
           </AssignmentSection>
 
@@ -1437,8 +1458,15 @@ function MeetingsAssignmentsContent({
                             location: part.room || MIDWEEK_PRIMARY_ROOM,
                             phone: part.student.phone,
                           }
-                          : null
+                          : null,
+                        () => getAssignmentUrl(meeting.id, 'midweek_ministry_part', part.id, 'student_id', part.student_id)
                       )}
+                      {renderWhatsAppButton(part.assistant?.phone ? {
+                        studentName: part.assistant.full_name,
+                        meetingTitle: 'DESIGNAÇÃO COMO AJUDANTE NA REUNIÃO NOSSA VIDA E MINISTÉRIO CRISTÃO',
+                        date: new Date(meeting.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+                        partNumber: displayNumber, location: part.room || MIDWEEK_PRIMARY_ROOM, phone: part.assistant.phone,
+                      } : null, () => getAssignmentUrl(meeting.id, 'midweek_ministry_part', part.id, 'assistant_id', part.assistant_id))}
                     </>
                   );
                 })()}
@@ -1632,7 +1660,8 @@ function MeetingsAssignmentsContent({
                 location: MIDWEEK_PRIMARY_ROOM,
                 phone: meeting.president.phone,
               }
-              : null
+              : null,
+            () => getAssignmentUrl(meeting.id, 'weekend_meeting_role', meeting.id, 'president_id', meeting.president_id)
           )}
           <AssignmentField label="Tema" value={meeting.talk_theme || 'Não definido'} onClick={() => openEdit({ label: 'Tema', mode: 'text', currentValue: meeting.talk_theme || '', table: 'weekend_meetings', rowId: meeting.id, column: 'talk_theme' })} canEdit={canEditAssignments} />
           <AssignmentField
@@ -1678,7 +1707,8 @@ function MeetingsAssignmentsContent({
                   location: MIDWEEK_PRIMARY_ROOM,
                   phone: meeting.watchtower_reader.phone,
                 }
-                : null
+                : null,
+              () => getAssignmentUrl(meeting.id, 'weekend_meeting_role', meeting.id, 'watchtower_reader_id', meeting.watchtower_reader_id)
             )}
           </AssignmentSection>
         )}

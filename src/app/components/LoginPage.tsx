@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, Navigate } from 'react-router';
+import { useNavigate, Navigate, useLocation } from 'react-router';
+import { getSafeReturnPath } from '../lib/auth-return-path';
 import { useAuth } from '../context/AuthContext';
 import { formatPhoneDisplay } from '../helpers';
 import { Eye, EyeOff, Phone, Loader2 } from 'lucide-react';
@@ -16,6 +17,8 @@ export function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const { login, user, loading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = getSafeReturnPath(new URLSearchParams(location.search).get('returnTo'));
 
   useEffect(() => {
     try {
@@ -41,7 +44,7 @@ export function LoginPage() {
   }
 
   if (user) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={returnTo} replace />;
   }
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -86,7 +89,7 @@ export function LoginPage() {
         setError(errorMsg);
       }
     } else {
-      navigate('/dashboard');
+      navigate(returnTo, { replace: true });
     }
   };
 

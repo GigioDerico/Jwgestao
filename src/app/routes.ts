@@ -5,6 +5,7 @@ import { Dashboard } from './components/Dashboard';
 import { MembersList } from './components/MembersList';
 import { MeetingsPage } from './components/MeetingsPage';
 import { MeetingAssignmentsRoute } from './components/MeetingAssignmentsRoute';
+import { MeetingAssignmentLinkRoute } from './components/MeetingAssignmentLinkRoute';
 import {
   AudioVideoAssignmentsPage,
   CartAssignmentsPage,
@@ -50,6 +51,7 @@ export const router = createBrowserRouter([
       { path: 'meetings', Component: MeetingsPage },
       { path: 'assignments', loader: () => redirect('/assignments/meetings') },
       { path: 'assignments/meetings', Component: MeetingAssignmentsRoute },
+      { path: 'assignments/meetings/respond/:notificationId', Component: MeetingAssignmentLinkRoute },
       { path: 'assignments/audio-video', Component: AudioVideoAssignmentsPage },
       { path: 'assignments/field-service', Component: FieldServiceAssignmentsPage },
       { path: 'assignments/cart', Component: CartAssignmentsPage },
