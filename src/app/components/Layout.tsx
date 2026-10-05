@@ -66,20 +66,25 @@ export function Layout() {
     Boolean(user?.approved_stage) ||
     Boolean(user?.approved_roving_mic) ||
     Boolean(user?.approved_indicadores);
+  const personalMeetingsLink = user?.role === 'publicador'
+    ? { path: '/assignments/meetings', label: 'Reunião' }
+    : { path: '/assignments/my-meetings', label: 'Minhas Designações' };
   const assignmentChildren = canManageAssignments
     ? [
       { path: '/assignments/meetings', label: 'Reuniões' },
+      personalMeetingsLink,
       { path: '/assignments/audio-video', label: 'Áudio e Vídeo' },
       { path: '/assignments/field-service', label: 'Saída de Campo' },
       { path: '/assignments/cart', label: 'Carrinho' },
     ]
     : user?.role === 'publicador'
       ? [
-        { path: '/assignments/meetings', label: 'Reunião' },
+        personalMeetingsLink,
         ...(canAccessAudioVideo ? [{ path: '/assignments/audio-video', label: 'Áudio e Vídeo' }] : []),
         ...(user?.approved_carrinho ? [{ path: '/assignments/cart', label: 'Carrinho' }] : []),
       ]
       : [
+        ...(canViewAssignments ? [personalMeetingsLink] : []),
         ...(canAccessAudioVideo
           ? [{ path: '/assignments/audio-video', label: 'Áudio e Vídeo' }]
           : []),
@@ -95,7 +100,7 @@ export function Layout() {
         path: '/assignments',
         label: 'Designações',
         icon: BookOpen,
-        roles: ['coordenador', 'designador', 'publicador'],
+        roles: ['coordenador', 'secretario', 'designador', 'publicador'],
         children: assignmentChildren,
       }]
       : []),

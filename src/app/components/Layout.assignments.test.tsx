@@ -64,9 +64,16 @@ describe('Layout assignment navigation', () => {
     role = 'coordenador';
     renderLayout();
     expect(screen.getAllByRole('button', { name: 'Reuniões' })).toHaveLength(2);
+    expect(screen.getByRole('button', { name: 'Minhas Designações' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Áudio e Vídeo' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Saída de Campo' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Carrinho' })).toBeVisible();
+  });
+  it('shows personal meeting assignments to secretaries', () => {
+    role = 'secretario';
+    renderLayout();
+    expect(screen.getByRole('button', { name: 'Minhas Designações' })).toBeVisible();
+    expect(screen.getAllByRole('button', { name: 'Reuniões' })).toHaveLength(1);
   });
   it('does not show Designações when the permission is absent', () => {
     viewPermission = false;

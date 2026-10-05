@@ -51,6 +51,7 @@ export const router = createBrowserRouter([
       { path: 'meetings', Component: MeetingsPage },
       { path: 'assignments', loader: () => redirect('/assignments/meetings') },
       { path: 'assignments/meetings', Component: MeetingAssignmentsRoute },
+      { path: 'assignments/my-meetings', Component: MeetingAssignmentsRoute },
       { path: 'assignments/meetings/respond/:notificationId', Component: MeetingAssignmentLinkRoute },
       { path: 'assignments/audio-video', Component: AudioVideoAssignmentsPage },
       { path: 'assignments/field-service', Component: FieldServiceAssignmentsPage },

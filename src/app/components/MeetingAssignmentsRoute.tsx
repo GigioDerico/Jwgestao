@@ -11,6 +11,7 @@ export function MeetingAssignmentsRoute() {
   const location = useLocation();
   if (loading) return <div className="p-8 text-center text-sm text-muted-foreground" role="status">Carregando…</div>;
   if (!user) return <Navigate to="/" replace />;
+  if (location.pathname === '/assignments/my-meetings' && can('view_assignments')) return <PublisherMeetingsPage />;
   if (user.role === 'publicador' && can('view_assignments')) return <PublisherMeetingsPage />;
   const target = new URLSearchParams(location.search);
   const personalTarget = target.get('view') === 'personal'

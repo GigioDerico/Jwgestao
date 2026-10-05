@@ -13,6 +13,7 @@ vi.mock('./meeting-assignments/PublisherMeetingsPage', () => ({ PublisherMeeting
 function renderRoute(path = '/assignments/meetings') {
   return render(<MemoryRouter initialEntries={[path]}><Routes>
     <Route path="/assignments/meetings" element={<MeetingAssignmentsRoute />} />
+    <Route path="/assignments/my-meetings" element={<MeetingAssignmentsRoute />} />
     <Route path="/dashboard" element={<div>Painel</div>} />
   </Routes></MemoryRouter>);
 }
@@ -29,6 +30,12 @@ describe('MeetingAssignmentsRoute', () => {
     renderRoute();
     expect(screen.getByText('Administração existente')).toBeVisible();
     expect(screen.queryByText('Designações pessoais')).not.toBeInTheDocument();
+  });
+  it.each(['coordenador', 'designador', 'secretario'])('opens personal assignments for %s on the separate route', elevatedRole => {
+    role = elevatedRole;
+    renderRoute('/assignments/my-meetings');
+    expect(screen.getByText('Designações pessoais')).toBeVisible();
+    expect(screen.queryByText('Administração existente')).not.toBeInTheDocument();
   });
   it.each(['coordenador', 'designador'])('opens the personal recipient view for %s only on a validated versioned target', adminRole => {
     role = adminRole;

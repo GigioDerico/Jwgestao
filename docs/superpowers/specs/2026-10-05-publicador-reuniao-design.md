@@ -70,7 +70,7 @@ Referência visual durável: `docs/superpowers/prototypes/2026-10-05-publicador-
 - O retorno de dados da nova tela contém resumos das reuniões e detalhes das próprias partes, sem carregar o cronograma inteiro ou dados pessoais de outros designados; o nome do parceiro da própria parte é permitido.
 - Reutilizar o contexto de notificações para manter os estados consistentes com o Painel e a lista de notificações. Recusas deixam de contar como pendentes e nunca aparecem como confirmadas.
 - Ocultar uma notificação não remove a designação da nova tela. Os dados desta tela não dependem apenas da lista de notificações visíveis.
-- Os acessos administrativos existentes continuam usando a tela de gestão; Publicador recebe a experiência aprovada na rota de reuniões de Designações.
+- Todos os perfis com permissão `view_assignments` podem abrir a experiência pessoal de reuniões. Publicador acessa pelo item **Reunião**; secretário, coordenador e designador também recebem **Minhas Designações**. Coordenador e designador mantêm, em item separado, a tela administrativa existente de **Reuniões**.
 - O link direto deve funcionar também para um coordenador ou designador que seja o próprio destinatário, sem tirar seu acesso à gestão.
 - Entregar alterações de banco em migration versionada; a publicação requer aplicação da migration correspondente.
 
