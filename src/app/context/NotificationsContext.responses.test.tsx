@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NotificationsProvider, useNotifications } from './NotificationsContext';
+import type { AssignmentNotification } from '../types';
 
 const api = vi.hoisted(() => ({
   getMyAssignmentNotifications: vi.fn(),
@@ -62,5 +63,17 @@ describe('NotificationsContext meeting responses', () => {
     const { result } = renderHook(() => useNotifications(), { wrapper: NotificationsProvider });
     await waitFor(() => expect(result.current.notifications).toHaveLength(1));
     expect(result.current.pendingCount).toBe(0);
+  });
+
+  it('returns the response record after the database confirms it', async () => {
+    const { result } = renderHook(() => useNotifications(), { wrapper: NotificationsProvider });
+    await waitFor(() => expect(result.current.notifications).toHaveLength(1));
+    let saved: AssignmentNotification | undefined;
+    await act(async () => {
+      saved = await result.current.respondToMeetingAssignment({
+        notificationId: 'n1', revision: 'rev1', decision: 'confirmed',
+      });
+    });
+    expect(saved).toEqual({ ...meetingNotification, status: 'confirmed' });
   });
 });

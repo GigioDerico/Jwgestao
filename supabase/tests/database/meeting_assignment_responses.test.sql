@@ -432,35 +432,57 @@ update public.member_assignment_notifications set hidden_at='2026-10-05 14:00:00
 where id=pg_temp.meeting_test_id('04',1);
 update public.member_assignment_notifications set status='declined', decline_reason='Private reason secret', responded_at=now()
 where source_id=pg_temp.meeting_test_id('06',1) and slot_key='assistant_id' and member_id=pg_temp.meeting_test_id('02',2);
-delete from public.member_assignment_notifications where id=pg_temp.meeting_test_id('04',8);
+update public.member_assignment_notifications set status='declined', decline_reason='Meu motivo pessoal', responded_at=now()
+where source_id=pg_temp.meeting_test_id('06',1) and slot_key='student_id' and member_id=pg_temp.meeting_test_id('02',1);
 update public.midweek_meetings set president_id=pg_temp.meeting_test_id('02',2) where id=pg_temp.meeting_test_id('03',8);
+insert into public.midweek_ministry_parts(id,meeting_id,part_number,title,duration,student_id,assistant_id)
+values(pg_temp.meeting_test_id('13',8),pg_temp.meeting_test_id('03',8),5,'Parte histórica',5,
+  pg_temp.meeting_test_id('02',2),pg_temp.meeting_test_id('02',3));
 insert into public.member_assignment_notifications(id,member_id,source_type,source_id,slot_key,category,assignment_date,
   title,message,status,assignment_revision,revoked_at)
-select pg_temp.meeting_test_id('10',8),pg_temp.meeting_test_id('02',1),'midweek_meeting_role',m.id,'president_id','midweek',m.date,
-  'Reunião','Presidente na reunião', 'revoked',pg_temp.meeting_test_id('05',8),now()
-from public.midweek_meetings m where m.id=pg_temp.meeting_test_id('03',8);
+select pg_temp.meeting_test_id('10',8),pg_temp.meeting_test_id('02',1),'midweek_ministry_part',p.id,'student_id','midweek',m.date,
+  'Reunião','Estudante na parte histórica', 'revoked',pg_temp.meeting_test_id('05',8),now()
+from public.midweek_ministry_parts p join public.midweek_meetings m on m.id=p.meeting_id
+where p.id=pg_temp.meeting_test_id('13',8);
+update public.midweek_meetings set date=(now() at time zone 'America/Sao_Paulo')::date-2
+where id=pg_temp.meeting_test_id('03',1);
 set local role authenticated;
 select set_config('request.jwt.claim.sub', pg_temp.meeting_test_id('01',1)::text, true);
 select ok(jsonb_array_length(public.get_personal_meetings('upcoming')) > 0, 'upcoming list includes registered meetings even when assignments are not pending');
 select is(jsonb_array_length(public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',1))),3,
   'personal detail includes the member roles, student slot and Christian life slot');
-select ok((public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',1))->0->'notification'->>'status') is not null,
-  'personal assignment response includes this member notification status');
+select is((public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',1))->0->'notification'->>'status'),
+  'confirmed', 'personal assignment preserves recorded response status');
+select ok(not exists(select 1 from jsonb_array_elements(public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',1))) a(value)
+  where (a.value->>'can_respond')::boolean), 'future notification date cannot make a now-past meeting respondable');
+select is((select (m->>'pending_count')::integer from jsonb_array_elements(public.get_personal_meetings('past')) m
+  where m->>'id'=pg_temp.meeting_test_id('03',1)::text), 0, 'past meeting contributes zero to personal pending count');
 select ok(not (public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',1))::text ~ 'Private reason secret|555|phone|phone_number'),
   'personal detail excludes unrelated decline reasons and telephone fields');
 select is((select a.value->'notification'->>'hidden_at' from jsonb_array_elements(public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',1))) as a(value)
   where a.value->'notification'->>'id'=pg_temp.meeting_test_id('04',1)::text), '2026-10-05T14:00:00+00:00',
   'hidden confirmed notification remains available with independent hidden timestamp');
-select ok((select a->'notification'->>'status'='declined' and a->'notification'->>'decline_reason' is null
+select ok((select a.value->'notification'->>'status'='confirmed' and a.value->'notification'->>'decline_reason' is null
   from jsonb_array_elements(public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',1))) as a(value)
-  where a.value->'notification'->>'id'=pg_temp.meeting_test_id('04',2)::text),
-  'personal response never contains another assigned member refusal reason');
-select is((select a.value->'notification'->>'status' from jsonb_array_elements(public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',8))) as a(value)),
-  'revoked', 'past assignment without a snapshot retains only the member’s recorded revocation');
-select is((select a.value->>'role_label' from jsonb_array_elements(public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',8))) as a(value)),
+  where a.value->'notification'->>'id'=pg_temp.meeting_test_id('04',1)::text),
+  'the returned own response has its own correct status and no unrelated decline reason');
+select is((select a.value->'notification'->>'decline_reason' from jsonb_array_elements(public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',1))) as a(value)
+  where a.value->'notification'->>'source_id'=pg_temp.meeting_test_id('06',1)::text
+    and a.value->'notification'->>'slot_key'='student_id'),
+  'Meu motivo pessoal', 'member sees the refusal reason attached to their own assignment');
+select is((select a.value->'notification'->>'status' from jsonb_array_elements(public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',8))) as a(value)
+  where a.value->'notification'->>'id'=pg_temp.meeting_test_id('04',8)::text),
+  'revoked', 'past assignment revoked after its date remains in history with its response state');
+select is((select a.value->>'role_label' from jsonb_array_elements(public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',8))) as a(value)
+  where a.value->'notification'->>'id'=pg_temp.meeting_test_id('04',8)::text),
+  'Presidente', 'snapshot preserves the former publisher’s own assignment details');
+select ok(not (public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',8))::text ~ 'Meeting response fixture 2|phone|Private reason secret'),
+  'revoked historical detail does not show the current assignee or their private response');
+select is((select a.value->>'role_label' from jsonb_array_elements(public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',8))) as a(value)
+  where a.value->'notification'->>'id'=pg_temp.meeting_test_id('10',8)::text),
   'Designação anterior', 'past no-snapshot history does not resolve today’s assignee into the former publisher’s details');
-select is((select a.value->>'can_respond' from jsonb_array_elements(public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',8))) as a(value)),
-  'false', 'past source without response evidence cannot be answered');
+select ok(not exists(select 1 from jsonb_array_elements(public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',8))) as a(value)
+  where (a.value->>'can_respond')::boolean), 'past source without response evidence cannot be answered');
 select is(public.resolve_personal_assignment(pg_temp.meeting_test_id('04',1),pg_temp.meeting_test_id('99',1))->>'kind',
   'changed', 'link with stale revision reports changed without silently adapting it');
 select is(public.resolve_personal_assignment(pg_temp.meeting_test_id('04',1),pg_temp.meeting_test_id('99',1))->>'current_path',

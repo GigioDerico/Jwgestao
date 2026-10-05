@@ -22,7 +22,7 @@ interface NotificationsContextType {
   markRead: (id: string) => Promise<void>;
   markAllRead: () => Promise<void>;
   confirm: (id: string) => Promise<void>;
-  respondToMeetingAssignment: (input: MeetingResponseInput) => Promise<void>;
+  respondToMeetingAssignment: (input: MeetingResponseInput) => Promise<AssignmentNotification>;
   hideNotification: (id: string) => Promise<void>;
 }
 
@@ -35,7 +35,7 @@ const NotificationsContext = createContext<NotificationsContextType>({
   markRead: async () => { },
   markAllRead: async () => { },
   confirm: async () => { },
-  respondToMeetingAssignment: async () => { },
+  respondToMeetingAssignment: async () => { throw new Error('NotificationsProvider is unavailable.'); },
   hideNotification: async () => { },
 });
 
@@ -150,6 +150,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     const saved = await api.respondToMeetingAssignment(input);
     setNotifications(current => current.map(notification => notification.id === saved.id ? saved : notification));
     await refreshNotifications();
+    return saved;
   };
 
   const hideNotification = async (id: string) => {

@@ -92,7 +92,7 @@ begin
     select r.source_type,r.source_id,r.slot_key,r.assignment,n.id notification_id,
       case when n.id is not null and (r.assignment->>'date')::date < today and n.assignment_snapshot is not null
         then n.assignment_snapshot else r.assignment end display_assignment,
-      n.member_id,n.category,n.title notification_title,n.message,n.assignment_date,n.status notification_status,
+      n.member_id,n.category,n.title notification_title,n.message,n.assignment_date,(r.assignment->>'date')::date source_date,n.status notification_status,
       n.is_read,n.created_at,n.confirmed_at,n.hidden_at,n.decline_reason,n.responded_at,n.assignment_revision revision
     from resolved r
     left join public.member_assignment_notifications n on n.source_type=r.source_type and n.source_id=r.source_id
@@ -101,11 +101,11 @@ begin
   ), historical as (
     select n.source_type,n.source_id,n.slot_key,n.assignment_snapshot assignment,
       n.id notification_id,n.assignment_snapshot display_assignment,
-      n.member_id,n.category,n.title notification_title,n.message,n.assignment_date,n.status notification_status,
+      n.member_id,n.category,n.title notification_title,n.message,n.assignment_date,(n.assignment_snapshot->>'date')::date source_date,n.status notification_status,
       n.is_read,n.created_at,n.confirmed_at,n.hidden_at,n.decline_reason,n.responded_at,n.assignment_revision revision
     from public.member_assignment_notifications n
     where n.member_id=actor and n.source_type in ('midweek_meeting_role','midweek_ministry_part','midweek_christian_life_part','weekend_meeting_role')
-      and n.status <> 'revoked' and n.assignment_snapshot->>'meeting_kind'=p_kind
+      and n.assignment_snapshot->>'meeting_kind'=p_kind
       and n.assignment_snapshot->>'meeting_id'=p_meeting_id::text
       and (n.assignment_snapshot->>'date')::date < today
       and not exists(select 1 from personal p where p.notification_id=n.id)
@@ -116,7 +116,7 @@ begin
       jsonb_build_object('meeting_id',p_meeting_id,'meeting_kind',p_kind,'date',n.assignment_date,
         'role_label','Designação anterior','title',n.message,'part_number',null,'time',null,
         'duration',null,'location',null,'partner_name',null) display_assignment,
-      n.member_id,n.category,n.title notification_title,n.message,n.assignment_date,n.status notification_status,
+      n.member_id,n.category,n.title notification_title,n.message,n.assignment_date,n.assignment_date source_date,n.status notification_status,
       n.is_read,n.created_at,n.confirmed_at,n.hidden_at,n.decline_reason,n.responded_at,n.assignment_revision revision
     from public.member_assignment_notifications n
     where n.member_id=actor and n.source_type in ('midweek_meeting_role','midweek_ministry_part','midweek_christian_life_part','weekend_meeting_role')
@@ -136,7 +136,7 @@ begin
         'is_read',a.is_read,'created_at',a.created_at,'confirmed_at',a.confirmed_at,'hidden_at',a.hidden_at,
         'decline_reason',a.decline_reason,'responded_at',a.responded_at,'assignment_revision',a.revision
       ) notification_json,
-      a.display_assignment assignment_json,a.notification_status,a.revision,a.assignment_date
+      a.display_assignment assignment_json,a.notification_status,a.revision,a.assignment_date,a.source_date
     from all_personal a
   )
   select coalesce(jsonb_agg(jsonb_build_object(
@@ -148,7 +148,7 @@ begin
     'duration',nullif(f.assignment_json->>'duration','')::integer,'location',f.assignment_json->>'location',
     'partner_name',f.assignment_json->>'partner_name',
     'can_respond',f.notification_id is not null and f.revision is not null and f.notification_status='pending_confirmation'
-      and coalesce(f.assignment_date,(f.assignment_json->>'date')::date)>=today
+      and f.source_date>=today
   ) order by nullif(f.assignment_json->>'part_number','')::integer nulls first,
       f.assignment_json->>'time' nulls first, f.assignment_json->>'role_label'), '[]'::jsonb)
   into result from formatted f;
