@@ -81,6 +81,7 @@ export function PublisherMeetingsPage() {
 
   const selectMeeting = (meeting: MeetingSummary | null) => {
     const nextKey = meeting && memberId ? meetingIdentity(memberId, period, meeting) : null;
+    if (nextKey && nextKey === selectedIdentityRef.current) return;
     selectedIdentityRef.current = nextKey;
     selectedRef.current = meeting;
     detailsRequestRef.current += 1;

@@ -77,6 +77,15 @@ describe('PublisherMeetingsPage', () => {
     expect(screen.queryByText(/discurso|cântico|oração/i)).not.toBeInTheDocument();
   });
 
+  it('keeps the preselected meeting details when opening that meeting on mobile', async () => {
+    render(<PublisherMeetingsPage />);
+    expect(await screen.findByRole('heading', { name: /4\. Iniciando conversas/ })).toBeVisible();
+    await userEvent.setup().click(screen.getByRole('button', { name: /Reunião de meio de semana/ }));
+    expect(screen.getByRole('heading', { name: /4\. Iniciando conversas/ })).toBeVisible();
+    expect(screen.getAllByRole('button', { name: /Confirmar designação/ })).toHaveLength(2);
+    expect(screen.getByRole('region', { name: 'Detalhes de Reunião de meio de semana' }).parentElement?.className).toBe('block');
+  });
+
   it('reloads details and pending count after each independent response', async () => {
     render(<PublisherMeetingsPage />);
     await screen.findByRole('heading', { name: /4\. Iniciando conversas/ });

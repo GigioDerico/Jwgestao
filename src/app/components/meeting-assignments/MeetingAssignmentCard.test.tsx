@@ -49,4 +49,17 @@ describe('MeetingAssignmentCard', () => {
     await user.click(screen.getByRole('button', { name: /Confirmar designação/ }));
     expect(onRespond).toHaveBeenCalledWith({ notificationId: 'notification-1', revision: 'revision-1', decision: 'confirmed', reason: undefined });
   });
+
+  it('uses the server assignment again when a newer revision arrives in props', async () => {
+    const onRespond = vi.fn(async () => ({ ...assignment.notification, status: 'confirmed', assignmentRevision: 'revision-1' }));
+    const { rerender } = render(<MeetingAssignmentCard assignment={assignment} onRespond={onRespond} />);
+    await userEvent.setup().click(screen.getByRole('button', { name: /Confirmar designação/ }));
+    expect(await screen.findByText('Participação confirmada')).toBeVisible();
+
+    const newerAssignment = { ...assignment, revision: 'revision-2', canRespond: true,
+      notification: { ...assignment.notification, assignmentRevision: 'revision-2', status: 'pending_confirmation' } };
+    rerender(<MeetingAssignmentCard assignment={newerAssignment} onRespond={onRespond} />);
+    expect(screen.getByRole('button', { name: /Confirmar designação/ })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Não posso participar' })).toBeVisible();
+  });
 });

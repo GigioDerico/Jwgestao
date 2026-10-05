@@ -20,7 +20,9 @@ export function MeetingAssignmentCard({ assignment, onRespond, onHide = async ()
   const [actionError, setActionError] = useState('');
   const [savedResponse, setSavedResponse] = useState<AssignmentNotification | null>(null);
   const declineTriggerRef = useRef<HTMLButtonElement>(null);
-  const notification = savedResponse || assignment.notification;
+  const notification = savedResponse?.assignmentRevision === assignment.revision
+    ? savedResponse
+    : assignment.notification;
   const status = notification?.status || 'revoked';
 
   const respond = async (decision: 'confirmed' | 'declined', reason?: string) => {
