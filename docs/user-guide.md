@@ -292,7 +292,7 @@ Usuarios com permissao de designacoes tambem encontram a opcao **Reuniao** em `D
 
 Quando houver uma designacao, abra seus detalhes e escolha **Confirmar designacao** ou **Nao posso participar**. A recusa exige um motivo para que o responsavel possa organizar a substituicao. A recusa fica registrada, mas nao remove nem troca o designado automaticamente; o coordenador ou designador faz essa alteracao.
 
-O link enviado junto da designacao por WhatsApp abre a reuniao correspondente depois do login. Confira se entrou na conta vinculada ao seu cadastro. Se a designacao tiver sido alterada desde o envio, a pagina informa que o link ficou desatualizado e mostra a situacao atual, sem confirmar automaticamente a nova designacao.
+O link enviado junto da designacao por WhatsApp abre a reuniao correspondente depois do login. Confira se entrou na conta vinculada ao seu cadastro. Se a designacao tiver sido alterada desde o envio, a pagina informa que o link ficou desatualizado e oferece **Ver designacao atual** para consultar a versao vigente, sem confirmar automaticamente a nova designacao.
 
 Reunioes anteriores aparecem no **Historico** apenas para consulta. A pagina pessoal nao mostra as designacoes de outros membros nem o motivo de recusa informado por outra pessoa. A aba administrativa `Designacoes > Reunioes` continua disponivel aos coordenadores e designadores autorizados.
 
