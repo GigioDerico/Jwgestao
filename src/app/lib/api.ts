@@ -112,6 +112,7 @@ export interface CreateMidweekMeetingInput {
   closing_comments_time?: string | null;
   closing_comments_duration?: number | null;
   ministry_parts?: {
+    id?: string;
     title: string;
     duration: number;
     scheduled_time?: string | null;
@@ -120,6 +121,7 @@ export interface CreateMidweekMeetingInput {
     room?: string;
   }[];
   christian_life_parts?: {
+    id?: string;
     title: string;
     duration: number;
     scheduled_time?: string | null;
@@ -378,27 +380,6 @@ function createIsolatedAuthClient() {
   });
 }
 
-async function revokeNotificationsForSourceIds(sourceType: string, sourceIds: string[]) {
-  if (sourceIds.length === 0) {
-    return;
-  }
-
-  const { error } = await supabase
-    .from('member_assignment_notifications')
-    .update({
-      status: 'revoked',
-      revoked_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('source_type', sourceType)
-    .in('source_id', sourceIds)
-    .neq('status', 'revoked');
-
-  if (error) {
-    throw new Error(formatDatabaseWriteError('Erro ao revogar notificações antigas', error));
-  }
-}
-
 async function upsertAssignmentNotificationSlot(input: {
   memberId?: string | null;
   sourceType: string;
@@ -639,219 +620,33 @@ export const api = {
   },
 
   async syncMidweekMeetingNotifications(meetingId: string) {
-    const { data, error } = await supabase
-      .from('midweek_meetings')
-      .select(`
-        id,
-        date,
-        president_id,
-        opening_prayer_id,
-        closing_prayer_id,
-        treasure_talk_title,
-        treasure_talk_speaker_id,
-        treasure_gems_speaker_id,
-        treasure_reading_student_id,
-        cbs_conductor_id,
-        cbs_reader_id
-      `)
-      .eq('id', meetingId)
-      .maybeSingle();
-
-    if (error) throw new Error(formatDatabaseWriteError('Erro ao carregar reunião para notificação', error));
-    if (!data) return;
-
-    const dateLabel = formatShortDate(data.date);
-    const slots = [
-      {
-        slotKey: 'president_id',
-        memberId: data.president_id,
-        title: 'Nova designação na reunião do meio de semana',
-        message: `Você foi designado para Presidente em ${dateLabel}.`,
-      },
-      {
-        slotKey: 'opening_prayer_id',
-        memberId: data.opening_prayer_id,
-        title: 'Nova designação na reunião do meio de semana',
-        message: `Você foi designado para Oração inicial em ${dateLabel}.`,
-      },
-      {
-        slotKey: 'closing_prayer_id',
-        memberId: data.closing_prayer_id,
-        title: 'Nova designação na reunião do meio de semana',
-        message: `Você foi designado para Oração final em ${dateLabel}.`,
-      },
-      {
-        slotKey: 'treasure_talk_speaker_id',
-        memberId: data.treasure_talk_speaker_id,
-        title: 'Nova designação na reunião do meio de semana',
-        message: `Você foi designado para ${data.treasure_talk_title || 'Tesouros da Palavra de Deus'} em ${dateLabel}.`,
-      },
-      {
-        slotKey: 'treasure_gems_speaker_id',
-        memberId: data.treasure_gems_speaker_id,
-        title: 'Nova designação na reunião do meio de semana',
-        message: `Você foi designado para Joias espirituais em ${dateLabel}.`,
-      },
-      {
-        slotKey: 'treasure_reading_student_id',
-        memberId: data.treasure_reading_student_id,
-        title: 'Nova designação na reunião do meio de semana',
-        message: `Você foi designado para Leitura da Bíblia em ${dateLabel}.`,
-      },
-      {
-        slotKey: 'cbs_conductor_id',
-        memberId: data.cbs_conductor_id,
-        title: 'Nova designação na reunião do meio de semana',
-        message: `Você foi designado para Dirigente do estudo bíblico em ${dateLabel}.`,
-      },
-      {
-        slotKey: 'cbs_reader_id',
-        memberId: data.cbs_reader_id,
-        title: 'Nova designação na reunião do meio de semana',
-        message: `Você foi designado para Leitor do estudo bíblico em ${dateLabel}.`,
-      },
-    ];
-
-    for (const slot of slots) {
-      await upsertAssignmentNotificationSlot({
-        memberId: slot.memberId,
-        sourceType: 'midweek_meeting_role',
-        sourceId: data.id,
-        slotKey: slot.slotKey,
-        category: 'midweek',
-        assignmentDate: data.date,
-        title: slot.title,
-        message: slot.message,
-      });
-    }
+    const { error } = await (supabase as any).rpc('reconcile_meeting_assignment_notifications', {
+      p_kind: 'midweek', p_meeting_id: meetingId,
+    });
+    if (error) throw new Error(formatDatabaseWriteError('Erro ao sincronizar designações da reunião', error));
   },
 
   async syncMidweekMinistryPartNotifications(partId: string) {
-    const { data, error } = await supabase
-      .from('midweek_ministry_parts')
-      .select(`
-        id,
-        title,
-        student_id,
-        assistant_id,
-        meeting:midweek_meetings(date)
-      `)
-      .eq('id', partId)
-      .maybeSingle();
-
-    if (error) throw new Error(formatDatabaseWriteError('Erro ao carregar parte do ministério para notificação', error));
+    const { data, error: lookupError } = await supabase.from('midweek_ministry_parts')
+      .select('meeting_id').eq('id', partId).maybeSingle();
+    if (lookupError) throw new Error(formatDatabaseWriteError('Erro ao localizar reunião da parte', lookupError));
     if (!data) return;
-
-    const meetingDate = Array.isArray(data.meeting) ? (data.meeting[0] as any)?.date : (data.meeting as any)?.date;
-    const dateLabel = formatShortDate(meetingDate);
-
-    await upsertAssignmentNotificationSlot({
-      memberId: data.student_id,
-      sourceType: 'midweek_ministry_part',
-      sourceId: data.id,
-      slotKey: 'student_id',
-      category: 'midweek',
-      assignmentDate: meetingDate,
-      title: 'Nova designação na reunião do meio de semana',
-      message: `Você foi designado para Estudante em ${data.title} em ${dateLabel}.`,
-    });
-
-    await upsertAssignmentNotificationSlot({
-      memberId: data.assistant_id,
-      sourceType: 'midweek_ministry_part',
-      sourceId: data.id,
-      slotKey: 'assistant_id',
-      category: 'midweek',
-      assignmentDate: meetingDate,
-      title: 'Nova designação na reunião do meio de semana',
-      message: `Você foi designado para Ajudante em ${data.title} em ${dateLabel}.`,
-    });
+    await this.syncMidweekMeetingNotifications(data.meeting_id);
   },
 
   async syncMidweekChristianLifePartNotifications(partId: string) {
-    const { data, error } = await supabase
-      .from('midweek_christian_life_parts')
-      .select(`
-        id,
-        title,
-        speaker_id,
-        meeting:midweek_meetings(date)
-      `)
-      .eq('id', partId)
-      .maybeSingle();
-
-    if (error) throw new Error(formatDatabaseWriteError('Erro ao carregar parte de nossa vida cristã para notificação', error));
+    const { data, error: lookupError } = await supabase.from('midweek_christian_life_parts')
+      .select('meeting_id').eq('id', partId).maybeSingle();
+    if (lookupError) throw new Error(formatDatabaseWriteError('Erro ao localizar reunião da parte', lookupError));
     if (!data) return;
-
-    const meetingDate = Array.isArray(data.meeting) ? (data.meeting[0] as any)?.date : (data.meeting as any)?.date;
-    const dateLabel = formatShortDate(meetingDate);
-
-    await upsertAssignmentNotificationSlot({
-      memberId: data.speaker_id,
-      sourceType: 'midweek_christian_life_part',
-      sourceId: data.id,
-      slotKey: 'speaker_id',
-      category: 'midweek',
-      assignmentDate: meetingDate,
-      title: 'Nova designação na reunião do meio de semana',
-      message: `Você foi designado para ${data.title} em ${dateLabel}.`,
-    });
+    await this.syncMidweekMeetingNotifications(data.meeting_id);
   },
 
   async syncWeekendMeetingNotifications(meetingId: string) {
-    const { data, error } = await supabase
-      .from('weekend_meetings')
-      .select(`
-        id,
-        date,
-        president_id,
-        watchtower_conductor_id,
-        watchtower_reader_id,
-        closing_prayer_id,
-        superintendent_visit
-      `)
-      .eq('id', meetingId)
-      .maybeSingle();
-
-    if (error) throw new Error(formatDatabaseWriteError('Erro ao carregar reunião de fim de semana para notificação', error));
-    if (!data) return;
-
-    const dateLabel = formatShortDate(data.date);
-    const slots = [
-      {
-        slotKey: 'president_id',
-        memberId: data.president_id,
-        message: `Você foi designado para Presidente em ${dateLabel}.`,
-      },
-      {
-        slotKey: 'watchtower_conductor_id',
-        memberId: data.superintendent_visit ? null : data.watchtower_conductor_id,
-        message: `Você foi designado para Dirigente da Sentinela em ${dateLabel}.`,
-      },
-      {
-        slotKey: 'watchtower_reader_id',
-        memberId: data.superintendent_visit ? null : data.watchtower_reader_id,
-        message: `Você foi designado para Leitor da Sentinela em ${dateLabel}.`,
-      },
-      {
-        slotKey: 'closing_prayer_id',
-        memberId: data.superintendent_visit ? null : data.closing_prayer_id,
-        message: `Você foi designado para Oração final em ${dateLabel}.`,
-      },
-    ];
-
-    for (const slot of slots) {
-      await upsertAssignmentNotificationSlot({
-        memberId: slot.memberId,
-        sourceType: 'weekend_meeting_role',
-        sourceId: data.id,
-        slotKey: slot.slotKey,
-        category: 'weekend',
-        assignmentDate: data.date,
-        title: 'Nova designação na reunião do fim de semana',
-        message: slot.message,
-      });
-    }
+    const { error } = await (supabase as any).rpc('reconcile_meeting_assignment_notifications', {
+      p_kind: 'weekend', p_meeting_id: meetingId,
+    });
+    if (error) throw new Error(formatDatabaseWriteError('Erro ao sincronizar designações da reunião', error));
   },
 
   async syncAudioVideoAssignmentNotifications(assignmentId: string) {
@@ -1841,118 +1636,16 @@ export const api = {
   },
 
   async updateMidweekMeeting(meetingId: string, input: CreateMidweekMeetingInput) {
-    const [
-      { data: previousMinistryParts, error: previousMinistryPartsError },
-      { data: previousChristianLifeParts, error: previousChristianLifePartsError },
-    ] = await Promise.all([
-      supabase.from('midweek_ministry_parts').select('id').eq('meeting_id', meetingId),
-      supabase.from('midweek_christian_life_parts').select('id').eq('meeting_id', meetingId),
-    ]);
-
-    if (previousMinistryPartsError) {
-      throw new Error(formatDatabaseWriteError('Erro ao carregar partes antigas do ministério', previousMinistryPartsError));
-    }
-
-    if (previousChristianLifePartsError) {
-      throw new Error(formatDatabaseWriteError('Erro ao carregar partes antigas de nossa vida cristã', previousChristianLifePartsError));
-    }
-
-    const { error } = await supabase
-      .from('midweek_meetings')
-      .update({
-        date: input.date,
-        bible_reading: input.bible_reading,
-        president_id: input.president_id || null,
-        opening_prayer_id: input.opening_prayer_id || null,
-        closing_prayer_id: input.closing_prayer_id || null,
-        opening_song: input.opening_song ?? null,
-        opening_song_time: input.opening_song_time || null,
-        opening_comments_time: input.opening_comments_time || null,
-        opening_comments_duration: input.opening_comments_duration ?? null,
-        middle_song: input.middle_song ?? null,
-        middle_song_time: input.middle_song_time || null,
-        closing_song: input.closing_song ?? null,
-        closing_song_time: input.closing_song_time || null,
-        treasure_talk_title: input.treasure_talk_title || null,
-        treasure_talk_time: input.treasure_talk_time || null,
-        treasure_talk_duration: input.treasure_talk_duration ?? null,
-        treasure_talk_speaker_id: input.treasure_talk_speaker_id || null,
-        treasure_gems_time: input.treasure_gems_time || null,
-        treasure_gems_duration: input.treasure_gems_duration ?? null,
-        treasure_gems_speaker_id: input.treasure_gems_speaker_id || null,
-        treasure_reading_time: input.treasure_reading_time || null,
-        treasure_reading_duration: input.treasure_reading_duration ?? null,
-        treasure_reading_student_id: input.treasure_reading_student_id || null,
-        treasure_reading_room: input.treasure_reading_room || null,
-        cbs_time: input.cbs_time || null,
-        cbs_duration: input.cbs_duration ?? null,
-        cbs_conductor_id: input.cbs_conductor_id || null,
-        cbs_reader_id: input.cbs_reader_id || null,
-        superintendent_visit: input.superintendent_visit ?? false,
-        superintendent_discourse_theme: input.superintendent_discourse_theme || null,
-        superintendent_discourse_speaker: input.superintendent_discourse_speaker || null,
-        closing_comments_time: input.closing_comments_time || null,
-        closing_comments_duration: input.closing_comments_duration ?? null,
-      })
-      .eq('id', meetingId);
-
-    if (error) throw new Error(formatDatabaseWriteError('Erro ao atualizar reunião de meio de semana', error));
-
-    const { error: deletePartsError } = await supabase
-      .from('midweek_ministry_parts')
-      .delete()
-      .eq('meeting_id', meetingId);
-
-    if (deletePartsError) throw new Error(formatDatabaseWriteError('Erro ao atualizar partes do ministério', deletePartsError));
-
-    const { error: deleteChristianLifePartsError } = await supabase
-      .from('midweek_christian_life_parts')
-      .delete()
-      .eq('meeting_id', meetingId);
-
-    if (deleteChristianLifePartsError) {
-      throw new Error(formatDatabaseWriteError('Erro ao atualizar partes de nossa vida cristã', deleteChristianLifePartsError));
-    }
-
-    const ministryParts = (input.ministry_parts || []).filter(part => part.title.trim());
-    if (ministryParts.length > 0) {
-      const { error: insertPartsError } = await supabase
-        .from('midweek_ministry_parts')
-        .insert(
-          ministryParts.map((part, index) => ({
-            meeting_id: meetingId,
-            part_number: index + 1,
-            title: part.title.trim(),
-            duration: part.duration,
-            student_id: part.student_id || null,
-            assistant_id: part.assistant_id || null,
-            room: part.room || null,
-            scheduled_time: part.scheduled_time || null,
-          }))
-        );
-
-      if (insertPartsError) throw new Error(formatDatabaseWriteError('Erro ao recriar partes do ministério', insertPartsError));
-    }
-
-    const christianLifeParts = (input.christian_life_parts || []).filter(part => part.title.trim());
-    if (christianLifeParts.length > 0) {
-      const { error: insertChristianLifePartsError } = await supabase
-        .from('midweek_christian_life_parts')
-        .insert(
-          christianLifeParts.map((part, index) => ({
-            meeting_id: meetingId,
-            part_number: index + 1,
-            title: part.title.trim(),
-            duration: part.duration,
-            speaker_id: part.speaker_id || null,
-            scheduled_time: part.scheduled_time || null,
-          }))
-        );
-
-      if (insertChristianLifePartsError) {
-        throw new Error(formatDatabaseWriteError('Erro ao recriar partes de nossa vida cristã', insertChristianLifePartsError));
-      }
-    }
+    const { data: updatedMeetingId, error: updateError } = await (supabase as any).rpc('update_midweek_program', {
+      p_meeting_id: meetingId,
+      p_input: {
+        ...input,
+        ministry_parts: input.ministry_parts ?? [],
+        christian_life_parts: input.christian_life_parts ?? [],
+      },
+    });
+    if (updateError) throw new Error(formatDatabaseWriteError('Erro ao atualizar reunião de meio de semana', updateError));
+    if (updatedMeetingId !== meetingId) throw new Error('A reunião atualizada não corresponde à solicitação.');
 
     const { data, error: fetchError } = await supabase
       .from('midweek_meetings')
@@ -1974,21 +1667,6 @@ export const api = {
 
     if (fetchError) throw new Error(`Erro ao carregar reunião atualizada: ${fetchError.message} `);
 
-    await this.syncMidweekMeetingNotifications(meetingId);
-    await revokeNotificationsForSourceIds(
-      'midweek_ministry_part',
-      (previousMinistryParts || []).map(part => part.id)
-    );
-    await revokeNotificationsForSourceIds(
-      'midweek_christian_life_part',
-      (previousChristianLifeParts || []).map(part => part.id)
-    );
-    for (const part of data.ministry_parts || []) {
-      await this.syncMidweekMinistryPartNotifications(part.id);
-    }
-    for (const part of data.christian_life_parts || []) {
-      await this.syncMidweekChristianLifePartNotifications(part.id);
-    }
     return data;
   },
 

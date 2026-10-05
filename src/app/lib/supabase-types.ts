@@ -1395,6 +1395,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      update_midweek_program: {
+        Args: { p_meeting_id: string; p_input: Json }
+        Returns: string
+      }
+      reconcile_meeting_assignment_notifications: {
+        Args: { p_kind: string; p_meeting_id: string }
+        Returns: undefined
+      }
       respond_to_meeting_assignment: {
         Args: {
           p_notification_id: string

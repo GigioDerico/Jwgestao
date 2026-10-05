@@ -60,6 +60,7 @@ const MONTHS = [
 ];
 
 const createEmptyMinistryPartDraft = (time = '20:00') => ({
+  id: undefined as string | undefined,
   time,
   title: '',
   duration: '',
@@ -68,6 +69,7 @@ const createEmptyMinistryPartDraft = (time = '20:00') => ({
 });
 
 const createEmptyChristianLifePartDraft = (time = '20:20') => ({
+  id: undefined as string | undefined,
   time,
   title: '',
   duration: '',
@@ -274,6 +276,7 @@ export function AssignmentsPage() {
 
     const ministryParts = sortedMinistryParts.length > 0
       ? sortedMinistryParts.map((part: any, index: number) => ({
+        id: part.id,
         time: fallbackTimes.ministryTimes[index] || '20:00',
         title: part.title || '',
         duration: part.duration ? String(part.duration) : '',
@@ -284,6 +287,7 @@ export function AssignmentsPage() {
 
     const christianLifeParts = sortedChristianLifeParts.length > 0
       ? sortedChristianLifeParts.map((part: any, index: number) => ({
+        id: part.id,
         time: fallbackTimes.christianLifeTimes[index] || '20:20',
         title: part.title || '',
         duration: part.duration ? String(part.duration) : '',
@@ -575,6 +579,7 @@ export function AssignmentsPage() {
           closing_comments_time: midweekDraft.closingCommentsTime.trim(),
           closing_comments_duration: Number(midweekDraft.closingCommentsDuration),
           ministry_parts: ministryParts.map(part => ({
+            id: part.id,
             scheduled_time: part.time,
             title: part.title,
             duration: Number(part.duration),
@@ -583,6 +588,7 @@ export function AssignmentsPage() {
             room: MIDWEEK_PRIMARY_ROOM,
           })),
           christian_life_parts: christianLifeParts.map(part => ({
+            id: part.id,
             scheduled_time: part.time,
             title: part.title,
             duration: Number(part.duration),
