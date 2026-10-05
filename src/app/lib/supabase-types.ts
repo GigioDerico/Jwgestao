@@ -1412,6 +1412,18 @@ export type Database = {
         }
         Returns: Json
       }
+      get_personal_meetings: {
+        Args: { p_period: string }
+        Returns: Json
+      }
+      get_personal_meeting_assignments: {
+        Args: { p_kind: string; p_meeting_id: string }
+        Returns: Json
+      }
+      resolve_personal_assignment: {
+        Args: { p_notification_id: string; p_revision: string }
+        Returns: Json
+      }
       admin_reset_user_password: {
         Args: {
           target_auth_id: string

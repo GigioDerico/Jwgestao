@@ -6,6 +6,7 @@ import { getMeetingDatesForMonth } from './audio-video-calendar';
 import { getSaturdaysForMonth } from './field-service-calendar';
 import { buildPublicAppUrl } from './public-url';
 import type { AssignmentNotification } from '../types';
+import { respondToMeetingAssignment } from './meeting-assignments';
 import {
   mapTransferAuditHistory,
   type TransferAuditHistoryRow,
@@ -300,6 +301,10 @@ function mapAssignmentNotification(row: any): AssignmentNotification {
     isRead: Boolean(row.is_read),
     createdAt: row.created_at,
     confirmedAt: row.confirmed_at,
+    hiddenAt: row.hidden_at ?? null,
+    declineReason: row.decline_reason ?? null,
+    respondedAt: row.responded_at ?? null,
+    assignmentRevision: row.assignment_revision ?? null,
   };
 }
 
@@ -346,6 +351,9 @@ function preserveNotificationState(existing: any, payload: {
       is_read: false,
       read_at: null,
       confirmed_at: null,
+      responded_at: null,
+      decline_reason: null,
+      hidden_at: null,
       revoked_at: null,
     };
   }
@@ -355,6 +363,9 @@ function preserveNotificationState(existing: any, payload: {
     is_read: Boolean(existing.is_read),
     read_at: existing.read_at || null,
     confirmed_at: existing.confirmed_at || null,
+    responded_at: existing.responded_at || null,
+    decline_reason: existing.decline_reason || null,
+    hidden_at: existing.hidden_at || null,
     revoked_at: null,
   };
 }
@@ -529,6 +540,7 @@ export const api = {
       .from('member_assignment_notifications')
       .select('*')
       .eq('member_id', memberId)
+      .is('hidden_at', null)
       .neq('status', 'revoked')
       .order('assignment_date', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: false });
@@ -556,6 +568,7 @@ export const api = {
       .select('id', { count: 'exact', head: true })
       .eq('member_id', memberId)
       .eq('is_read', false)
+      .is('hidden_at', null)
       .neq('status', 'revoked');
 
     if (error) throw new Error(`Erro ao contar notificações: ${error.message}`);
@@ -579,7 +592,7 @@ export const api = {
     const { error } = await supabase
       .from('member_assignment_notifications')
       .update({
-        status: 'hidden',
+        hidden_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq('id', notificationId);
@@ -617,6 +630,10 @@ export const api = {
       .eq('id', notificationId);
 
     if (error) throw new Error(formatDatabaseWriteError('Erro ao confirmar designação', error));
+  },
+
+  async respondToMeetingAssignment(input: Parameters<typeof respondToMeetingAssignment>[0]) {
+    return respondToMeetingAssignment(input);
   },
 
   async syncMidweekMeetingNotifications(meetingId: string) {

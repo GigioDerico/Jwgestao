@@ -191,8 +191,12 @@ export interface AssignmentNotification {
   title: string;
   message: string;
   assignmentDate?: string | null;
-  status: 'pending_confirmation' | 'confirmed' | 'revoked';
+  status: 'pending_confirmation' | 'confirmed' | 'declined' | 'revoked';
   isRead: boolean;
   createdAt: string;
   confirmedAt?: string | null;
+  hiddenAt?: string | null;
+  declineReason?: string | null;
+  respondedAt?: string | null;
+  assignmentRevision?: string | null;
 }

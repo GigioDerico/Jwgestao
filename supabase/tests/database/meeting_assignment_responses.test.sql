@@ -417,5 +417,67 @@ delete from public.midweek_meetings where id = pg_temp.meeting_test_id('12', 1);
 select is(pg_temp.synced_notification(pg_temp.meeting_test_id('14', 1), 'speaker_id')->>'status', 'revoked', 'parent deletion revokes cascading child assignment');
 delete from public.weekend_meetings where id = pg_temp.meeting_test_id('15', 1);
 select is(pg_temp.synced_notification(pg_temp.meeting_test_id('15', 1), 'president_id')->>'status', 'revoked', 'weekend deletion revokes role');
+
+-- Personal read RPCs expose only the authenticated recipient's normalized assignments.
+select has_function('public', 'get_personal_meetings', array['text'], 'personal meeting list RPC exists');
+select has_function('public', 'get_personal_meeting_assignments', array['text','uuid'], 'personal meeting detail RPC exists');
+select has_function('public', 'resolve_personal_assignment', array['uuid','uuid'], 'direct link resolver exists');
+select ok(not has_function_privilege('anon', 'public.get_personal_meetings(text)', 'execute'), 'anonymous users cannot list meetings');
+select ok(has_function_privilege('authenticated', 'private.get_personal_meeting_assignments(text,uuid)', 'execute')
+  and not has_function_privilege('anon', 'private.get_personal_meeting_assignments(text,uuid)', 'execute'),
+  'private personal read helper is not available to anonymous callers');
+reset role;
+update public.member_assignment_notifications set hidden_at='2026-10-05 14:00:00+00', status='confirmed',
+  confirmed_at='2026-10-05 13:00:00+00', responded_at='2026-10-05 13:00:00+00', decline_reason=null, revoked_at=null
+where id=pg_temp.meeting_test_id('04',1);
+update public.member_assignment_notifications set status='declined', decline_reason='Private reason secret', responded_at=now()
+where source_id=pg_temp.meeting_test_id('06',1) and slot_key='assistant_id' and member_id=pg_temp.meeting_test_id('02',2);
+delete from public.member_assignment_notifications where id=pg_temp.meeting_test_id('04',8);
+update public.midweek_meetings set president_id=pg_temp.meeting_test_id('02',2) where id=pg_temp.meeting_test_id('03',8);
+insert into public.member_assignment_notifications(id,member_id,source_type,source_id,slot_key,category,assignment_date,
+  title,message,status,assignment_revision,revoked_at)
+select pg_temp.meeting_test_id('10',8),pg_temp.meeting_test_id('02',1),'midweek_meeting_role',m.id,'president_id','midweek',m.date,
+  'Reunião','Presidente na reunião', 'revoked',pg_temp.meeting_test_id('05',8),now()
+from public.midweek_meetings m where m.id=pg_temp.meeting_test_id('03',8);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', pg_temp.meeting_test_id('01',1)::text, true);
+select ok(jsonb_array_length(public.get_personal_meetings('upcoming')) > 0, 'upcoming list includes registered meetings even when assignments are not pending');
+select is(jsonb_array_length(public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',1))),3,
+  'personal detail includes the member roles, student slot and Christian life slot');
+select ok((public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',1))->0->'notification'->>'status') is not null,
+  'personal assignment response includes this member notification status');
+select ok(not (public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',1))::text ~ 'Private reason secret|555|phone|phone_number'),
+  'personal detail excludes unrelated decline reasons and telephone fields');
+select is((select a.value->'notification'->>'hidden_at' from jsonb_array_elements(public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',1))) as a(value)
+  where a.value->'notification'->>'id'=pg_temp.meeting_test_id('04',1)::text), '2026-10-05T14:00:00+00:00',
+  'hidden confirmed notification remains available with independent hidden timestamp');
+select ok((select a->'notification'->>'status'='declined' and a->'notification'->>'decline_reason' is null
+  from jsonb_array_elements(public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',1))) as a(value)
+  where a.value->'notification'->>'id'=pg_temp.meeting_test_id('04',2)::text),
+  'personal response never contains another assigned member refusal reason');
+select is((select a.value->'notification'->>'status' from jsonb_array_elements(public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',8))) as a(value)),
+  'revoked', 'past assignment without a snapshot retains only the member’s recorded revocation');
+select is((select a.value->>'role_label' from jsonb_array_elements(public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',8))) as a(value)),
+  'Designação anterior', 'past no-snapshot history does not resolve today’s assignee into the former publisher’s details');
+select is((select a.value->>'can_respond' from jsonb_array_elements(public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',8))) as a(value)),
+  'false', 'past source without response evidence cannot be answered');
+select is(public.resolve_personal_assignment(pg_temp.meeting_test_id('04',1),pg_temp.meeting_test_id('99',1))->>'kind',
+  'changed', 'link with stale revision reports changed without silently adapting it');
+select is(public.resolve_personal_assignment(pg_temp.meeting_test_id('04',1),pg_temp.meeting_test_id('99',1))->>'current_path',
+  '/assignments/meetings?assignment='||pg_temp.meeting_test_id('04',1)::text||'&revision='||
+    (select assignment_revision::text from public.member_assignment_notifications where id=pg_temp.meeting_test_id('04',1)),
+  'only intended recipient gets current assignment path after revision mismatch');
+select is(public.resolve_personal_assignment(
+  (select id from public.member_assignment_notifications where source_id=pg_temp.meeting_test_id('06',1) and slot_key='assistant_id'),
+  (select assignment_revision from public.member_assignment_notifications where source_id=pg_temp.meeting_test_id('06',1) and slot_key='assistant_id'))->>'kind',
+  'unavailable', 'another recipient assignment id returns generic unavailable');
+reset role;
+delete from public.member_assignment_notifications where id=pg_temp.meeting_test_id('04',8);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', pg_temp.meeting_test_id('01',2)::text, true);
+select is(jsonb_array_length(public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',1))),1,
+  'assistant sees only the assistant slot assigned to them');
+select is((public.get_personal_meeting_assignments('midweek',pg_temp.meeting_test_id('03',1))->0->>'role_label'), 'Ajudante',
+  'assistant sees own function label');
 select * from finish();
 rollback;

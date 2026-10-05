@@ -11,6 +11,7 @@ import { useAuth } from './AuthContext';
 import { api } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import type { AssignmentNotification } from '../types';
+import { isMeetingDatePast, type MeetingResponseInput } from '../lib/meeting-assignments';
 
 interface NotificationsContextType {
   notifications: AssignmentNotification[];
@@ -21,6 +22,7 @@ interface NotificationsContextType {
   markRead: (id: string) => Promise<void>;
   markAllRead: () => Promise<void>;
   confirm: (id: string) => Promise<void>;
+  respondToMeetingAssignment: (input: MeetingResponseInput) => Promise<void>;
   hideNotification: (id: string) => Promise<void>;
 }
 
@@ -33,6 +35,7 @@ const NotificationsContext = createContext<NotificationsContextType>({
   markRead: async () => { },
   markAllRead: async () => { },
   confirm: async () => { },
+  respondToMeetingAssignment: async () => { },
   hideNotification: async () => { },
 });
 
@@ -126,7 +129,26 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   };
 
   const confirm = async (id: string) => {
+    const notification = notifications.find(row => row.id === id);
+    if (notification && ['midweek', 'weekend'].includes(notification.category)) {
+      if (!notification.assignmentRevision) {
+        throw new Error('Atualize as designações da reunião antes de confirmar.');
+      }
+      await api.respondToMeetingAssignment({
+        notificationId: id,
+        revision: notification.assignmentRevision,
+        decision: 'confirmed',
+      });
+      await refreshNotifications();
+      return;
+    }
     await api.confirmAssignmentNotification(id);
+    await refreshNotifications();
+  };
+
+  const respond = async (input: MeetingResponseInput) => {
+    const saved = await api.respondToMeetingAssignment(input);
+    setNotifications(current => current.map(notification => notification.id === saved.id ? saved : notification));
     await refreshNotifications();
   };
 
@@ -138,12 +160,16 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const value = {
     notifications,
     unreadCount: notifications.filter(notification => !notification.isRead).length,
-    pendingCount: notifications.filter(notification => notification.status === 'pending_confirmation').length,
+    pendingCount: notifications.filter(notification => notification.status === 'pending_confirmation'
+      && notification.status !== 'revoked'
+      && (!['midweek', 'weekend'].includes(notification.category)
+        || !notification.assignmentDate || !isMeetingDatePast(notification.assignmentDate))).length,
     loading,
     refreshNotifications,
     markRead,
     markAllRead,
     confirm,
+    respondToMeetingAssignment: respond,
     hideNotification,
   };
 
