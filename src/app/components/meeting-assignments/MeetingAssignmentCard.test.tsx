@@ -34,6 +34,14 @@ describe('MeetingAssignmentCard', () => {
     expect(screen.getByRole('button', { name: 'Adicionar ao calendário' })).toBeVisible();
   });
 
+  it.each([
+    ['midweek', 'Reunião de meio de semana'],
+    ['weekend', 'Reunião de fim de semana'],
+  ] as const)('labels a %s assignment accurately', (meetingKind, expectedLabel) => {
+    render(<MeetingAssignmentCard assignment={{ ...assignment, meetingKind }} onRespond={vi.fn()} />);
+    expect(screen.getByText(expectedLabel)).toBeVisible();
+  });
+
   it('uses the exact loaded notification ID and revision when confirming', async () => {
     const onRespond = vi.fn(async () => undefined);
     const user = userEvent.setup();

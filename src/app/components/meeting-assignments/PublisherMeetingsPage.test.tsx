@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PublisherMeetingsPage } from './PublisherMeetingsPage';
@@ -13,10 +13,10 @@ vi.mock('../../context/NotificationsContext', () => ({
   useNotifications: () => ({ respondToMeetingAssignment }),
 }));
 vi.mock('../../context/AuthContext', () => ({
-  useAuth: () => ({ user: { member_id: linkedMemberId ? 'member-1' : null } }),
+  useAuth: () => ({ user: { member_id: currentMemberId } }),
 }));
 vi.mock('../AssignmentCalendarActions', () => ({ AssignmentCalendarActions: () => null }));
-let linkedMemberId = true;
+let currentMemberId: string | null = 'member-1';
 let respondToMeetingAssignment: ReturnType<typeof vi.fn>;
 
 const meetings = [
@@ -35,12 +35,27 @@ const assignment = {
 const secondAssignment = { ...assignment, notification: { ...assignment.notification, id: 'notification-2',
   sourceId: 'part-2', slotKey: 'assistant', assignmentRevision: 'rev-2' }, revision: 'rev-2',
   roleLabel: 'Ajudante', title: 'Cultivando interesse', partNumber: 5 };
+const weekendAssignment = { ...assignment, notification: { ...assignment.notification, id: 'weekend-notification',
+  category: 'weekend' as const, sourceType: 'weekend_meeting_role', sourceId: 'weekend-1', slotKey: 'watchtower_reader',
+  title: 'Sentinela' }, revision: 'weekend-revision', meetingId: 'meeting-2', meetingKind: 'weekend' as const,
+  title: 'Leitor da Sentinela', roleLabel: 'Leitor', partNumber: null };
+const pastMeeting = { ...meetings[0], id: 'past-meeting', date: '2026-10-01', pendingCount: 0 };
+const pastAssignment = { ...assignment, meetingId: 'past-meeting', date: '2026-10-01', title: 'Designação histórica', canRespond: false,
+  notification: { ...assignment.notification, id: 'past-notification', status: 'confirmed' as const } };
+const member2Meeting = { ...meetings[0], id: 'member-2-meeting' };
+const member2Assignment = { ...assignment, meetingId: member2Meeting.id, title: 'Designação do segundo membro',
+  notification: { ...assignment.notification, id: 'member-2-notification', memberId: 'member-2' } };
 
 describe('PublisherMeetingsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    linkedMemberId = true;
-    respondToMeetingAssignment = vi.fn(async () => undefined);
+    currentMemberId = 'member-1';
+    respondToMeetingAssignment = vi.fn(async (input: { notificationId: string; revision: string; decision: 'confirmed' | 'declined' }) => ({
+      ...assignment.notification,
+      id: input.notificationId,
+      assignmentRevision: input.revision,
+      status: input.decision,
+    }));
     vi.mocked(getPersonalMeetings).mockResolvedValue(meetings);
     vi.mocked(getPersonalMeetingAssignments).mockImplementation(async (_kind, meetingId) => meetingId === 'meeting-1' ? [assignment, secondAssignment] : []);
   });
@@ -55,7 +70,7 @@ describe('PublisherMeetingsPage', () => {
     expect(screen.getByLabelText('Reuniões cadastradas').parentElement?.className).toBe('block');
     expect(screen.getByRole('region', { name: 'Detalhes de Reunião de meio de semana' }).parentElement?.className).toContain('hidden md:block');
     await userEvent.setup().click(screen.getByRole('button', { name: /Reunião de fim de semana/ }));
-    expect(screen.getByText('Você não tem designação nesta reunião')).toBeVisible();
+    expect(await screen.findByText('Você não tem designação nesta reunião')).toBeVisible();
     expect(screen.getByLabelText('Reuniões cadastradas').parentElement?.className).toBe('hidden md:block');
     expect(screen.getByRole('region', { name: 'Detalhes de Reunião de fim de semana' }).parentElement?.className).toBe('block');
     expect(screen.queryByText(/programação completa|cronograma/i)).not.toBeInTheDocument();
@@ -69,7 +84,8 @@ describe('PublisherMeetingsPage', () => {
     expect(buttons).toHaveLength(2);
     fireEvent.click(buttons[0]);
     await waitFor(() => expect(getPersonalMeetingAssignments).toHaveBeenCalledTimes(2));
-    fireEvent.click(screen.getAllByRole('button', { name: /Confirmar designação/ })[1]);
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /Confirmar designação/ })).toHaveLength(1));
+    fireEvent.click(screen.getByRole('button', { name: /Confirmar designação/ }));
     await waitFor(() => expect(getPersonalMeetingAssignments).toHaveBeenCalledTimes(3));
     expect(respondToMeetingAssignment).toHaveBeenNthCalledWith(1, expect.objectContaining({ notificationId: 'notification-1', revision: 'rev-1' }));
     expect(respondToMeetingAssignment).toHaveBeenNthCalledWith(2, expect.objectContaining({ notificationId: 'notification-2', revision: 'rev-2' }));
@@ -99,8 +115,88 @@ describe('PublisherMeetingsPage', () => {
   });
 
   it('explains when the signed-in account has no linked member', async () => {
-    linkedMemberId = false;
+    currentMemberId = null;
     render(<PublisherMeetingsPage />);
     expect(await screen.findByText(/contate o responsável pelas designações/i)).toBeVisible();
+  });
+
+  it('ignores an older meeting response after selection changes to another meeting', async () => {
+    let resolveOld!: (value: typeof assignment[]) => void;
+    vi.mocked(getPersonalMeetingAssignments).mockImplementation((_kind, meetingId) => meetingId === 'meeting-1'
+      ? new Promise(resolve => { resolveOld = resolve; })
+      : Promise.resolve([weekendAssignment]));
+    const user = userEvent.setup();
+    render(<PublisherMeetingsPage />);
+    await waitFor(() => expect(getPersonalMeetingAssignments).toHaveBeenCalledWith('midweek', 'meeting-1'));
+    await user.click(screen.getByRole('button', { name: /Reunião de fim de semana/ }));
+    expect(await screen.findByRole('heading', { name: /Leitor da Sentinela/ })).toBeVisible();
+    await act(async () => { resolveOld([assignment]); });
+    expect(screen.getByRole('heading', { name: /Leitor da Sentinela/ })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: /Iniciando conversas/ })).not.toBeInTheDocument();
+  });
+
+  it('ignores an older detail response after changing from upcoming to history', async () => {
+    let resolveUpcoming!: (value: typeof assignment[]) => void;
+    vi.mocked(getPersonalMeetings).mockImplementation(async period => period === 'past' ? [pastMeeting] : [meetings[0]]);
+    vi.mocked(getPersonalMeetingAssignments).mockImplementation((_kind, meetingId) => meetingId === 'meeting-1'
+      ? new Promise(resolve => { resolveUpcoming = resolve; })
+      : Promise.resolve([pastAssignment]));
+    const user = userEvent.setup();
+    render(<PublisherMeetingsPage />);
+    await waitFor(() => expect(getPersonalMeetingAssignments).toHaveBeenCalledWith('midweek', 'meeting-1'));
+    await user.click(screen.getByRole('tab', { name: 'Histórico' }));
+    expect(await screen.findByRole('heading', { name: /Designação histórica/ })).toBeVisible();
+    await act(async () => { resolveUpcoming([assignment]); });
+    expect(screen.getByRole('heading', { name: /Designação histórica/ })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: /Iniciando conversas/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Confirmar designação/ })).not.toBeInTheDocument();
+  });
+
+  it('ignores a pending detail response from a previously signed-in member', async () => {
+    let resolveMember1!: (value: typeof assignment[]) => void;
+    vi.mocked(getPersonalMeetings).mockImplementation(async () => currentMemberId === 'member-2' ? [member2Meeting] : [meetings[0]]);
+    vi.mocked(getPersonalMeetingAssignments).mockImplementation((_kind, meetingId) => meetingId === 'meeting-1'
+      ? new Promise(resolve => { resolveMember1 = resolve; })
+      : Promise.resolve([member2Assignment]));
+    const { rerender } = render(<PublisherMeetingsPage />);
+    await waitFor(() => expect(getPersonalMeetingAssignments).toHaveBeenCalledWith('midweek', 'meeting-1'));
+    currentMemberId = 'member-2';
+    rerender(<PublisherMeetingsPage />);
+    expect(await screen.findByRole('heading', { name: /Designação do segundo membro/ })).toBeVisible();
+    await act(async () => { resolveMember1([assignment]); });
+    expect(screen.getByRole('heading', { name: /Designação do segundo membro/ })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: /Iniciando conversas/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps a saved confirmation and updated counter when the follow-up read fails', async () => {
+    respondToMeetingAssignment.mockResolvedValue({ ...assignment.notification, status: 'confirmed' });
+    vi.mocked(getPersonalMeetingAssignments).mockResolvedValueOnce([assignment]).mockRejectedValueOnce(new Error('offline'));
+    const user = userEvent.setup();
+    render(<PublisherMeetingsPage />);
+    await screen.findByRole('button', { name: /Confirmar designação/ });
+    await user.click(screen.getByRole('button', { name: /Confirmar designação/ }));
+    expect(await screen.findByText('Participação confirmada')).toBeVisible();
+    expect(screen.queryByRole('button', { name: /Confirmar designação/ })).not.toBeInTheDocument();
+    expect(screen.getAllByText('0 respostas pendentes')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: 'Atualizar detalhes' })).toBeVisible();
+  });
+
+  it('invalidates a declined response on revision conflict until a successful retry', async () => {
+    respondToMeetingAssignment.mockRejectedValueOnce(new Error('Erro ao acessar designação da reunião: meeting_assignment_revision_conflict'));
+    vi.mocked(getPersonalMeetingAssignments).mockResolvedValueOnce([assignment]).mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce([{ ...assignment, revision: 'rev-2', canRespond: true,
+        notification: { ...assignment.notification, assignmentRevision: 'rev-2' } }]);
+    const user = userEvent.setup();
+    render(<PublisherMeetingsPage />);
+    await screen.findByRole('button', { name: 'Não posso participar' });
+    await user.click(screen.getByRole('button', { name: 'Não posso participar' }));
+    await user.type(screen.getByRole('textbox', { name: /motivo da recusa/i }), 'Imprevisto pessoal');
+    await user.click(screen.getByRole('button', { name: 'Enviar recusa' }));
+    await waitFor(() => expect(respondToMeetingAssignment).toHaveBeenCalledTimes(1));
+    expect((await screen.findAllByText(/designação mudou/i)).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Não posso participar' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Atualizar detalhes' }));
+    expect(await screen.findByRole('button', { name: 'Não posso participar' })).toBeVisible();
   });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, CalendarDays, ChevronRight, Clock3, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationsContext';
@@ -18,7 +18,8 @@ type Period = 'upcoming' | 'past';
 export function PublisherMeetingsPage() {
   const { user } = useAuth();
   const { respondToMeetingAssignment, hideNotification } = useNotifications();
-  const memberLinked = Boolean(user?.member_id);
+  const memberId = user?.member_id || null;
+  const memberLinked = Boolean(memberId);
   const [period, setPeriod] = useState<Period>('upcoming');
   const [meetings, setMeetings] = useState<MeetingSummary[]>([]);
   const [selected, setSelected] = useState<MeetingSummary | null>(null);
@@ -28,67 +29,168 @@ export function PublisherMeetingsPage() {
   const [loadError, setLoadError] = useState('');
   const [detailError, setDetailError] = useState('');
   const [mobileDetail, setMobileDetail] = useState(false);
+  const [meetingsIdentity, setMeetingsIdentity] = useState('');
+  const [detailsIdentity, setDetailsIdentity] = useState('');
+  const [detailsReady, setDetailsReady] = useState(false);
+  const memberIdRef = useRef<string | null>(memberId);
+  const periodRef = useRef(period);
+  const selectedRef = useRef<MeetingSummary | null>(selected);
+  const selectedIdentityRef = useRef<string | null>(null);
+  const meetingsRequestRef = useRef(0);
+  const detailsRequestRef = useRef(0);
+  memberIdRef.current = memberId;
+  periodRef.current = period;
+  selectedRef.current = selected;
 
   const loadMeetings = useCallback(async (requestedPeriod = period) => {
-    if (!memberLinked) return;
+    if (!memberId) return;
+    const requestId = ++meetingsRequestRef.current;
+    const requestedMember = memberId;
+    const identity = listIdentity(requestedMember, requestedPeriod);
     setLoadingMeetings(true);
     setLoadError('');
     try {
       const result = await getPersonalMeetings(requestedPeriod);
+      if (requestId !== meetingsRequestRef.current || memberIdRef.current !== requestedMember || periodRef.current !== requestedPeriod) return;
       setMeetings(result);
-      setSelected(current => result.find(meeting => meeting.id === current?.id && meeting.kind === current.kind) || result[0] || null);
+      setMeetingsIdentity(identity);
+      const currentKey = selectedIdentityRef.current;
+      const next = result.find(meeting => meetingIdentity(requestedMember, requestedPeriod, meeting) === currentKey) || result[0] || null;
+      const nextKey = next ? meetingIdentity(requestedMember, requestedPeriod, next) : null;
+      if (currentKey !== nextKey) {
+        selectedIdentityRef.current = nextKey;
+        selectedRef.current = next;
+        detailsRequestRef.current += 1;
+        setAssignments([]);
+        setDetailsIdentity('');
+        setDetailsReady(false);
+        setSelected(next);
+      }
     } catch {
-      setLoadError('Não foi possível carregar as reuniões.');
+      if (requestId === meetingsRequestRef.current && memberIdRef.current === requestedMember && periodRef.current === requestedPeriod) {
+        setLoadError('Não foi possível carregar as reuniões.');
+      }
     } finally {
-      setLoadingMeetings(false);
+      if (requestId === meetingsRequestRef.current && memberIdRef.current === requestedMember && periodRef.current === requestedPeriod) {
+        setLoadingMeetings(false);
+      }
     }
-  }, [memberLinked, period]);
+  }, [memberId, period]);
 
   useEffect(() => { void loadMeetings(period); }, [loadMeetings, period]);
 
-  const loadAssignments = useCallback(async (meeting: MeetingSummary | null) => {
-    if (!meeting || !memberLinked) { setAssignments([]); return; }
+  const selectMeeting = (meeting: MeetingSummary | null) => {
+    const nextKey = meeting && memberId ? meetingIdentity(memberId, period, meeting) : null;
+    selectedIdentityRef.current = nextKey;
+    selectedRef.current = meeting;
+    detailsRequestRef.current += 1;
+    setAssignments([]);
+    setDetailsIdentity('');
+    setDetailsReady(false);
+    setDetailError('');
+    setSelected(meeting);
+  };
+
+  const loadAssignments = useCallback(async (meeting: MeetingSummary | null, requestedPeriod = period, failureMessage = 'Não foi possível carregar os detalhes da sua designação.') => {
+    if (!meeting || !memberId) { setAssignments([]); setDetailsReady(false); return; }
+    const requestedMember = memberId;
+    const key = meetingIdentity(requestedMember, requestedPeriod, meeting);
+    const requestId = ++detailsRequestRef.current;
     setLoadingAssignments(true);
+    setDetailsReady(false);
     setDetailError('');
     try {
-      setAssignments(await getPersonalMeetingAssignments(meeting.kind, meeting.id));
+      const result = await getPersonalMeetingAssignments(meeting.kind, meeting.id);
+      if (!isCurrentDetailRequest(requestId, key, requestedMember, requestedPeriod,
+        detailsRequestRef.current, selectedIdentityRef.current, memberIdRef.current, periodRef.current)) return;
+      setAssignments(result);
+      setDetailsIdentity(key);
+      setDetailsReady(true);
     } catch {
-      setDetailError('Não foi possível carregar os detalhes da sua designação.');
+      if (isCurrentDetailRequest(requestId, key, requestedMember, requestedPeriod,
+        detailsRequestRef.current, selectedIdentityRef.current, memberIdRef.current, periodRef.current)) {
+        setDetailError(failureMessage);
+        setDetailsIdentity(key);
+      }
     } finally {
-      setLoadingAssignments(false);
+      if (requestId === detailsRequestRef.current && memberIdRef.current === requestedMember && periodRef.current === requestedPeriod) {
+        setLoadingAssignments(false);
+      }
     }
-  }, [memberLinked]);
+  }, [memberId, period]);
 
   useEffect(() => { void loadAssignments(selected); }, [loadAssignments, selected]);
 
   const pendingCount = useMemo(() => meetings.reduce((sum, meeting) => sum + meeting.pendingCount, 0), [meetings]);
   const choosePeriod = (next: Period) => {
     if (next === period) return;
+    periodRef.current = next;
+    selectedIdentityRef.current = null;
+    selectedRef.current = null;
+    meetingsRequestRef.current += 1;
+    detailsRequestRef.current += 1;
     setMeetings([]);
     setSelected(null);
     setAssignments([]);
+    setMeetingsIdentity('');
+    setDetailsIdentity('');
+    setDetailsReady(false);
     setMobileDetail(false);
+    setLoadError('');
+    setDetailError('');
     setPeriod(next);
   };
 
-  const refreshSelected = async () => {
-    const current = selected;
-    if (!current) return;
+  const refreshSelected = async (
+    failureMessage = 'Não foi possível atualizar os detalhes. Tente novamente.',
+    countFailureMessage = 'Não foi possível atualizar a contagem das reuniões. Tente atualizar os detalhes.',
+  ) => {
+    const current = selectedRef.current;
+    const requestedMember = memberIdRef.current;
+    const requestedPeriod = periodRef.current;
+    if (!current || !requestedMember) return false;
+    const key = meetingIdentity(requestedMember, requestedPeriod, current);
+    const requestId = ++detailsRequestRef.current;
+    setDetailsReady(false);
     setDetailError('');
     setLoadingAssignments(true);
     try {
-      const [nextAssignments, nextMeetings] = await Promise.all([
-        getPersonalMeetingAssignments(current.kind, current.id), getPersonalMeetings(period),
-      ]);
+      const nextAssignments = await getPersonalMeetingAssignments(current.kind, current.id);
+      if (!isCurrentDetailRequest(requestId, key, requestedMember, requestedPeriod,
+        detailsRequestRef.current, selectedIdentityRef.current, memberIdRef.current, periodRef.current)) return false;
       setAssignments(nextAssignments);
-      setMeetings(nextMeetings);
+      setDetailsIdentity(key);
+      setDetailsReady(true);
+      try {
+        const nextMeetings = await getPersonalMeetings(requestedPeriod);
+        if (requestId === detailsRequestRef.current && memberIdRef.current === requestedMember && periodRef.current === requestedPeriod) {
+          setMeetings(nextMeetings);
+          setMeetingsIdentity(listIdentity(requestedMember, requestedPeriod));
+        }
+      } catch {
+        if (requestId === detailsRequestRef.current && memberIdRef.current === requestedMember && periodRef.current === requestedPeriod) {
+          setDetailError(countFailureMessage);
+        }
+      }
+      return true;
     } catch {
-      setDetailError('Esta designação pode ter sido alterada. Atualize os detalhes antes de responder novamente.');
-      await loadAssignments(current);
+      if (isCurrentDetailRequest(requestId, key, requestedMember, requestedPeriod,
+        detailsRequestRef.current, selectedIdentityRef.current, memberIdRef.current, periodRef.current)) {
+        setDetailsReady(false);
+        setDetailsIdentity(key);
+        setDetailError(failureMessage);
+      }
+      return false;
     } finally {
-      setLoadingAssignments(false);
+      if (requestId === detailsRequestRef.current && memberIdRef.current === requestedMember && periodRef.current === requestedPeriod) {
+        setLoadingAssignments(false);
+      }
     }
   };
+
+  const detailsKey = selected && memberId ? meetingIdentity(memberId, period, selected) : '';
+  const detailsAreCurrent = detailsReady && detailsIdentity === detailsKey;
+  const meetingsAreCurrent = Boolean(memberId) && meetingsIdentity === listIdentity(memberId!, period);
 
   if (!memberLinked) return (
     <main className="mx-auto w-full max-w-5xl p-5 sm:p-8">
@@ -111,19 +213,21 @@ export function PublisherMeetingsPage() {
 
       <section className="mt-5 grid gap-5 md:grid-cols-[minmax(250px,330px)_minmax(0,1fr)] lg:gap-7" aria-label="Reuniões e designações pessoais">
         <div className={mobileDetail ? 'hidden md:block' : 'block'}>
-          {loadingMeetings && meetings.length === 0 ? <LoadingState label="Carregando reuniões…" />
+          {loadingMeetings && (!meetingsAreCurrent || meetings.length === 0) ? <LoadingState label="Carregando reuniões…" />
             : loadError ? <ErrorState message={loadError} onRetry={() => void loadMeetings(period)} />
-              : meetings.length === 0 ? <EmptyMeetings period={period} />
+              : !meetingsAreCurrent ? <LoadingState label="Carregando reuniões…" />
+                : meetings.length === 0 ? <EmptyMeetings period={period} />
                 : <div className="space-y-3" aria-label="Reuniões cadastradas">
                   {meetings.map(meeting => <MeetingListItem key={`${meeting.kind}:${meeting.id}`} meeting={meeting}
                     selected={selected?.id === meeting.id && selected.kind === meeting.kind}
-                    onClick={() => { setSelected(meeting); setMobileDetail(true); }} />)}
+                    onClick={() => { selectMeeting(meeting); setMobileDetail(true); }} />)}
                 </div>}
         </div>
 
         <div className={mobileDetail ? 'block' : 'hidden md:block'}>
           {mobileDetail && <Button variant="ghost" className="mb-3 md:hidden" onClick={() => setMobileDetail(false)}><ArrowLeft aria-hidden="true" /> Voltar às reuniões</Button>}
-          {!selected ? <div className="hidden min-h-72 items-center justify-center rounded-2xl border border-dashed bg-card p-8 text-center text-sm text-muted-foreground md:flex">Selecione uma reunião para consultar suas designações.</div>
+          {!meetingsAreCurrent ? <LoadingState label="Carregando sua reunião…" />
+            : !selected ? <div className="hidden min-h-72 items-center justify-center rounded-2xl border border-dashed bg-card p-8 text-center text-sm text-muted-foreground md:flex">Selecione uma reunião para consultar suas designações.</div>
             : <section aria-label={`Detalhes de ${meetingName(selected.kind)}`}>
               <div className="mb-4 rounded-2xl border bg-card px-5 py-4 sm:px-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-sky-800">{isMeetingDatePast(selected.date) ? 'Reunião encerrada' : 'Sua próxima reunião'}</p>
@@ -141,11 +245,31 @@ export function PublisherMeetingsPage() {
                     </div>
                       : <div className="space-y-4">{assignments.map((assignment, index) => <MeetingAssignmentCard
                         key={assignment.notification?.id || `${assignment.meetingId}-${assignment.roleLabel}-${index}`}
-                        assignment={assignment} onRespond={async input => {
-                          try { await respondToMeetingAssignment(input); await refreshSelected(); }
-                          catch (error) { await refreshSelected(); throw error; }
+                        assignment={assignment} responsesEnabled={detailsAreCurrent} onRespond={async input => {
+                          try {
+                            const saved = await respondToMeetingAssignment(input);
+                            if (selectedIdentityRef.current === detailsKey && memberIdRef.current === memberId && periodRef.current === period) {
+                              setAssignments(current => current.map(item => item.notification?.id === saved.id
+                                ? { ...item, notification: saved, canRespond: false } : item));
+                              if (assignment.notification?.status === 'pending_confirmation') {
+                                setMeetings(current => current.map(meeting => meetingIdentity(memberId || '', period, meeting) === detailsKey
+                                  ? { ...meeting, pendingCount: Math.max(0, meeting.pendingCount - 1) } : meeting));
+                              }
+                            }
+                            await refreshSelected(
+                              'Sua resposta foi salva, mas não foi possível atualizar os detalhes. Tente atualizar.',
+                              'Sua resposta foi salva, mas não foi possível atualizar a contagem. Tente atualizar os detalhes.',
+                            );
+                            return saved;
+                          } catch (error) {
+                            await refreshSelected(
+                              'A designação mudou. Atualize os detalhes antes de responder novamente.',
+                              'A designação mudou, mas não foi possível atualizar a contagem. Tente atualizar os detalhes.',
+                            );
+                            throw error;
+                          }
                         }} onHide={async id => { await hideNotification(id); await refreshSelected(); }} />)}</div>}
-                {detailError && assignments.length > 0 && <p role="status" className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{detailError}</p>}
+                {detailError && assignments.length > 0 && <div role="status" className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900"><span>{detailError}</span><Button type="button" size="sm" variant="outline" onClick={() => void refreshSelected('Não foi possível atualizar os detalhes. Tente novamente.')} aria-label="Atualizar detalhes">Atualizar detalhes</Button></div>}
                 <p className="mt-4 text-center text-xs text-muted-foreground">São exibidas somente suas próprias designações.</p>
               </div>
             </section>}
@@ -184,3 +308,20 @@ function LoadingState({ label }: { label: string }) { return <div role="status" 
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) { return <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-5 text-center"><p role="alert" className="text-sm">{message}</p><Button variant="outline" className="mt-3" onClick={onRetry}>Tentar novamente</Button></div>; }
 function formatMeetingDate(date: string) { return new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }); }
 function meetingName(kind: MeetingKind) { return kind === 'midweek' ? 'Reunião de meio de semana' : 'Reunião de fim de semana'; }
+function listIdentity(memberId: string, period: Period) { return `${memberId}|${period}`; }
+function meetingIdentity(memberId: string, period: Period, meeting: MeetingSummary) {
+  return `${listIdentity(memberId, period)}|${meeting.kind}|${meeting.id}`;
+}
+function isCurrentDetailRequest(
+  requestId: number,
+  requestedKey: string,
+  requestedMember: string,
+  requestedPeriod: Period,
+  activeRequestId: number,
+  activeKey: string | null,
+  activeMember: string | null,
+  activePeriod: Period,
+) {
+  return requestId === activeRequestId && activeKey === requestedKey
+    && activeMember === requestedMember && activePeriod === requestedPeriod;
+}

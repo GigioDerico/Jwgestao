@@ -49,6 +49,25 @@ describe('DeclineAssignmentDialog', () => {
     expect(screen.getByRole('button', { name: 'Enviar recusa' })).toBeEnabled();
   });
 
+  it('closes and clears the reason after a successful response', async () => {
+    const submit = vi.fn(async () => undefined);
+    const user = userEvent.setup();
+    function Harness() {
+      const [open, setOpen] = React.useState(false);
+      return <><button onClick={() => setOpen(true)}>Abrir recusa</button>
+        <DeclineAssignmentDialog open={open} assignment={assignment} onOpenChange={setOpen} onSubmit={submit} /></>;
+    }
+    render(<Harness />);
+    await user.click(screen.getByRole('button', { name: 'Abrir recusa' }));
+    const field = screen.getByRole('textbox', { name: /motivo da recusa/i });
+    await user.type(field, 'Motivo inicial');
+    await user.click(screen.getByRole('button', { name: 'Enviar recusa' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(submit).toHaveBeenCalledWith('Motivo inicial');
+    await user.click(screen.getByRole('button', { name: 'Abrir recusa' }));
+    expect(screen.getByRole('textbox', { name: /motivo da recusa/i })).toHaveValue('');
+  });
+
   it('allows Escape and Voltar to close without sending, then restores focus to the trigger', async () => {
     const submit = vi.fn();
     const user = userEvent.setup();

@@ -5,8 +5,10 @@ import { Layout } from './Layout';
 
 let role = 'publicador';
 let viewPermission = true;
+let approvedAudioVideo = true;
+let approvedCart = true;
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({
-  user: { id: 'user-1', name: 'Ana Lima', role, approved_audio_video: true, approved_carrinho: true },
+  user: { id: 'user-1', name: 'Ana Lima', role, approved_audio_video: approvedAudioVideo, approved_carrinho: approvedCart },
   logout: vi.fn(), loading: false,
 }) }));
 vi.mock('../context/NotificationsContext', () => ({ useNotifications: () => ({
@@ -26,13 +28,32 @@ function renderLayout(path = '/assignments/meetings') {
 }
 
 describe('Layout assignment navigation', () => {
-  beforeEach(() => { role = 'publicador'; viewPermission = true; });
-  it('shows only Reunião under Designações for a Publicador with assignment view permission', () => {
+  beforeEach(() => { role = 'publicador'; viewPermission = true; approvedAudioVideo = true; approvedCart = true; });
+  it('adds Reunião and keeps approved audio/video and cart items for a Publicador', () => {
+    renderLayout();
+    expect(screen.getByRole('button', { name: 'Reunião' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Áudio e Vídeo' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Saída de Campo' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Carrinho' })).toBeVisible();
+  });
+  it('shows only Reunião when the Publicador has no separate audio/video or cart approval', () => {
+    approvedAudioVideo = false;
+    approvedCart = false;
     renderLayout();
     expect(screen.getByRole('button', { name: 'Reunião' })).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Áudio e Vídeo' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Saída de Campo' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Carrinho' })).not.toBeInTheDocument();
+  });
+  it.each([
+    [true, false, true, false],
+    [false, true, false, true],
+  ])('keeps audio/video and cart access independent (%s, %s)', (audio, cart, audioVisible, cartVisible) => {
+    approvedAudioVideo = audio;
+    approvedCart = cart;
+    renderLayout();
+    expect(screen.getByRole('button', { name: 'Reunião' })).toBeVisible();
+    expect(Boolean(screen.queryByRole('button', { name: 'Áudio e Vídeo' }))).toBe(audioVisible);
+    expect(Boolean(screen.queryByRole('button', { name: 'Carrinho' }))).toBe(cartVisible);
   });
   it('keeps the existing admin tabs for coordinators and designers', () => {
     role = 'coordenador';

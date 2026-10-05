@@ -9,16 +9,18 @@ import { AssignmentResponseBadge } from './AssignmentResponseBadge';
 
 export interface MeetingAssignmentCardProps {
   assignment: PersonalMeetingAssignment;
-  onRespond: (input: MeetingResponseInput) => Promise<void>;
+  onRespond: (input: MeetingResponseInput) => Promise<AssignmentNotification | void>;
   onHide?: (notificationId: string) => Promise<void>;
+  responsesEnabled?: boolean;
 }
 
-export function MeetingAssignmentCard({ assignment, onRespond, onHide = async () => {} }: MeetingAssignmentCardProps) {
+export function MeetingAssignmentCard({ assignment, onRespond, onHide = async () => {}, responsesEnabled = true }: MeetingAssignmentCardProps) {
   const [declineOpen, setDeclineOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [savedResponse, setSavedResponse] = useState<AssignmentNotification | null>(null);
   const declineTriggerRef = useRef<HTMLButtonElement>(null);
-  const notification = assignment.notification;
+  const notification = savedResponse || assignment.notification;
   const status = notification?.status || 'revoked';
 
   const respond = async (decision: 'confirmed' | 'declined', reason?: string) => {
@@ -26,12 +28,14 @@ export function MeetingAssignmentCard({ assignment, onRespond, onHide = async ()
     setSaving(true);
     setActionError('');
     try {
-      await onRespond({ notificationId: notification.id, revision: assignment.revision, decision, reason });
+      const saved = await onRespond({ notificationId: notification.id, revision: assignment.revision, decision, reason });
+      if (saved) setSavedResponse(saved);
     } catch (error) {
-      const changed = error instanceof Error && /versão|alterad|atualiz/i.test(error.message);
+      const changed = isRevisionConflict(error);
       setActionError(changed
-        ? 'Esta designação foi alterada. Atualizamos os detalhes; confira a nova versão antes de responder.'
+        ? 'Esta designação mudou de versão. Atualize os detalhes e confira a versão atual antes de responder.'
         : error instanceof Error ? error.message : 'Não foi possível salvar sua resposta. Tente novamente.');
+      if (changed) setDeclineOpen(false);
       throw error;
     } finally {
       setSaving(false);
@@ -41,13 +45,13 @@ export function MeetingAssignmentCard({ assignment, onRespond, onHide = async ()
   const meetingDate = new Date(`${assignment.date}T12:00:00`);
   const dateLabel = meetingDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
   const timeLabel = assignment.time || 'Não informado';
-  const canRespond = assignment.canRespond && status === 'pending_confirmation';
+  const canRespond = responsesEnabled && assignment.canRespond && status === 'pending_confirmation';
   return (
     <>
       <article aria-label={`Designação: ${assignment.title}`} className="overflow-hidden rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50/70 to-white shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-sky-100/80 px-5 py-4 sm:px-6">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-sky-800">{assignment.meetingKind === 'midweek' ? 'Faça Seu Melhor no Ministério' : 'Nossa Vida Cristã'}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-sky-800">{assignment.meetingKind === 'midweek' ? 'Reunião de meio de semana' : 'Reunião de fim de semana'}</p>
             <h3 className="mt-2 text-xl font-semibold tracking-tight text-foreground">
               {assignment.partNumber ? `${assignment.partNumber}. ` : ''}{assignment.title}
             </h3>
@@ -89,6 +93,13 @@ export function MeetingAssignmentCard({ assignment, onRespond, onHide = async ()
         onSubmit={reason => respond('declined', reason)} />}
     </>
   );
+}
+
+function isRevisionConflict(error: unknown): boolean {
+  const value = error as { message?: string; code?: string } | null;
+  return /meeting_assignment_revision_conflict/i.test(value?.message || '')
+    || value?.code === '40001'
+    || /versão|designação mudou|atribuição alterada/i.test(value?.message || '');
 }
 
 function Info({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
