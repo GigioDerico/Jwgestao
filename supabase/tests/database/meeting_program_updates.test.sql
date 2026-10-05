@@ -36,6 +36,7 @@ create temporary table original_program as
 select (select id from public.midweek_ministry_parts where id = pg_temp.program_id('04', 1)) as first_part,
        (select id from public.midweek_ministry_parts where id = pg_temp.program_id('04', 2)) as second_part,
        (select assignment_revision from public.member_assignment_notifications where source_id = pg_temp.program_id('04', 1) and slot_key = 'student_id') as revision;
+grant select on original_program to authenticated;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', pg_temp.program_id('01', 1)::text, true);

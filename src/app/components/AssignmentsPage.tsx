@@ -18,6 +18,7 @@ import {
   serializeWeekendSpeakerCongregation,
 } from '../helpers';
 import { filterMembersEligibleForAssignments } from '../lib/assignment-member-eligibility';
+import { mapChristianLifeDraftsForSave, mapMinistryDraftsForSave } from '../lib/midweek-program-form';
 import { Plus, X, ChevronDown, BookOpen, MessageCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { sendDesignationWhatsApp, openDesignationInWhatsApp } from '../lib/whatsapp';
@@ -460,15 +461,7 @@ export function AssignmentsPage() {
         return;
       }
 
-      const ministryParts = midweekDraft.ministryParts
-        .map(part => ({
-          time: part.time.trim(),
-          title: part.title.trim(),
-          duration: part.duration.trim(),
-          studentId: part.studentId,
-          assistantId: part.assistantId,
-        }))
-        .filter(part => part.title || part.duration || part.studentId || part.assistantId);
+      const ministryParts = mapMinistryDraftsForSave(midweekDraft.ministryParts);
 
       const hasInvalidMinistryPart = ministryParts.some(part => !part.time || !part.title || !part.duration);
       if (hasInvalidMinistryPart) {
@@ -476,14 +469,7 @@ export function AssignmentsPage() {
         return;
       }
 
-      const christianLifeParts = midweekDraft.christianLifeParts
-        .map(part => ({
-          time: part.time.trim(),
-          title: part.title.trim(),
-          duration: part.duration.trim(),
-          speakerId: part.speakerId,
-        }))
-        .filter(part => part.title || part.duration || part.speakerId);
+      const christianLifeParts = mapChristianLifeDraftsForSave(midweekDraft.christianLifeParts);
 
       const hasInvalidChristianLifePart = christianLifeParts.some(part => !part.time || !part.title || !part.duration);
       if (hasInvalidChristianLifePart) {
