@@ -291,6 +291,11 @@ export type Database = {
       }
       member_assignment_notifications: {
         Row: {
+          assignment_revision: string | null
+          assignment_snapshot: Json | null
+          decline_reason: string | null
+          hidden_at: string | null
+          responded_at: string | null
           assignment_date: string | null
           category: string
           confirmed_at: string | null
@@ -309,6 +314,11 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          assignment_revision?: string | null
+          assignment_snapshot?: Json | null
+          decline_reason?: string | null
+          hidden_at?: string | null
+          responded_at?: string | null
           assignment_date?: string | null
           category: string
           confirmed_at?: string | null
@@ -327,6 +337,11 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          assignment_revision?: string | null
+          assignment_snapshot?: Json | null
+          decline_reason?: string | null
+          hidden_at?: string | null
+          responded_at?: string | null
           assignment_date?: string | null
           category?: string
           confirmed_at?: string | null
@@ -1380,6 +1395,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      respond_to_meeting_assignment: {
+        Args: {
+          p_notification_id: string
+          p_revision: string
+          p_decision: string
+          p_reason?: string | null
+        }
+        Returns: Json
+      }
       admin_reset_user_password: {
         Args: {
           target_auth_id: string
