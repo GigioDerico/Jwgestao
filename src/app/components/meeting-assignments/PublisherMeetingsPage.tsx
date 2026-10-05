@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router';
 import { ArrowLeft, CalendarDays, ChevronRight, Clock3, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import {
   getPersonalMeetings,
   getPersonalMeetingAssignments,
+  resolvePersonalAssignment,
+  isMeetingAssignmentUuid,
   isMeetingDatePast,
   type MeetingKind,
   type MeetingSummary,
@@ -12,6 +15,7 @@ import {
 } from '../../lib/meeting-assignments';
 import { Button } from '../ui/button';
 import { MeetingAssignmentCard } from './MeetingAssignmentCard';
+import { getSafeReturnPath } from '../../lib/auth-return-path';
 
 type Period = 'upcoming' | 'past';
 
@@ -19,6 +23,11 @@ export function PublisherMeetingsPage() {
   const { user } = useAuth();
   const { respondToMeetingAssignment, hideNotification } = useNotifications();
   const memberId = user?.member_id || null;
+  const [searchParams] = useSearchParams();
+  const targetAssignmentId = searchParams.get('assignment') || searchParams.get('notificationId');
+  const targetRevision = searchParams.get('revision');
+  const targetIdentity = `${user?.id || ''}:${memberId || ''}:${targetAssignmentId || ''}:${targetRevision || ''}`;
+  const [targetState, setTargetState] = useState<{ key: string; status: 'loading' | 'ready' | 'unavailable' | 'changed'; changedPath?: string }>({ key: '', status: 'loading' });
   const memberLinked = Boolean(memberId);
   const [period, setPeriod] = useState<Period>('upcoming');
   const [meetings, setMeetings] = useState<MeetingSummary[]>([]);
@@ -50,12 +59,51 @@ export function PublisherMeetingsPage() {
     setLoadingMeetings(true);
     setLoadError('');
     try {
+      let targetAssignment: PersonalMeetingAssignment | null = null;
+      if (targetAssignmentId || targetRevision) {
+        setTargetState({ key: targetIdentity, status: 'loading' });
+        if (!targetAssignmentId || !targetRevision || !isMeetingAssignmentUuid(targetAssignmentId) || !isMeetingAssignmentUuid(targetRevision)) {
+          setTargetState({ key: targetIdentity, status: 'unavailable' });
+          setMeetings([]); setMeetingsIdentity(listIdentity(requestedMember, requestedPeriod));
+          setSelected(null); setAssignments([]); setDetailsReady(false);
+          return;
+        }
+        const resolution = await resolvePersonalAssignment(targetAssignmentId, targetRevision);
+        if (requestId !== meetingsRequestRef.current || memberIdRef.current !== requestedMember || periodRef.current !== requestedPeriod) return;
+        if (resolution.kind === 'changed') {
+          setTargetState({ key: targetIdentity, status: 'changed', changedPath: resolution.currentPath });
+          setMeetings([]); setMeetingsIdentity(listIdentity(requestedMember, requestedPeriod));
+          setSelected(null); setAssignments([]); setDetailsReady(false);
+          return;
+        }
+        if (resolution.kind !== 'current' || resolution.assignment.notification?.id !== targetAssignmentId
+          || resolution.assignment.revision !== targetRevision || resolution.assignment.notification.memberId !== requestedMember) {
+          setTargetState({ key: targetIdentity, status: 'unavailable' });
+          setMeetings([]); setMeetingsIdentity(listIdentity(requestedMember, requestedPeriod));
+          setSelected(null); setAssignments([]); setDetailsReady(false);
+          return;
+        }
+        targetAssignment = resolution.assignment;
+        const assignmentPeriod: Period = isMeetingDatePast(targetAssignment.date) ? 'past' : 'upcoming';
+        if (assignmentPeriod !== requestedPeriod) {
+          periodRef.current = assignmentPeriod;
+          setPeriod(assignmentPeriod);
+          return;
+        }
+      }
       const result = await getPersonalMeetings(requestedPeriod);
       if (requestId !== meetingsRequestRef.current || memberIdRef.current !== requestedMember || periodRef.current !== requestedPeriod) return;
       setMeetings(result);
       setMeetingsIdentity(identity);
       const currentKey = selectedIdentityRef.current;
-      const next = result.find(meeting => meetingIdentity(requestedMember, requestedPeriod, meeting) === currentKey) || result[0] || null;
+      const linkedMeeting = targetAssignment && result.find(meeting => meeting.id === targetAssignment!.meetingId && meeting.kind === targetAssignment!.meetingKind);
+      if (targetAssignment && !linkedMeeting) {
+        setTargetState({ key: targetIdentity, status: 'unavailable' });
+        setSelected(null); setAssignments([]); setDetailsReady(false);
+        return;
+      }
+      const next = linkedMeeting || result.find(meeting => meetingIdentity(requestedMember, requestedPeriod, meeting) === currentKey) || result[0] || null;
+      if (targetAssignment) setTargetState({ key: targetIdentity, status: 'ready' });
       const nextKey = next ? meetingIdentity(requestedMember, requestedPeriod, next) : null;
       if (currentKey !== nextKey) {
         selectedIdentityRef.current = nextKey;
@@ -75,7 +123,7 @@ export function PublisherMeetingsPage() {
         setLoadingMeetings(false);
       }
     }
-  }, [memberId, period]);
+  }, [memberId, period, targetAssignmentId, targetRevision, targetIdentity]);
 
   useEffect(() => { void loadMeetings(period); }, [loadMeetings, period]);
 
@@ -104,6 +152,12 @@ export function PublisherMeetingsPage() {
       const result = await getPersonalMeetingAssignments(meeting.kind, meeting.id);
       if (!isCurrentDetailRequest(requestId, key, requestedMember, requestedPeriod,
         detailsRequestRef.current, selectedIdentityRef.current, memberIdRef.current, periodRef.current)) return;
+      if (targetAssignmentId && targetRevision && targetState.key === targetIdentity && targetState.status === 'ready'
+        && !result.some(item => item.notification?.id === targetAssignmentId && item.revision === targetRevision)) {
+        setTargetState({ key: targetIdentity, status: 'unavailable' });
+        setAssignments([]); setSelected(null); setDetailsReady(false);
+        return;
+      }
       setAssignments(result);
       setDetailsIdentity(key);
       setDetailsReady(true);
@@ -118,7 +172,7 @@ export function PublisherMeetingsPage() {
         setLoadingAssignments(false);
       }
     }
-  }, [memberId, period]);
+  }, [memberId, period, targetAssignmentId, targetRevision, targetState.key, targetState.status, targetIdentity]);
 
   useEffect(() => { void loadAssignments(selected); }, [loadAssignments, selected]);
 
@@ -192,6 +246,26 @@ export function PublisherMeetingsPage() {
   const detailsKey = selected && memberId ? meetingIdentity(memberId, period, selected) : '';
   const detailsAreCurrent = detailsReady && detailsIdentity === detailsKey;
   const meetingsAreCurrent = Boolean(memberId) && meetingsIdentity === listIdentity(memberId!, period);
+  const targetIsActive = Boolean(targetAssignmentId || targetRevision);
+  const visibleTargetState = targetState.key === targetIdentity ? targetState : null;
+
+  useEffect(() => {
+    if (!targetIsActive || !detailsAreCurrent || visibleTargetState?.status !== 'ready' || !targetAssignmentId) return;
+    const element = document.querySelector<HTMLElement>(`[data-notification-id="${targetAssignmentId}"]`);
+    if (!element) return;
+    element.focus({ preventScroll: true });
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [targetIsActive, detailsAreCurrent, visibleTargetState?.status, targetAssignmentId, assignments]);
+
+  if (targetIsActive && (!visibleTargetState || visibleTargetState.status === 'loading')) {
+    return <main className="mx-auto max-w-3xl p-6" role="status">Verificando sua designação…</main>;
+  }
+  if (targetIsActive && visibleTargetState?.status === 'changed') {
+    return <main className="mx-auto max-w-3xl p-6"><h1 className="text-xl font-semibold">Esta designação foi atualizada</h1><p className="my-3">O link é de uma versão anterior. Confira a designação atual antes de responder.</p><Link className="text-sky-700 underline" to={getSafeReturnPath(visibleTargetState.changedPath)}>Ver designação atual</Link></main>;
+  }
+  if (targetIsActive && visibleTargetState?.status === 'unavailable') {
+    return <main className="mx-auto max-w-3xl p-6"><h1 className="text-xl font-semibold">Designação indisponível</h1><p className="my-3">Não foi possível localizar esta designação para sua conta.</p><Link className="text-sky-700 underline" to="/assignments/meetings">Ir para Reunião</Link></main>;
+  }
 
   if (!memberLinked) return (
     <main className="mx-auto w-full max-w-5xl p-5 sm:p-8">
@@ -244,8 +318,11 @@ export function PublisherMeetingsPage() {
                     : assignments.length === 0 ? <div className="rounded-xl border border-dashed bg-muted/20 px-5 py-9 text-center">
                       <h4 className="font-medium">Você não tem designação nesta reunião</h4><p className="mt-1 text-sm text-muted-foreground">Quando uma designação for atribuída a você, ela aparecerá aqui.</p>
                     </div>
-                      : <div className="space-y-4">{assignments.map((assignment, index) => <MeetingAssignmentCard
+                      : <div className="space-y-4">{assignments.map((assignment, index) => <div
                         key={assignment.notification?.id || `${assignment.meetingId}-${assignment.roleLabel}-${index}`}
+                        data-notification-id={assignment.notification?.id || undefined}
+                        tabIndex={assignment.notification?.id === targetAssignmentId ? -1 : undefined}
+                      ><MeetingAssignmentCard
                         assignment={assignment} responsesEnabled={detailsAreCurrent} onRespond={async input => {
                           try {
                             const saved = await respondToMeetingAssignment(input);
@@ -269,7 +346,7 @@ export function PublisherMeetingsPage() {
                             );
                             throw error;
                           }
-                        }} onHide={async id => { await hideNotification(id); await refreshSelected(); }} />)}</div>}
+                        }} onHide={async id => { await hideNotification(id); await refreshSelected(); }} /></div>)}</div>}
                 {detailError && assignments.length > 0 && <div role="status" className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900"><span>{detailError}</span><Button type="button" size="sm" variant="outline" onClick={() => void refreshSelected('Não foi possível atualizar os detalhes. Tente novamente.')} aria-label="Atualizar detalhes">Atualizar detalhes</Button></div>}
                 <p className="mt-4 text-center text-xs text-muted-foreground">São exibidas somente suas próprias designações.</p>
               </div>

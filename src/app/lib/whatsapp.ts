@@ -148,8 +148,13 @@ export function buildWaMeLink(phone: string, text: string): string {
     return `https://wa.me/${formatPhoneForWhatsApp(phone)}?text=${encodeURIComponent(text)}`;
 }
 
-async function openWaMeLink(phone: string, text: string): Promise<void> {
+async function openWaMeLink(phone: string, text: string, reservedWindow?: Window): Promise<void> {
     const link = buildWaMeLink(phone, text);
+    if (reservedWindow) {
+        reservedWindow.opener = null;
+        reservedWindow.location.href = link;
+        return;
+    }
 
     // App Android (Capacitor): plugin nativo força o WhatsApp pessoal.
     if (Capacitor.getPlatform() === 'android') {
@@ -170,11 +175,27 @@ async function openWaMeLink(phone: string, text: string): Promise<void> {
     window.open(link, '_blank', 'noopener,noreferrer');
 }
 
-export async function openDesignationInWhatsApp(data: DesignationMessageData): Promise<void> {
+export async function openDesignationInWhatsApp(data: DesignationMessageData, reservedWindow?: Window): Promise<void> {
     if (!data.phone) {
         throw new Error('Número de telefone do estudante não encontrado.');
     }
-    await openWaMeLink(data.phone, buildDesignationMessage(data));
+    await openWaMeLink(data.phone, buildDesignationMessage(data), reservedWindow);
+}
+
+export async function openDesignationInWhatsAppWithLink(
+    data: DesignationMessageData,
+    resolveAssignmentUrl?: () => Promise<string | undefined>,
+): Promise<void> {
+    if (!data.phone) throw new Error('Número de telefone do estudante não encontrado.');
+    const reservedWindow = Capacitor.isNativePlatform() ? undefined : window.open('about:blank', '_blank') || undefined;
+    if (!Capacitor.isNativePlatform() && !reservedWindow) throw new Error('Permita a abertura de janela para continuar no WhatsApp.');
+    try {
+        const assignmentUrl = resolveAssignmentUrl ? await resolveAssignmentUrl() : undefined;
+        await openDesignationInWhatsApp({ ...data, ...(assignmentUrl ? { assignmentUrl } : {}) }, reservedWindow);
+    } catch (error) {
+        reservedWindow?.close();
+        throw error;
+    }
 }
 
 export async function openTextInWhatsApp(data: PlainWhatsAppMessageData): Promise<void> {

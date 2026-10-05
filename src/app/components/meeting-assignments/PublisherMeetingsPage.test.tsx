@@ -1,14 +1,19 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PublisherMeetingsPage } from './PublisherMeetingsPage';
-import { getPersonalMeetings, getPersonalMeetingAssignments } from '../../lib/meeting-assignments';
+import { getPersonalMeetings, getPersonalMeetingAssignments, resolvePersonalAssignment } from '../../lib/meeting-assignments';
 
 vi.mock('../../lib/meeting-assignments', () => ({
   getPersonalMeetings: vi.fn(),
   getPersonalMeetingAssignments: vi.fn(),
+  resolvePersonalAssignment: vi.fn(),
+  isMeetingAssignmentUuid: (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value),
   isMeetingDatePast: (date: string) => date < '2026-10-05',
 }));
+function renderPublisher(path = '/assignments/meetings') { return render(<MemoryRouter initialEntries={[path]}><PublisherMeetingsPage /></MemoryRouter>); }
+
 vi.mock('../../context/NotificationsContext', () => ({
   useNotifications: () => ({ respondToMeetingAssignment }),
 }));
@@ -57,11 +62,31 @@ describe('PublisherMeetingsPage', () => {
       status: input.decision,
     }));
     vi.mocked(getPersonalMeetings).mockResolvedValue(meetings);
+    vi.mocked(resolvePersonalAssignment).mockReset();
     vi.mocked(getPersonalMeetingAssignments).mockImplementation(async (_kind, meetingId) => meetingId === 'meeting-1' ? [assignment, secondAssignment] : []);
   });
 
+
+  it('consumes the RPC current_path assignment query and focuses the exact loaded assignment', async () => {
+    const notificationId = '123e4567-e89b-42d3-a456-426614174000';
+    const revision = '123e4567-e89b-42d3-a456-426614174001';
+    const target = { ...weekendAssignment, notification: { ...weekendAssignment.notification, id: notificationId, assignmentRevision: revision }, revision, title: 'Foco exato no link' };
+    vi.mocked(resolvePersonalAssignment).mockResolvedValue({ kind: 'current', assignment: target });
+    vi.mocked(getPersonalMeetingAssignments).mockImplementation(async (_kind, meetingId) => meetingId === 'meeting-2' ? [target] : [assignment]);
+
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    renderPublisher(`/assignments/meetings?assignment=${notificationId}&revision=${revision}`);
+    const card = await screen.findByRole('heading', { name: /Foco exato no link/ });
+    await waitFor(() => expect(getPersonalMeetingAssignments).toHaveBeenCalledWith('weekend', 'meeting-2'));
+    await waitFor(() => expect(card.closest('[data-notification-id]')).toHaveAttribute('data-notification-id', notificationId));
+    expect(document.activeElement).toHaveAttribute('data-notification-id', notificationId);
+    expect(scrollIntoView).toHaveBeenCalled();
+    expect(resolvePersonalAssignment).toHaveBeenCalledWith(notificationId, revision);
+  });
+
   it('lists registered meetings and shows only personal assignments, without the meeting schedule', async () => {
-    render(<PublisherMeetingsPage />);
+    renderPublisher();
     expect(await screen.findByRole('heading', { name: 'Suas próximas reuniões' })).toBeVisible();
     expect(screen.getByText('Não informado')).toBeVisible();
     expect(await screen.findByRole('heading', { name: /4\. Iniciando conversas/ })).toBeVisible();
@@ -78,7 +103,7 @@ describe('PublisherMeetingsPage', () => {
   });
 
   it('keeps the preselected meeting details when opening that meeting on mobile', async () => {
-    render(<PublisherMeetingsPage />);
+    renderPublisher();
     expect(await screen.findByRole('heading', { name: /4\. Iniciando conversas/ })).toBeVisible();
     await userEvent.setup().click(screen.getByRole('button', { name: /Reunião de meio de semana/ }));
     expect(screen.getByRole('heading', { name: /4\. Iniciando conversas/ })).toBeVisible();
@@ -87,7 +112,7 @@ describe('PublisherMeetingsPage', () => {
   });
 
   it('reloads details and pending count after each independent response', async () => {
-    render(<PublisherMeetingsPage />);
+    renderPublisher();
     await screen.findByRole('heading', { name: /4\. Iniciando conversas/ });
     const buttons = screen.getAllByRole('button', { name: /Confirmar designação/ });
     expect(buttons).toHaveLength(2);
@@ -107,7 +132,7 @@ describe('PublisherMeetingsPage', () => {
     vi.mocked(getPersonalMeetingAssignments).mockResolvedValue([{ ...assignment, date: '2026-10-01', canRespond: false,
       notification: { ...assignment.notification, status: 'confirmed' } }]);
     const user = userEvent.setup();
-    render(<PublisherMeetingsPage />);
+    renderPublisher();
     await screen.findByRole('heading', { name: /4\. Iniciando conversas/ });
     await user.click(screen.getByRole('tab', { name: 'Histórico' }));
     expect(await screen.findByText('Participação confirmada')).toBeVisible();
@@ -117,7 +142,7 @@ describe('PublisherMeetingsPage', () => {
   it('offers retry after a load failure', async () => {
     vi.mocked(getPersonalMeetings).mockRejectedValueOnce(new Error('offline')).mockResolvedValue(meetings);
     const user = userEvent.setup();
-    render(<PublisherMeetingsPage />);
+    renderPublisher();
     expect(await screen.findByText('Não foi possível carregar as reuniões.')).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Tentar novamente' }));
     expect(await screen.findByRole('heading', { name: /4\. Iniciando conversas/ })).toBeVisible();
@@ -125,7 +150,7 @@ describe('PublisherMeetingsPage', () => {
 
   it('explains when the signed-in account has no linked member', async () => {
     currentMemberId = null;
-    render(<PublisherMeetingsPage />);
+    renderPublisher();
     expect(await screen.findByText(/contate o responsável pelas designações/i)).toBeVisible();
   });
 
@@ -135,7 +160,7 @@ describe('PublisherMeetingsPage', () => {
       ? new Promise(resolve => { resolveOld = resolve; })
       : Promise.resolve([weekendAssignment]));
     const user = userEvent.setup();
-    render(<PublisherMeetingsPage />);
+    renderPublisher();
     await waitFor(() => expect(getPersonalMeetingAssignments).toHaveBeenCalledWith('midweek', 'meeting-1'));
     await user.click(screen.getByRole('button', { name: /Reunião de fim de semana/ }));
     expect(await screen.findByRole('heading', { name: /Leitor da Sentinela/ })).toBeVisible();
@@ -151,7 +176,7 @@ describe('PublisherMeetingsPage', () => {
       ? new Promise(resolve => { resolveUpcoming = resolve; })
       : Promise.resolve([pastAssignment]));
     const user = userEvent.setup();
-    render(<PublisherMeetingsPage />);
+    renderPublisher();
     await waitFor(() => expect(getPersonalMeetingAssignments).toHaveBeenCalledWith('midweek', 'meeting-1'));
     await user.click(screen.getByRole('tab', { name: 'Histórico' }));
     expect(await screen.findByRole('heading', { name: /Designação histórica/ })).toBeVisible();
@@ -167,10 +192,10 @@ describe('PublisherMeetingsPage', () => {
     vi.mocked(getPersonalMeetingAssignments).mockImplementation((_kind, meetingId) => meetingId === 'meeting-1'
       ? new Promise(resolve => { resolveMember1 = resolve; })
       : Promise.resolve([member2Assignment]));
-    const { rerender } = render(<PublisherMeetingsPage />);
+    const { rerender } = renderPublisher();
     await waitFor(() => expect(getPersonalMeetingAssignments).toHaveBeenCalledWith('midweek', 'meeting-1'));
     currentMemberId = 'member-2';
-    rerender(<PublisherMeetingsPage />);
+    rerender(<MemoryRouter initialEntries={['/assignments/meetings']}><PublisherMeetingsPage /></MemoryRouter>);
     expect(await screen.findByRole('heading', { name: /Designação do segundo membro/ })).toBeVisible();
     await act(async () => { resolveMember1([assignment]); });
     expect(screen.getByRole('heading', { name: /Designação do segundo membro/ })).toBeVisible();
@@ -181,7 +206,7 @@ describe('PublisherMeetingsPage', () => {
     respondToMeetingAssignment.mockResolvedValue({ ...assignment.notification, status: 'confirmed' });
     vi.mocked(getPersonalMeetingAssignments).mockResolvedValueOnce([assignment]).mockRejectedValueOnce(new Error('offline'));
     const user = userEvent.setup();
-    render(<PublisherMeetingsPage />);
+    renderPublisher();
     await screen.findByRole('button', { name: /Confirmar designação/ });
     await user.click(screen.getByRole('button', { name: /Confirmar designação/ }));
     expect(await screen.findByText('Participação confirmada')).toBeVisible();
@@ -196,7 +221,7 @@ describe('PublisherMeetingsPage', () => {
       .mockResolvedValueOnce([{ ...assignment, revision: 'rev-2', canRespond: true,
         notification: { ...assignment.notification, assignmentRevision: 'rev-2' } }]);
     const user = userEvent.setup();
-    render(<PublisherMeetingsPage />);
+    renderPublisher();
     await screen.findByRole('button', { name: 'Não posso participar' });
     await user.click(screen.getByRole('button', { name: 'Não posso participar' }));
     await user.type(screen.getByRole('textbox', { name: /motivo da recusa/i }), 'Imprevisto pessoal');

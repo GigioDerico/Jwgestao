@@ -21,7 +21,7 @@ import { filterMembersEligibleForAssignments } from '../lib/assignment-member-el
 import { mapChristianLifeDraftsForSave, mapMinistryDraftsForSave } from '../lib/midweek-program-form';
 import { Plus, X, ChevronDown, BookOpen, MessageCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
-import { sendDesignationWhatsApp, openDesignationInWhatsApp } from '../lib/whatsapp';
+import { sendDesignationWhatsApp, openDesignationInWhatsAppWithLink } from '../lib/whatsapp';
 import { AssignmentHistory } from './AssignmentHistory';
 import { AssignmentResponseBadge } from './meeting-assignments/AssignmentResponseBadge';
 import { useMeetingAssignmentResponses } from '../hooks/useMeetingAssignmentResponses';
@@ -853,10 +853,6 @@ function MeetingsAssignmentsContent({
     const assignmentUrl = resolveUrl ? await resolveUrl() : undefined;
     return sendDesignationWhatsApp({ ...payload, ...(assignmentUrl ? { assignmentUrl } : {}) });
   };
-  const openWithAssignmentLink = async (payload: Parameters<typeof sendDesignationWhatsApp>[0], resolveUrl?: () => Promise<string | undefined>) => {
-    const assignmentUrl = resolveUrl ? await resolveUrl() : undefined;
-    return openDesignationInWhatsApp({ ...payload, ...(assignmentUrl ? { assignmentUrl } : {}) });
-  };
 
   const sendWhatsAppDesignation = async (payload: Parameters<typeof sendDesignationWhatsApp>[0], resolveUrl?: () => Promise<string | undefined>) => {
     const toastId = toast.loading('Enviando WhatsApp...');
@@ -871,7 +867,7 @@ function MeetingsAssignmentsContent({
 
   const openDesignationOnMyWhatsApp = async (payload: Parameters<typeof sendDesignationWhatsApp>[0], resolveUrl?: () => Promise<string | undefined>) => {
     try {
-      await openWithAssignmentLink(payload, resolveUrl);
+      await openDesignationInWhatsAppWithLink(payload, resolveUrl);
     } catch (err: any) {
       toast.error(err.message || 'Erro ao abrir o WhatsApp.');
     }

@@ -1,5 +1,9 @@
 import { supabase } from './supabase';
 import type { AssignmentNotification } from '../types';
+import { getSafeReturnPath } from './auth-return-path';
+
+const MEETING_ASSIGNMENT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export function isMeetingAssignmentUuid(value: string): boolean { return MEETING_ASSIGNMENT_UUID.test(value); }
 
 export type MeetingKind = 'midweek' | 'weekend';
 export type MeetingResponseStatus = 'pending_confirmation' | 'confirmed' | 'declined' | 'revoked';
@@ -49,7 +53,7 @@ export interface ManagedMeetingAssignmentResponse extends AssignmentNotification
 }
 
 export function buildMeetingResponseReviewPath(notificationId: string, revision?: string | null): string {
-  const query = new URLSearchParams({ notificationId });
+  const query = new URLSearchParams({ assignment: notificationId });
   if (revision) query.set('revision', revision);
   return `/assignments/meetings?${query.toString()}`;
 }
@@ -155,15 +159,16 @@ export async function getPersonalMeetingAssignments(kind: MeetingKind, meetingId
 }
 
 export async function resolvePersonalAssignment(notificationId: string, revision: string): Promise<AssignmentResolution> {
+  if (!isMeetingAssignmentUuid(notificationId) || !isMeetingAssignmentUuid(revision)) return { kind: 'unavailable' };
   const { data, error } = await supabase.rpc('resolve_personal_assignment', {
     p_notification_id: notificationId,
     p_revision: revision,
   });
   if (error) throwRPCError(error);
   if (data?.kind === 'unavailable') return { kind: 'unavailable' };
-  if (data?.kind === 'changed' && (data.current_path === '/assignments/meetings'
-    || (typeof data.current_path === 'string' && data.current_path.startsWith('/assignments/meetings?')))) {
-    return { kind: 'changed', currentPath: data.current_path };
+  if (data?.kind === 'changed') {
+    const currentPath = getSafeReturnPath(data.current_path);
+    if (currentPath.startsWith('/assignments/meetings')) return { kind: 'changed', currentPath };
   }
   if (data?.kind !== 'current' || !data.assignment?.notification || typeof data.assignment.revision !== 'string') {
     return { kind: 'unavailable' };

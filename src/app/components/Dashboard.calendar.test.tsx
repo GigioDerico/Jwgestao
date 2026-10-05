@@ -30,7 +30,7 @@ vi.mock('react-router', () => ({
   Link: (props: any) => <a href={props.to}>{props.children}</a>,
 }));
 vi.mock('../lib/meeting-assignments', () => ({
-  buildMeetingResponseReviewPath: (id: string, revision?: string) => `/assignments/meetings?notificationId=${id}${revision ? `&revision=${revision}` : ''}`,
+  buildMeetingResponseReviewPath: (id: string, revision?: string) => `/assignments/meetings?assignment=${id}${revision ? `&revision=${revision}` : ''}`,
   isMeetingAssignmentNotification: (notification: { category: string; sourceType: string; slotKey: string }) =>
     notification.category === 'midweek' && notification.sourceType === 'midweek_meeting_role' && notification.slotKey === 'president_id'
     || notification.category === 'weekend' && notification.sourceType === 'weekend_meeting_role' && notification.slotKey === 'president_id',

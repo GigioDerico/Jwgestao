@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Layout } from './Layout';
 vi.mock('../lib/meeting-assignments', () => ({
-  buildMeetingResponseReviewPath: (id: string, revision?: string) => `/assignments/meetings?notificationId=${id}${revision ? `&revision=${revision}` : ''}`,
+  buildMeetingResponseReviewPath: (id: string, revision?: string) => `/assignments/meetings?assignment=${id}${revision ? `&revision=${revision}` : ''}`,
   isMeetingDatePast: (date: string) => date < '2026-10-05',
 }));
 
@@ -99,7 +99,7 @@ describe('Layout assignment navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Abrir notificações' }));
 
     expect(await screen.findByRole('link', { name: 'Ver histórico' })).toHaveAttribute(
-      'href', '/assignments/meetings?notificationId=past-n1&revision=rev-1',
+      'href', '/assignments/meetings?assignment=past-n1&revision=rev-1',
     );
     expect(screen.queryByRole('button', { name: 'Confirmar' })).not.toBeInTheDocument();
   });

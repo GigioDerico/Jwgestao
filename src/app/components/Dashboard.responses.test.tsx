@@ -23,7 +23,7 @@ vi.mock('react-router', () => ({
   Link: (props: any) => <a href={props.to}>{props.children}</a>,
 }));
 vi.mock('../lib/meeting-assignments', () => ({
-  buildMeetingResponseReviewPath: (id: string, revision?: string) => `/assignments/meetings?notificationId=${id}${revision ? `&revision=${revision}` : ''}`,
+  buildMeetingResponseReviewPath: (id: string, revision?: string) => `/assignments/meetings?assignment=${id}${revision ? `&revision=${revision}` : ''}`,
   isMeetingAssignmentNotification: (notification: { category: string; sourceType: string; slotKey: string }) =>
     notification.category === 'midweek' && notification.sourceType === 'midweek_meeting_role' && notification.slotKey === 'president_id'
     || notification.category === 'weekend' && notification.sourceType === 'weekend_meeting_role' && notification.slotKey === 'president_id',
@@ -84,7 +84,7 @@ describe('Dashboard meeting responses', () => {
     render(<Dashboard />);
 
     expect(await screen.findByRole('link', { name: 'Ver designação' })).toHaveAttribute(
-      'href', '/assignments/meetings?notificationId=pending-1&revision=rev-1',
+      'href', '/assignments/meetings?assignment=pending-1&revision=rev-1',
     );
     expect(screen.getAllByRole('button', { name: 'Confirmar' }).length).toBeGreaterThan(0);
   });
@@ -102,7 +102,7 @@ describe('Dashboard meeting responses', () => {
     await screen.findByText('Reunião do Meio de Semana');
     const links = screen.getAllByRole('link', { name: 'Ver designação' });
     expect(links.length).toBeGreaterThan(0);
-    expect(links.every(link => link.getAttribute('href')?.includes('notificationId=meeting-assignment'))).toBe(true);
-    expect(links.some(link => link.getAttribute('href')?.includes('notificationId=av-assignment'))).toBe(false);
+    expect(links.every(link => link.getAttribute('href')?.includes('assignment=meeting-assignment'))).toBe(true);
+    expect(links.some(link => link.getAttribute('href')?.includes('assignment=av-assignment'))).toBe(false);
   });
 });

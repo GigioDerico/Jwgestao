@@ -23,12 +23,15 @@ export function getSafeReturnPath(value: unknown): string {
   if (pathname === '/assignments/meetings') {
     if (!query) return pathname;
     const params = new URLSearchParams(query);
+    const assignment = params.get('assignment');
     const notificationId = params.get('notificationId');
     const revision = params.get('revision');
-    if (notificationId && revision && uuid.test(notificationId) && uuid.test(revision)
-      && params.getAll('notificationId').length === 1 && params.getAll('revision').length === 1
-      && [...params.keys()].every(key => key === 'notificationId' || key === 'revision')) {
-      return `${pathname}?notificationId=${encodeURIComponent(notificationId)}&revision=${encodeURIComponent(revision)}`;
+    const id = assignment || notificationId;
+    const expectedIdKey = assignment ? 'assignment' : 'notificationId';
+    if (id && !(assignment && notificationId) && revision && uuid.test(id) && uuid.test(revision)
+      && params.getAll(expectedIdKey).length === 1 && params.getAll('revision').length === 1
+      && [...params.keys()].every(key => key === expectedIdKey || key === 'revision')) {
+      return `${pathname}?assignment=${encodeURIComponent(id)}&revision=${encodeURIComponent(revision)}`;
     }
     return '/dashboard';
   }
