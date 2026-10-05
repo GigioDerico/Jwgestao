@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { DeclineAssignmentDialog } from './DeclineAssignmentDialog';
@@ -13,18 +13,16 @@ describe('DeclineAssignmentDialog', () => {
     render(<DeclineAssignmentDialog open assignment={assignment} onOpenChange={vi.fn()} onSubmit={submit} />);
     const field = screen.getByRole('textbox', { name: /motivo da recusa/i });
     const send = screen.getByRole('button', { name: 'Enviar recusa' });
-    await user.type(field, '   ');
+    fireEvent.change(field, { target: { value: '   ' } });
     await user.click(send);
     expect(await screen.findByRole('alert')).toHaveTextContent('Informe o motivo da recusa.');
     expect(submit).not.toHaveBeenCalled();
-    await user.clear(field);
-    await user.type(field, 'a'.repeat(501));
+    fireEvent.change(field, { target: { value: 'a'.repeat(501) } });
     expect(field).toHaveValue('a'.repeat(501));
     await user.click(send);
     expect(screen.getByRole('alert')).toHaveTextContent('no máximo 500');
     expect(submit).not.toHaveBeenCalled();
-    await user.clear(field);
-    await user.type(field, 'a'.repeat(500));
+    fireEvent.change(field, { target: { value: 'a'.repeat(500) } });
     expect(screen.getByText('500/500')).toBeVisible();
     await user.click(send);
     await waitFor(() => expect(submit).toHaveBeenCalledWith('a'.repeat(500)));
@@ -38,7 +36,7 @@ describe('DeclineAssignmentDialog', () => {
     const user = userEvent.setup();
     render(<DeclineAssignmentDialog open assignment={assignment} onOpenChange={vi.fn()} onSubmit={submit} />);
     const field = screen.getByRole('textbox', { name: /motivo da recusa/i });
-    await user.type(field, 'Compromisso familiar');
+    fireEvent.change(field, { target: { value: 'Compromisso familiar' } });
     const send = screen.getByRole('button', { name: 'Enviar recusa' });
     await user.click(send);
     await user.click(send);
@@ -60,7 +58,7 @@ describe('DeclineAssignmentDialog', () => {
     render(<Harness />);
     await user.click(screen.getByRole('button', { name: 'Abrir recusa' }));
     const field = screen.getByRole('textbox', { name: /motivo da recusa/i });
-    await user.type(field, 'Motivo inicial');
+    fireEvent.change(field, { target: { value: 'Motivo inicial' } });
     await user.click(screen.getByRole('button', { name: 'Enviar recusa' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(submit).toHaveBeenCalledWith('Motivo inicial');

@@ -192,10 +192,21 @@ Estender `AssignmentNotification` com `declined`, `hiddenAt?: string | null`, `d
 
 **Files:** atualizar `docs/user-guide.md`, este plano e os tipos gerados de Supabase; ajustes nos testes das tarefas anteriores conforme necessário.
 
-- [ ] Rodar todos os novos testes focados, `npm run test:run`, `npm run test:db` no banco local e `npm run build`. Registrar comandos/resultados e distinguir falhas anteriores de regressões; não afirmar aprovação de verificação indisponível.
+#### Registro de integração — 2026-10-05
+
+- Tasks 1–7 foram implementadas em commits separados. Os relatórios de execução disponíveis para as Tasks 1, 6 e 7 e os diffs de revisão estão em `.superpowers/sdd/2026-10-05-publicador-reuniao/`.
+- A suíte focada de integração passou: 103 testes em 16 arquivos, cobrindo página pessoal, menu/rota, edição no cliente, respostas do gestor, links, login e WhatsApp.
+- `npm run build` passou. Permanecem os avisos de importação de Geolocation em chunks estático/dinâmico e de chunk JavaScript acima de 500 kB.
+- `npm run test:run` executou 286 testes: 273 passaram e 13 falharam nos casos conhecidos com datas fixas passadas (`assignment-calendar.test.ts`: 9; `Dashboard.calendar.test.tsx`: 4), já presentes na linha de base de 2026-10-05. Os testes de digitação do diálogo foram ajustados para definir o texto de forma determinística e passaram no arquivo isolado (4/4). A suíte integral continua sem aprovação por causa das 13 falhas preexistentes.
+- `npm run test:db` não iniciou os testes: PostgreSQL local recusou conexão em `127.0.0.1:54322` (`ECONNREFUSED`). Docker/Podman não estão disponíveis. Nenhuma migration foi aplicada a banco remoto; políticas efetivas, advisors e concorrência SQL permanecem sem validação em execução.
+- Ensaio com contas reais, verificação visual em dispositivos e checklist de publicação permanecem pendentes porque dependem da stack/banco local e de contas autenticadas. Testes de interface cobrem a separação da gestão existente para coordenador/designador e a experiência pessoal para Publicador.
+- Os tipos Supabase foram adaptados manualmente nos commits anteriores. Geração automática depende de um banco local acessível.
+
+- [x] Rodar os testes focados, `npm run test:run`, `npm run test:db` no banco local e `npm run build`. Resultados e falhas de ambiente/linha de base foram registrados acima; a suíte integral não foi aprovada.
 - [ ] Ensaiar com duas contas Publicador e uma de gestor: listar reuniões; confirmar; recusar com motivo; consultar motivo pelo gestor; substituir; voltar ao link antigo; confirmar múltiplas funções; ocultar notificação; editar reunião sem mudanças; consultar histórico e voltar do login para uma parte.
 - [ ] Validar desktop/celular, estados de erro e acessibilidade básica. Conferir que a interface não contém cronograma nem expõe motivos de outras pessoas. Conferir Áudio e Vídeo/campo/carrinho após migração de `hidden`.
-- [ ] Revisar políticas efetivas e grants no banco local; executar verificação de advisors conforme ferramentas disponíveis e revisar warnings relevantes. Atualizar documentação com recusa, links e comportamento de substituição.
+- [ ] Revisar políticas efetivas e grants no banco local e executar advisors; depende de PostgreSQL local. Avisos do build foram registrados acima.
+- [x] Atualizar documentação com recusa, links e comportamento de substituição.
 - [ ] Preparar publicação: migrations e backfill antes do frontend; clientes antigos que tentarem editar diretamente respostas de reunião recebem erro e devem atualizar. Orientar recarga/atualização do app. Se publicação do frontend falhar, manter schema aditivo e corrigir adiante, sem apagar motivos ou versões.
 - [ ] Registrar commit final e apresentar resultado verificável. Aplicação remota e publicação são etapas posteriores, mediante autorização correspondente.
 
