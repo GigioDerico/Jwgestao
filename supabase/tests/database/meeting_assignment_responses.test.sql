@@ -21,7 +21,7 @@ from generate_series(1, 5) n;
 update public.role_permissions set can_view_assignments = true;
 insert into public.midweek_meetings(id, date, president_id)
 select pg_temp.meeting_test_id('03', n),
-  (now() at time zone 'America/Sao_Paulo')::date + case when n = 8 then -10000 else 10000 + n end,
+  (now() at time zone 'America/Sao_Paulo')::date + case when n = 8 then -1 else 10000 + n end,
   pg_temp.meeting_test_id('02', 1)
 from generate_series(1, 8) n;
 insert into public.member_assignment_notifications(
@@ -50,6 +50,67 @@ select is(private.resolve_meeting_assignment('weekend_meeting_role', pg_temp.mee
 select is(private.resolve_meeting_assignment('midweek_christian_life_part', pg_temp.meeting_test_id('08', 1), 'speaker_id')->>'title', 'Consideração', 'Christian life title resolves');
 select is(private.resolve_meeting_assignment('midweek_christian_life_part', pg_temp.meeting_test_id('08', 1), 'speaker_id')->>'time', null::text, 'missing part time is not invented from meeting start');
 
+-- Reproduce the pre-migration schema state only within this rolled-back transaction.
+-- Save the exact constraint definition rather than maintaining a duplicate in this test.
+create temporary table legacy_notification_constraint as
+select pg_catalog.pg_get_constraintdef(c.oid) as definition
+from pg_catalog.pg_constraint c
+where c.conrelid = 'public.member_assignment_notifications'::regclass
+  and c.conname = 'meeting_assignment_status_check';
+alter table public.member_assignment_notifications drop constraint meeting_assignment_status_check;
+update public.midweek_meetings set
+  opening_prayer_id = pg_temp.meeting_test_id('02', 1),
+  closing_prayer_id = pg_temp.meeting_test_id('02', 1),
+  treasure_talk_speaker_id = pg_temp.meeting_test_id('02', 1),
+  treasure_gems_speaker_id = pg_temp.meeting_test_id('02', 2)
+where id = pg_temp.meeting_test_id('03', 7);
+insert into public.member_assignment_notifications(
+  id, member_id, source_type, source_id, slot_key, category, title, message,
+  status, confirmed_at, revoked_at, updated_at
+)
+select pg_temp.meeting_test_id('10', x.n), pg_temp.meeting_test_id('02', 1),
+  x.source_type,
+  case when x.n < 5 then pg_temp.meeting_test_id('03', 7) else pg_temp.meeting_test_id('11', x.n) end,
+  x.slot_key, x.category, 'Legacy hidden fixture', 'Legacy hidden fixture', 'hidden',
+  case when x.n in (1, 4, 5) then '2026-01-02 12:00:00+00'::timestamptz end,
+  case when x.n = 3 then '2026-01-02 13:00:00+00'::timestamptz end,
+  '2026-01-02 14:00:00+00'::timestamptz
+from (values
+  (1, 'midweek_meeting_role', 'opening_prayer_id', 'midweek'),
+  (2, 'midweek_meeting_role', 'closing_prayer_id', 'midweek'),
+  (3, 'midweek_meeting_role', 'treasure_talk_speaker_id', 'midweek'),
+  (4, 'midweek_meeting_role', 'treasure_gems_speaker_id', 'midweek'),
+  (5, 'cart_assignment', 'publisher1', 'cart'),
+  (6, 'audio_video_assignment', 'sound', 'audio_video')
+) x(n, source_type, slot_key, category);
+select lives_ok($$select private.backfill_meeting_assignment_responses()$$, 'migration helper handles legacy hidden records');
+select is((select status from public.member_assignment_notifications where id = pg_temp.meeting_test_id('10', 1)), 'confirmed', 'hidden current confirmation is recovered');
+select is((select responded_at from public.member_assignment_notifications where id = pg_temp.meeting_test_id('10', 1)), '2026-01-02 12:00:00+00'::timestamptz, 'backfill recovers exact confirmation timestamp');
+select is((select hidden_at from public.member_assignment_notifications where id = pg_temp.meeting_test_id('10', 1)), '2026-01-02 14:00:00+00'::timestamptz, 'backfill recovers hiding timestamp independently');
+select is((select status from public.member_assignment_notifications where id = pg_temp.meeting_test_id('10', 2)), 'pending_confirmation', 'hidden current assignment without evidence stays pending');
+select ok((select responded_at is null and confirmed_at is null from public.member_assignment_notifications where id = pg_temp.meeting_test_id('10', 2)), 'pending backfill does not manufacture a response');
+select is((select status from public.member_assignment_notifications where id = pg_temp.meeting_test_id('10', 3)), 'revoked', 'proven revocation is preserved even when slot remains assigned');
+select is((select revoked_at from public.member_assignment_notifications where id = pg_temp.meeting_test_id('10', 3)), '2026-01-02 13:00:00+00'::timestamptz, 'known revocation date is preserved');
+select is((select status from public.member_assignment_notifications where id = pg_temp.meeting_test_id('10', 4)), 'revoked', 'reassigned hidden confirmation is revoked');
+select ok((select assignment_snapshot is null and responded_at = confirmed_at from public.member_assignment_notifications where id = pg_temp.meeting_test_id('10', 4)), 'old recipient retains known response without replacement member snapshot');
+select is((select status from public.member_assignment_notifications where id = pg_temp.meeting_test_id('10', 5)), 'confirmed', 'hidden nonmeeting confirmation is recovered');
+select is((select responded_at from public.member_assignment_notifications where id = pg_temp.meeting_test_id('10', 5)), '2026-01-02 12:00:00+00'::timestamptz, 'nonmeeting known response timestamp is preserved');
+select ok((select assignment_revision is null and hidden_at is not null from public.member_assignment_notifications where id = pg_temp.meeting_test_id('10', 5)), 'legacy source gets hiding metadata without meeting revision');
+select ok((select status = 'pending_confirmation' and responded_at is null and hidden_at is not null from public.member_assignment_notifications where id = pg_temp.meeting_test_id('10', 6)), 'hidden nonmeeting record without response evidence stays pending');
+create temporary table legacy_backfill_once as
+select id, to_jsonb(n) as notification from public.member_assignment_notifications n
+where id between pg_temp.meeting_test_id('10', 1) and pg_temp.meeting_test_id('10', 6);
+select private.backfill_meeting_assignment_responses();
+select is_empty($$select n.id from public.member_assignment_notifications n join legacy_backfill_once b using (id)
+  where to_jsonb(n) is distinct from b.notification$$, 'backfill reentry preserves UUIDs, snapshots, visibility and response timestamps');
+do $$
+begin
+  execute 'alter table public.member_assignment_notifications add constraint meeting_assignment_status_check '
+    || (select definition from legacy_notification_constraint);
+end;
+$$;
+select ok(not has_function_privilege('authenticated', 'private.backfill_meeting_assignment_responses()', 'execute'), 'legacy migration helper cannot be called by clients');
+
 select has_column('public', 'member_assignment_notifications', 'hidden_at', 'hiding is independent');
 select has_column('public', 'member_assignment_notifications', 'responded_at', 'response timestamp exists');
 select has_function('public', 'respond_to_meeting_assignment', array['uuid','uuid','text','text'], 'response RPC exists');
@@ -75,8 +136,34 @@ select throws_ok($$select public.respond_to_meeting_assignment(pg_temp.meeting_t
 select is(public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 2), pg_temp.meeting_test_id('05', 2), 'declined', repeat('á', 500))->>'status', 'declined', '500 Unicode characters accepted');
 select lives_ok($$select public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 2), pg_temp.meeting_test_id('05', 2), 'declined', repeat('á', 500))$$, 'identical refusal is idempotent');
 select throws_ok($$select public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 2), pg_temp.meeting_test_id('05', 2), 'declined', 'Outro motivo')$$, '40001', 'meeting_assignment_response_conflict', 'changed reason conflicts');
+reset role;
+create temporary table saved_responses_before_backfill as
+select id, to_jsonb(n) as notification from public.member_assignment_notifications n
+where id in (pg_temp.meeting_test_id('04', 1), pg_temp.meeting_test_id('04', 2));
+select private.backfill_meeting_assignment_responses();
+select is_empty($$select n.id from public.member_assignment_notifications n join saved_responses_before_backfill b using (id)
+  where to_jsonb(n) is distinct from b.notification$$, 'backfill reentry preserves new confirmed and declined responses with their versions');
+set local role authenticated;
 select throws_ok($$select public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 3), pg_temp.meeting_test_id('05', 4), 'confirmed')$$, '40001', 'meeting_assignment_revision_conflict', 'stale version rejected');
 select throws_ok($$select public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 8), pg_temp.meeting_test_id('05', 8), 'confirmed')$$, '22023', 'meeting_assignment_past', 'past assignment cannot respond');
+-- Seed the exact current version as saved just before Sao Paulo midnight.
+-- The request below represents a connection-loss retry after that day has passed.
+reset role;
+update public.member_assignment_notifications
+set status = 'confirmed',
+    responded_at = ((now() at time zone 'America/Sao_Paulo')::date - 1 + time '23:59:59') at time zone 'America/Sao_Paulo',
+    confirmed_at = ((now() at time zone 'America/Sao_Paulo')::date - 1 + time '23:59:59') at time zone 'America/Sao_Paulo'
+where id = pg_temp.meeting_test_id('04', 8);
+create temporary table midnight_response_before as
+select to_jsonb(n) as notification from public.member_assignment_notifications n where id = pg_temp.meeting_test_id('04', 8);
+grant select on midnight_response_before to authenticated;
+set local role authenticated;
+select is(public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 8), pg_temp.meeting_test_id('05', 8), 'confirmed'),
+  (select notification from midnight_response_before), 'identical saved response remains idempotent after Sao Paulo midnight without timestamp changes');
+select throws_ok($$select public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 8), pg_temp.meeting_test_id('05', 8), 'declined', 'Nova decisão')$$,
+  '22023', 'meeting_assignment_past', 'a new decision after midnight remains rejected');
+select throws_ok($$select public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 8), pg_temp.meeting_test_id('05', 7), 'confirmed')$$,
+  '40001', 'meeting_assignment_revision_conflict', 'midnight retry still requires exact saved revision');
 select throws_ok($$update public.member_assignment_notifications set source_id = pg_temp.meeting_test_id('03', 3) where id = pg_temp.meeting_test_id('04', 1)$$, '42501', 'meeting_assignment_direct_write_forbidden', 'owner cannot rewrite source');
 select throws_ok($$update public.member_assignment_notifications set decline_reason = 'Forjado' where id = pg_temp.meeting_test_id('04', 2)$$, '42501', 'meeting_assignment_direct_write_forbidden', 'owner cannot rewrite response');
 select lives_ok($$update public.member_assignment_notifications set hidden_at = now(), is_read = true, read_at = now() where id = pg_temp.meeting_test_id('04', 1)$$, 'owner can hide/read');
@@ -97,11 +184,12 @@ set local role authenticated;
 select throws_ok($$update public.member_assignment_notifications set status = 'pending_confirmation' where id = pg_temp.meeting_test_id('04', 2)$$, '42501', 'meeting_assignment_direct_write_forbidden', 'administrative client cannot bypass response guard on own row');
 reset role;
 update public.midweek_meetings set president_id = null where id = pg_temp.meeting_test_id('03', 4);
-update public.midweek_meetings set opening_comments_time = '20:01' where id = pg_temp.meeting_test_id('03', 6);
+update public.midweek_meetings set opening_comments_duration = 7 where id = pg_temp.meeting_test_id('03', 6);
+select is(private.resolve_meeting_assignment('midweek_meeting_role', pg_temp.meeting_test_id('03', 6), 'president_id')->>'duration', '7', 'president snapshot includes opening comments duration');
 set local role authenticated;
 select set_config('request.jwt.claim.sub', pg_temp.meeting_test_id('01', 1)::text, true);
 select throws_ok($$select public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 4), pg_temp.meeting_test_id('05', 4), 'confirmed')$$, '42501', 'meeting_assignment_unavailable', 'removed assignment cannot respond');
-select throws_ok($$select public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 6), pg_temp.meeting_test_id('05', 6), 'confirmed')$$, '40001', 'meeting_assignment_revision_conflict', 'changed personal content cannot accept old response');
+select throws_ok($$select public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 6), pg_temp.meeting_test_id('05', 6), 'confirmed')$$, '40001', 'meeting_assignment_revision_conflict', 'changed president duration cannot accept old response');
 reset role;
 update public.role_permissions set can_view_assignments = false where role = 'publicador';
 set local role authenticated;

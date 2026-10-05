@@ -32,7 +32,7 @@ begin
         'treasure_talk_speaker_id', 'treasure_gems_speaker_id', 'treasure_reading_student_id', 'cbs_conductor_id', 'cbs_reader_id') then return null; end if;
       select to_jsonb(x) into m from public.midweek_meetings x where x.id = p_source_id;
       case p_slot_key
-        when 'president_id' then role_label := 'Presidente'; part_time := m->>'opening_comments_time';
+        when 'president_id' then role_label := 'Presidente'; part_time := m->>'opening_comments_time'; duration := (m->>'opening_comments_duration')::integer;
         when 'opening_prayer_id' then role_label := 'Oração inicial'; part_time := m->>'opening_song_time';
         when 'closing_prayer_id' then role_label := 'Oração final'; part_time := m->>'closing_song_time';
         when 'treasure_talk_speaker_id' then role_label := 'Tesouros da Palavra de Deus'; part_title := m->>'treasure_talk_title'; part_time := m->>'treasure_talk_time'; duration := (m->>'treasure_talk_duration')::integer;
@@ -92,26 +92,43 @@ end;
 $$;
 revoke all on function private.resolve_meeting_assignment(text, uuid, text) from public, anon, authenticated, service_role;
 
--- Recover only recorded evidence. Hidden entries without confirmation remain pending.
-update public.member_assignment_notifications
-set hidden_at = coalesce(hidden_at, updated_at),
-    status = case when revoked_at is not null then 'revoked'
-                  when confirmed_at is not null then 'confirmed' else 'pending_confirmation' end
-where status = 'hidden';
-update public.member_assignment_notifications
-set responded_at = confirmed_at where confirmed_at is not null;
+-- Idempotent migration helper, also exercised by the legacy-row regression fixtures.
+-- Recover only recorded evidence; current response state and version are preserved on reruns.
+create or replace function private.backfill_meeting_assignment_responses()
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  update public.member_assignment_notifications
+  set hidden_at = coalesce(hidden_at, updated_at),
+      status = case when revoked_at is not null then 'revoked'
+                    when confirmed_at is not null then 'confirmed' else 'pending_confirmation' end
+  where status = 'hidden';
+  update public.member_assignment_notifications
+  set responded_at = coalesce(responded_at, confirmed_at)
+  where confirmed_at is not null and responded_at is null;
 
--- Attach existing current records; creation and ongoing reconciliation belong to sync migration.
-with resolved as (
-  select n.id, private.resolve_meeting_assignment(n.source_type, n.source_id, n.slot_key) as assignment
-  from public.member_assignment_notifications n
-  where n.source_type in ('midweek_meeting_role', 'midweek_ministry_part', 'midweek_christian_life_part', 'weekend_meeting_role')
-)
-update public.member_assignment_notifications n
-set assignment_revision = gen_random_uuid(), assignment_snapshot = case when r.assignment->>'member_id' = n.member_id::text then r.assignment else null end,
-    status = case when r.assignment is null or r.assignment->>'member_id' <> n.member_id::text or n.revoked_at is not null or n.status = 'revoked' then 'revoked' when n.confirmed_at is not null then 'confirmed' else 'pending_confirmation' end,
-    revoked_at = case when r.assignment is null or r.assignment->>'member_id' <> n.member_id::text or n.status = 'revoked' then coalesce(n.revoked_at, now()) else n.revoked_at end
-from resolved r where n.id = r.id;
+  -- Attach existing current records; creation and ongoing reconciliation belong to sync migration.
+  with resolved as (
+    select n.id, private.resolve_meeting_assignment(n.source_type, n.source_id, n.slot_key) as assignment
+    from public.member_assignment_notifications n
+    where n.source_type in ('midweek_meeting_role', 'midweek_ministry_part', 'midweek_christian_life_part', 'weekend_meeting_role')
+  )
+  update public.member_assignment_notifications n
+  set assignment_revision = coalesce(n.assignment_revision, gen_random_uuid()),
+      assignment_snapshot = coalesce(n.assignment_snapshot,
+        case when r.assignment->>'member_id' = n.member_id::text then r.assignment else null end),
+      status = case
+        when r.assignment is null or r.assignment->>'member_id' <> n.member_id::text or n.revoked_at is not null or n.status = 'revoked' then 'revoked'
+        when n.confirmed_at is not null then 'confirmed'
+        when n.status = 'declined' then 'declined'
+        else 'pending_confirmation' end,
+      revoked_at = case
+        when r.assignment is null or r.assignment->>'member_id' <> n.member_id::text or n.status = 'revoked'
+          then coalesce(n.revoked_at, now()) else n.revoked_at end
+  from resolved r where n.id = r.id;
+end;
+$$;
+revoke all on function private.backfill_meeting_assignment_responses() from public, anon, authenticated, service_role;
+select private.backfill_meeting_assignment_responses();
 
 alter table public.member_assignment_notifications
   add constraint meeting_assignment_status_check check (
@@ -171,9 +188,6 @@ begin
     or (n.assignment_snapshot - 'partner_name') is distinct from (resolution - 'partner_name') then
     raise exception using errcode = '40001', message = 'meeting_assignment_revision_conflict';
   end if;
-  if (resolution->>'date')::date < (clock_timestamp() at time zone 'America/Sao_Paulo')::date then
-    raise exception using errcode = '22023', message = 'meeting_assignment_past';
-  end if;
   if p_decision is null or p_decision not in ('confirmed', 'declined') then
     raise exception using errcode = '22023', message = 'meeting_assignment_decision_invalid';
   end if;
@@ -185,7 +199,11 @@ begin
   elsif p_reason is not null and p_reason ~ '[^[:space:]]' then
     raise exception using errcode = '22023', message = 'meeting_assignment_reason_invalid';
   end if;
+  -- A retry of an already saved response performs no mutation, even after midnight.
   if n.status = p_decision and n.decline_reason is not distinct from reason then return to_jsonb(n); end if;
+  if (resolution->>'date')::date < (clock_timestamp() at time zone 'America/Sao_Paulo')::date then
+    raise exception using errcode = '22023', message = 'meeting_assignment_past';
+  end if;
   if n.status <> 'pending_confirmation' then
     raise exception using errcode = '40001', message = 'meeting_assignment_response_conflict';
   end if;
