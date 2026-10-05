@@ -6,6 +6,7 @@ vi.mock('./supabase', () => ({ supabase: { rpc } }));
 import {
   getPersonalMeetings,
   getPersonalMeetingAssignments,
+  getMeetingAssignmentResponses,
   resolvePersonalAssignment,
   respondToMeetingAssignment,
   isMeetingDatePast,
@@ -67,5 +68,26 @@ describe('personal meeting assignment API', () => {
     expect(rpc).toHaveBeenCalledWith('respond_to_meeting_assignment', {
       p_notification_id: 'n1', p_revision: 'r1', p_decision: 'confirmed', p_reason: null,
     });
+  });
+
+  it('reads all assignment responses for a meeting in one authorized batch', async () => {
+    rpc.mockResolvedValue({ data: [{
+      notification: {
+        id: 'n1', member_id: 'member1', category: 'midweek', source_type: 'midweek_ministry_part', source_id: 'p1',
+        slot_key: 'assistant_id', title: 'Designação', message: 'Designação', assignment_date: '2026-10-06',
+        status: 'declined', is_read: true, created_at: '2026-10-05T12:00:00Z', decline_reason: 'Ausente',
+      },
+      member_name: 'João', role_label: 'Ajudante', assignment_title: 'Consideração', part_number: 3,
+    }], error: null });
+
+    const rows = await getMeetingAssignmentResponses('midweek', 'meeting-1');
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      memberId: 'member1', memberName: 'João', sourceId: 'p1', slotKey: 'assistant_id', status: 'declined',
+      declineReason: 'Ausente', roleLabel: 'Ajudante', assignmentTitle: 'Consideração', partNumber: 3,
+    });
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith('get_meeting_assignment_responses', { p_kind: 'midweek', p_meeting_id: 'meeting-1' });
   });
 });

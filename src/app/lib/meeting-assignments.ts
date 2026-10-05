@@ -41,6 +41,13 @@ export interface MeetingResponseInput {
   reason?: string;
 }
 
+export interface ManagedMeetingAssignmentResponse extends AssignmentNotification {
+  memberName: string;
+  roleLabel: string;
+  assignmentTitle: string;
+  partNumber: number | null;
+}
+
 function throwRPCError(error: unknown): never {
   throw new Error(`Erro ao acessar designação da reunião: ${(error as { message?: string })?.message || 'falha desconhecida'}`);
 }
@@ -158,4 +165,19 @@ export async function respondToMeetingAssignment(input: MeetingResponseInput): P
     throw new Error('A resposta retornada não corresponde à versão carregada da designação. Atualize a reunião e tente novamente.');
   }
   return mapNotification(data);
+}
+
+export async function getMeetingAssignmentResponses(kind: MeetingKind, meetingId: string): Promise<ManagedMeetingAssignmentResponse[]> {
+  const { data, error } = await supabase.rpc('get_meeting_assignment_responses', {
+    p_kind: kind,
+    p_meeting_id: meetingId,
+  });
+  if (error) throwRPCError(error);
+  return (data || []).map((row: any) => ({
+    ...mapNotification(row.notification),
+    memberName: row.member_name,
+    roleLabel: row.role_label,
+    assignmentTitle: row.assignment_title,
+    partNumber: row.part_number === null || row.part_number === undefined ? null : Number(row.part_number),
+  }));
 }

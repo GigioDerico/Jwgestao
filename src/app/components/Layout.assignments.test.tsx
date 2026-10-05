@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Layout } from './Layout';
@@ -7,12 +7,13 @@ let role = 'publicador';
 let viewPermission = true;
 let approvedAudioVideo = true;
 let approvedCart = true;
+const notifications: any[] = [];
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({
   user: { id: 'user-1', name: 'Ana Lima', role, approved_audio_video: approvedAudioVideo, approved_carrinho: approvedCart },
   logout: vi.fn(), loading: false,
 }) }));
 vi.mock('../context/NotificationsContext', () => ({ useNotifications: () => ({
-  notifications: [], unreadCount: 0, pendingCount: 0, loading: false,
+  notifications, unreadCount: 0, pendingCount: 0, loading: false,
   markRead: vi.fn(), markAllRead: vi.fn(), confirm: vi.fn(),
 }) }));
 vi.mock('../hooks/usePermissions', () => ({ usePermissions: () => ({ can: () => viewPermission }) }));
@@ -28,7 +29,7 @@ function renderLayout(path = '/assignments/meetings') {
 }
 
 describe('Layout assignment navigation', () => {
-  beforeEach(() => { role = 'publicador'; viewPermission = true; approvedAudioVideo = true; approvedCart = true; });
+  beforeEach(() => { role = 'publicador'; viewPermission = true; approvedAudioVideo = true; approvedCart = true; notifications.splice(0); });
   it('adds Reunião and keeps approved audio/video and cart items for a Publicador', () => {
     renderLayout();
     expect(screen.getByRole('button', { name: 'Reunião' })).toBeVisible();
@@ -67,5 +68,20 @@ describe('Layout assignment navigation', () => {
     viewPermission = false;
     renderLayout();
     expect(screen.queryByRole('button', { name: 'Designações' })).not.toBeInTheDocument();
+  });
+
+  it('shows a refusal in the notification bell without a confirmation action', async () => {
+    notifications.push({
+      id: 'n1', memberId: 'm1', category: 'midweek', sourceType: 'midweek_meeting_role', sourceId: 'meeting1',
+      slotKey: 'president_id', title: 'Presidente', message: 'Presidente em 15/11/2026', assignmentDate: '2026-11-15',
+      status: 'declined', isRead: false, createdAt: '2026-10-01T00:00:00Z',
+    });
+    renderLayout();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir notificações' }));
+
+    expect(await screen.findByText('Recusa enviada')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Confirmar' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Confirmada')).not.toBeInTheDocument();
   });
 });

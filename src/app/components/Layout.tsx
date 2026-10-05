@@ -57,6 +57,7 @@ export function Layout() {
   ];
 
   const canManageAssignments = user?.role === 'coordenador' || user?.role === 'designador';
+  const visibleNotifications = notifications.filter(notification => !notification.hiddenAt);
   const canAccessAudioVideo =
     Boolean(user?.approved_audio_video) ||
     Boolean(user?.approved_sound) ||
@@ -478,19 +479,19 @@ export function Layout() {
                     <div className="px-4 py-6 text-center text-muted-foreground" style={{ fontSize: '0.82rem' }}>
                       Carregando notificações...
                     </div>
-                  ) : notifications.length === 0 ? (
+                  ) : visibleNotifications.length === 0 ? (
                     <div className="px-4 py-6 text-center text-muted-foreground" style={{ fontSize: '0.82rem' }}>
                       Nenhuma notificação ativa.
                     </div>
                   ) : (
-                    notifications.map(notification => (
+                    visibleNotifications.map(notification => (
                       <div
                         key={notification.id}
                         className={`border-b border-border/70 px-4 py-3 ${notification.isRead ? 'bg-card' : 'bg-primary/5'}`}
                       >
                         <div className="flex items-start gap-3">
                           <span
-                            className={`mt-1 inline-flex h-2.5 w-2.5 shrink-0 rounded-full ${notification.status === 'confirmed' ? 'bg-green-500' : 'bg-amber-500'}`}
+                            className={`mt-1 inline-flex h-2.5 w-2.5 shrink-0 rounded-full ${notification.status === 'confirmed' ? 'bg-green-500' : notification.status === 'declined' ? 'bg-rose-500' : 'bg-amber-500'}`}
                           />
                           <div className="min-w-0 flex-1">
                             <p className="text-foreground font-medium" style={{ fontSize: '0.82rem' }}>
@@ -529,6 +530,15 @@ export function Layout() {
                                 >
                                   Confirmar
                                 </button>
+                              ) : notification.status === 'declined' ? (
+                                <span className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1 text-rose-700" style={{ fontSize: '0.74rem' }}>
+                                  <X size={12} />
+                                  Recusa enviada
+                                </span>
+                              ) : notification.status === 'revoked' ? (
+                                <span className="inline-flex items-center gap-1 rounded-lg bg-muted px-2.5 py-1 text-muted-foreground" style={{ fontSize: '0.74rem' }}>
+                                  Designação substituída
+                                </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 rounded-lg bg-green-50 px-2.5 py-1 text-green-700" style={{ fontSize: '0.74rem' }}>
                                   <Check size={12} />

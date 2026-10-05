@@ -23,6 +23,8 @@ import { Plus, X, ChevronDown, BookOpen, MessageCircle, ChevronLeft, ChevronRigh
 import { toast } from 'sonner';
 import { sendDesignationWhatsApp, openDesignationInWhatsApp } from '../lib/whatsapp';
 import { AssignmentHistory } from './AssignmentHistory';
+import { AssignmentResponseBadge } from './meeting-assignments/AssignmentResponseBadge';
+import { useMeetingAssignmentResponses } from '../hooks/useMeetingAssignmentResponses';
 
 type MeetingEditField = {
   label: string;
@@ -234,6 +236,19 @@ export function AssignmentsPage() {
   const canViewAssignments = can('view_assignments');
   const canCreateAssignments = canManageAssignments && can('create_assignments');
   const canEditAssignments = canManageAssignments && can('edit_assignments');
+  const selectedMeeting = meetingType === 'midweek'
+    ? midweekMeetings[selectedMeetingIdx]
+    : weekendMeetings[selectedMeetingIdx];
+  const selectedMeetingId = selectedMeeting?.id as string | undefined;
+  const responseSourceIds = [
+    ...(selectedMeetingId ? [selectedMeetingId] : []),
+    ...(selectedMeeting?.ministry_parts || []).map((part: any) => part.id),
+    ...(selectedMeeting?.christian_life_parts || []).map((part: any) => part.id),
+  ];
+  const meetingResponses = useMeetingAssignmentResponses(
+    meetingType, selectedMeetingId, responseSourceIds,
+    canManageAssignments && canViewAssignments && viewMode === 'scale',
+  );
 
   if (user && (!canManageAssignments || !canViewAssignments)) {
     return <Navigate to="/dashboard" replace />;
@@ -712,6 +727,24 @@ export function AssignmentsPage() {
 
       {viewMode === 'scale' ? (
         <>
+          {selectedMeetingId && meetingResponses.length > 0 && (
+            <section className="rounded-xl border border-border bg-card p-4 shadow-sm" aria-label="Respostas às designações">
+              <h2 className="mb-3 text-sm font-semibold text-foreground">Respostas às designações</h2>
+              <ul className="divide-y divide-border">
+                {meetingResponses.map(response => (
+                  <li key={`${response.memberId}:${response.sourceType}:${response.sourceId}:${response.slotKey}`} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground">{response.memberName}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {response.partNumber ? `${response.partNumber}. ` : ''}{response.assignmentTitle} · {response.roleLabel}
+                      </p>
+                    </div>
+                    <AssignmentResponseBadge status={response.status} reason={response.declineReason} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           <MeetingsAssignmentsContent
             midweekMeetings={midweekMeetings}
             weekendMeetings={weekendMeetings}

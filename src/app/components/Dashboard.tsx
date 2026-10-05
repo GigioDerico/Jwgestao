@@ -200,7 +200,7 @@ export function Dashboard() {
 
   // listNotifications: excludes hidden — used in "Minhas Designações" panel
   const listNotifications = useMemo(
-    () => visibleNotifications.filter(n => n.status !== 'hidden'),
+    () => visibleNotifications.filter(n => !n.hiddenAt),
     [visibleNotifications]
   );
 
@@ -325,8 +325,8 @@ export function Dashboard() {
                 <div className="divide-y divide-border">
                   {group.items.map((notification) => (
                     <div key={notification.id} className="px-4 md:px-5 py-3.5 flex flex-wrap items-start gap-3 hover:bg-muted/30 transition-colors">
-                      <div className={`mt-0.5 shrink-0 ${notification.status === 'confirmed' ? 'text-green-500' : 'text-amber-500'}`}>
-                        {notification.status === 'confirmed' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+                      <div className={`mt-0.5 shrink-0 ${notification.status === 'confirmed' ? 'text-green-500' : notification.status === 'declined' ? 'text-rose-500' : 'text-amber-500'}`}>
+                        {notification.status === 'confirmed' ? <CheckCircle2 size={18} /> : notification.status === 'declined' ? <X size={18} /> : <AlertCircle size={18} />}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-foreground font-medium" style={{ fontSize: '0.9rem' }}>{notification.title}</p>
@@ -362,6 +362,8 @@ export function Dashboard() {
                             <X size={16} />
                           </button>
                         </div>
+                      ) : notification.status === 'declined' ? (
+                        <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700">Recusa enviada</span>
                       ) : (
                         <div className="w-full min-w-0 sm:w-auto">
                           <AssignmentCalendarActions
@@ -429,16 +431,17 @@ export function Dashboard() {
             {nextMidweekNotifications.length > 0 ? (
               nextMidweekNotifications.map(notification => {
                 const isPending = notification.status === 'pending_confirmation';
+                const isDeclined = notification.status === 'declined';
                 return (
                   <div
                     key={notification.id}
                     className={`rounded-lg border px-3 py-2 ${isPending
                       ? 'border-red-300 bg-red-500/10'
-                      : 'border-emerald-300 bg-emerald-500/10'
+                      : isDeclined ? 'border-rose-300 bg-rose-500/10' : 'border-emerald-300 bg-emerald-500/10'
                       }`}
                   >
                     <p
-                      className={`font-medium ${isPending ? 'text-red-100' : 'text-emerald-100'}`}
+                      className={`font-medium ${isPending ? 'text-red-100' : isDeclined ? 'text-rose-100' : 'text-emerald-100'}`}
                       style={{ fontSize: '0.8rem' }}
                     >
                       {getAssignmentDesignationLabel(notification.message)}
@@ -447,7 +450,7 @@ export function Dashboard() {
                       className={isPending ? 'text-red-100/90' : 'text-emerald-100/90'}
                       style={{ fontSize: '0.74rem' }}
                     >
-                      {isPending ? 'Aguardando sua confirmação' : 'Designação confirmada'}
+                      {isPending ? 'Aguardando sua confirmação' : isDeclined ? 'Você informou que não poderá participar' : 'Designação confirmada'}
                     </p>
                     {isPending && (
                       <div className="flex gap-2 items-center mt-2">
@@ -508,16 +511,17 @@ export function Dashboard() {
             {nextWeekendNotifications.length > 0 ? (
               nextWeekendNotifications.map(notification => {
                 const isPending = notification.status === 'pending_confirmation';
+                const isDeclined = notification.status === 'declined';
                 return (
                   <div
                     key={notification.id}
                     className={`rounded-lg border px-3 py-2 ${isPending
                       ? 'border-red-300 bg-red-50'
-                      : 'border-emerald-300 bg-emerald-50'
+                      : isDeclined ? 'border-rose-300 bg-rose-50' : 'border-emerald-300 bg-emerald-50'
                       }`}
                   >
                     <p
-                      className={`font-medium ${isPending ? 'text-red-700' : 'text-emerald-700'}`}
+                      className={`font-medium ${isPending ? 'text-red-700' : isDeclined ? 'text-rose-700' : 'text-emerald-700'}`}
                       style={{ fontSize: '0.8rem' }}
                     >
                       {getAssignmentDesignationLabel(notification.message)}
@@ -526,7 +530,7 @@ export function Dashboard() {
                       className={isPending ? 'text-red-700/80' : 'text-emerald-700/80'}
                       style={{ fontSize: '0.74rem' }}
                     >
-                      {isPending ? 'Aguardando sua confirmação' : 'Designação confirmada'}
+                      {isPending ? 'Aguardando sua confirmação' : isDeclined ? 'Você informou que não poderá participar' : 'Designação confirmada'}
                     </p>
                     {isPending && (
                       <div className="flex gap-2 items-center mt-2">

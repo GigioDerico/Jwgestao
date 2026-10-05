@@ -18,7 +18,7 @@ export function AssignmentResponseBadge({ status, reason }: { status: MeetingRes
       <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${colors}`}>
         <Icon aria-hidden="true" size={14} />{statusCopy[status]}
       </span>
-      {status === 'declined' && reason && <p className="w-full text-sm text-muted-foreground">Motivo enviado ao responsável.</p>}
+      {status === 'declined' && reason && <p className="w-full text-sm text-muted-foreground">Motivo: {reason}</p>}
     </div>
   );
 }
