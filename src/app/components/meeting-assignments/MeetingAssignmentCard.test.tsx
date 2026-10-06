@@ -16,6 +16,14 @@ const assignment = {
 } as any;
 
 describe('MeetingAssignmentCard', () => {
+  it('shows the assistant assignment without asking for a response', () => {
+    render(<MeetingAssignmentCard assignment={{ ...assignment, roleLabel: 'Ajudante',
+      notification: { ...assignment.notification, slotKey: 'assistant_id' } }} onRespond={vi.fn()} />);
+    expect(screen.getByText('Sua função: Ajudante')).toBeVisible();
+    expect(screen.getByText('Não precisa confirmar')).toBeVisible();
+    expect(screen.queryByRole('button', { name: /Confirmar designação/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('Aguardando resposta')).not.toBeInTheDocument();
+  });
   it('lets a declined participant confirm and removes the refusal reason', async () => {
     const onRespond = vi.fn(async () => ({ ...assignment.notification, status: 'confirmed', declineReason: null }));
     render(<MeetingAssignmentCard assignment={{ ...assignment,

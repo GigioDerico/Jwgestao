@@ -48,6 +48,16 @@ describe('ManagedMeetingConfirmations', () => {
     expect(await screen.findByText('Nenhuma reunião de hoje em diante neste mês.')).toBeVisible();
     expect(screen.getByRole('button', { name: /Todas/ })).toHaveTextContent('0Todas');
   });
+  it('does not list or count ministry assistants as requiring a response', async () => {
+    vi.mocked(getManagedMeetingConfirmations).mockResolvedValue([{ ...groups[0], responses: [...responses,
+      { ...responses[0], id: 'assistant', sourceType: 'midweek_ministry_part', slotKey: 'assistant_id', memberName: 'Ajudante sem confirmação', status: 'pending_confirmation' },
+    ] }] as any);
+    renderPanel();
+    await screen.findByText('Ana Lima');
+    expect(screen.queryByText('Ajudante sem confirmação')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Todas/ })).toHaveTextContent('2Todas');
+    expect(screen.getByRole('button', { name: /Pendentes/ })).toHaveTextContent('0Pendentes');
+  });
   it('groups responses by dated meeting and displays the audio/video refusal reason', async () => {
     const onTreat = vi.fn();
     renderPanel({ onTreat });

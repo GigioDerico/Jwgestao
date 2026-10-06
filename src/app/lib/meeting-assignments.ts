@@ -1,3 +1,4 @@
+import { isMinistryAssistant } from './meeting-confirmation-rules';
 import { supabase } from './supabase';
 import type { AssignmentNotification } from '../types';
 import { getSafeReturnPath } from './auth-return-path';
@@ -34,6 +35,7 @@ export interface PersonalMeetingAssignment {
   location: string | null;
   partnerName: string | null;
   canRespond: boolean;
+  confirmationRequired?: boolean;
 }
 
 export type AssignmentResolution =
@@ -84,6 +86,7 @@ export function isMeetingAssignmentNotification(
     && ['president_id', 'watchtower_conductor_id', 'watchtower_reader_id', 'closing_prayer_id'].includes(notification.slotKey);
 }
 
+
 function throwRPCError(error: unknown): never {
   throw new Error(`Erro ao acessar designação da reunião: ${(error as { message?: string })?.message || 'falha desconhecida'}`);
 }
@@ -113,7 +116,8 @@ function mapNotification(row: any): AssignmentNotification {
 function mapAssignment(row: any): PersonalMeetingAssignment {
   const notification = row.notification ? mapNotification(row.notification) : null;
   const revision = row.revision ?? null;
-  const canRespond = row.can_respond === true && notification !== null && typeof revision === 'string'
+  const confirmationRequired = row.confirmation_required !== false && !isMinistryAssistant(notification);
+  const canRespond = confirmationRequired && row.can_respond === true && notification !== null && typeof revision === 'string'
     && notification.id.length > 0 && notification.assignmentRevision === revision
     && ['pending_confirmation', 'declined'].includes(notification.status);
   return {
@@ -130,6 +134,7 @@ function mapAssignment(row: any): PersonalMeetingAssignment {
     location: row.location ?? null,
     partnerName: row.partner_name ?? null,
     canRespond,
+    confirmationRequired,
   };
 }
 

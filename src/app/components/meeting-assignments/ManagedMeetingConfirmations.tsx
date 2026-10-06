@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, RefreshCw, Search } from 'lucide-react';
+import { isMinistryAssistant } from '../../lib/meeting-confirmation-rules';
 import { getManagedMeetingConfirmations, type ManagedMeetingConfirmationGroup, type ManagedMeetingAssignmentResponse } from '../../lib/meeting-assignments';
 import { supabase } from '../../lib/supabase';
 import { Button } from '../ui/button';
@@ -62,7 +63,7 @@ export function ManagedMeetingConfirmations({ managerId, initialMonth = currentM
   }, [managerId, month, reload, key, refreshToken]);
 
   const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
-  const groups = useMemo(() => state.key === key ? state.groups.filter(group => group.date >= today) : [], [state.key, state.groups, key, today]);
+  const groups = useMemo(() => state.key === key ? state.groups.filter(group => group.date >= today).map(group => ({ ...group, responses: group.responses.filter(row => !isMinistryAssistant(row)) })) : [], [state.key, state.groups, key, today]);
   const loading = state.key !== key || state.loading;
   const error = state.key === key ? state.error : '';
   const counts = useMemo(() => groups.flatMap(group => group.responses).reduce((total, row) => {

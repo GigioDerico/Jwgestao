@@ -247,7 +247,7 @@ insert into public.midweek_ministry_parts(id, meeting_id, part_number, title, du
 values(pg_temp.meeting_test_id('13', 1), pg_temp.meeting_test_id('12', 1), 4, 'Parte sincronizada', 5, 'Sala A', '19:40', pg_temp.meeting_test_id('02', 1), pg_temp.meeting_test_id('02', 2));
 insert into public.midweek_christian_life_parts(id, meeting_id, part_number, title, duration, speaker_id)
 values(pg_temp.meeting_test_id('14', 1), pg_temp.meeting_test_id('12', 1), 7, 'Consideração', 10, pg_temp.meeting_test_id('02', 1));
-select is((select count(*) from public.member_assignment_notifications where source_id in (pg_temp.meeting_test_id('12', 1),pg_temp.meeting_test_id('13', 1),pg_temp.meeting_test_id('14', 1))), 4::bigint, 'source inserts create all four personal notifications without frontend sync');
+select is((select count(*) from public.member_assignment_notifications where source_id in (pg_temp.meeting_test_id('12', 1),pg_temp.meeting_test_id('13', 1),pg_temp.meeting_test_id('14', 1))), 3::bigint, 'source inserts create participant notifications without assistant requests');
 select is(pg_temp.synced_notification(pg_temp.meeting_test_id('13', 1), 'student_id')->>'title', 'Nova designação na reunião do meio de semana', 'sync preserves existing notification title');
 select is(pg_temp.synced_notification(pg_temp.meeting_test_id('13', 1), 'student_id')->>'message',
   'Você foi designado para Estudante em Parte sincronizada em ' || to_char((now() at time zone 'America/Sao_Paulo')::date + 11001, 'DD/MM') || '.', 'sync preserves role/title/date message');
@@ -262,9 +262,7 @@ select is(public.respond_to_meeting_assignment(
   (pg_temp.synced_notification(pg_temp.meeting_test_id('14', 1), 'speaker_id')->>'id')::uuid,
   (pg_temp.synced_notification(pg_temp.meeting_test_id('14', 1), 'speaker_id')->>'assignment_revision')::uuid, 'confirmed')->>'status', 'confirmed', 'separate part records its own response before another part changes');
 select set_config('request.jwt.claim.sub', pg_temp.meeting_test_id('01', 2)::text, true);
-select is(public.respond_to_meeting_assignment(
-  (pg_temp.synced_notification(pg_temp.meeting_test_id('13', 1), 'assistant_id', 2)->>'id')::uuid,
-  (pg_temp.synced_notification(pg_temp.meeting_test_id('13', 1), 'assistant_id', 2)->>'assignment_revision')::uuid, 'declined', 'Viagem')->>'status', 'declined', 'assistant independently declines');
+select is(pg_temp.synced_notification(pg_temp.meeting_test_id('13', 1), 'assistant_id', 2), null::jsonb, 'assistant has no confirmation request');
 reset role;
 update public.member_assignment_notifications set hidden_at = now(), is_read = true where source_id = pg_temp.meeting_test_id('13', 1);
 create temporary table sync_saved as select n.id, to_jsonb(n) as notification
@@ -291,8 +289,8 @@ select isnt(pg_temp.synced_notification(pg_temp.meeting_test_id('13', 1), 'stude
 create temporary table sync_room as select pg_temp.synced_notification(pg_temp.meeting_test_id('13', 1), 'student_id') as notification;
 update public.midweek_ministry_parts set assistant_id = pg_temp.meeting_test_id('02', 3) where id = pg_temp.meeting_test_id('13', 1);
 select isnt(pg_temp.synced_notification(pg_temp.meeting_test_id('13', 1), 'student_id')->>'assignment_revision', (select notification->>'assignment_revision' from sync_room), 'partner ID change renews student version');
-select is(pg_temp.synced_notification(pg_temp.meeting_test_id('13', 1), 'assistant_id', 2)->>'status', 'revoked', 'replaced assistant is revoked');
-select is(pg_temp.synced_notification(pg_temp.meeting_test_id('13', 1), 'assistant_id', 3)->>'status', 'pending_confirmation', 'replacement assistant gets own current notification');
+select is(pg_temp.synced_notification(pg_temp.meeting_test_id('13', 1), 'assistant_id', 2), null::jsonb, 'replaced assistant has no response request');
+select is(pg_temp.synced_notification(pg_temp.meeting_test_id('13', 1), 'assistant_id', 3), null::jsonb, 'replacement assistant does not require confirmation');
 set local role authenticated;
 select set_config('request.jwt.claim.sub', pg_temp.meeting_test_id('01', 1)::text, true);
 select public.respond_to_meeting_assignment(
@@ -321,31 +319,11 @@ select throws_ok($$select public.respond_to_meeting_assignment(
   (select (notification->>'id')::uuid from sync_original), (select (notification->>'assignment_revision')::uuid from sync_original), 'confirmed')$$,
   '40001', 'meeting_assignment_revision_conflict', 'original A version cannot confirm reattributed A');
 reset role;
--- Removing a filled slot revokes the response; assigning the same person back
--- starts a fresh version and must not revive their earlier confirmation.
-set local role authenticated;
-select set_config('request.jwt.claim.sub', pg_temp.meeting_test_id('01', 3)::text, true);
-select public.respond_to_meeting_assignment(
-  (pg_temp.synced_notification(pg_temp.meeting_test_id('13', 1), 'assistant_id', 3)->>'id')::uuid,
-  (pg_temp.synced_notification(pg_temp.meeting_test_id('13', 1), 'assistant_id', 3)->>'assignment_revision')::uuid, 'confirmed');
-reset role;
-create temporary table sync_assistant_confirmed as
-select pg_temp.synced_notification(pg_temp.meeting_test_id('13', 1), 'assistant_id', 3) as notification;
-grant select on sync_assistant_confirmed to authenticated;
+-- Removing and reassigning an assistant never creates a confirmation request.
 update public.midweek_ministry_parts set assistant_id = null where id = pg_temp.meeting_test_id('13', 1);
-select is(pg_temp.synced_notification(pg_temp.meeting_test_id('13', 1), 'assistant_id', 3)->>'status', 'revoked', 'removing a filled slot revokes its prior response');
 update public.midweek_ministry_parts set assistant_id = pg_temp.meeting_test_id('02', 3) where id = pg_temp.meeting_test_id('13', 1);
-select is(pg_temp.synced_notification(pg_temp.meeting_test_id('13', 1), 'assistant_id', 3)->>'id', (select notification->>'id' from sync_assistant_confirmed), 'reattributing same person reuses unique recipient row');
-select isnt(pg_temp.synced_notification(pg_temp.meeting_test_id('13', 1), 'assistant_id', 3)->>'assignment_revision', (select notification->>'assignment_revision' from sync_assistant_confirmed), 'reattributing same person renews the prior version');
-select ok((select status = 'pending_confirmation' and confirmed_at is null and responded_at is null
-  and decline_reason is null and revoked_at is null and hidden_at is null and not is_read
-  from public.member_assignment_notifications where id = (select (notification->>'id')::uuid from sync_assistant_confirmed)), 'reattributed slot starts pending with no resurrected response or visibility state');
-set local role authenticated;
-select set_config('request.jwt.claim.sub', pg_temp.meeting_test_id('01', 3)::text, true);
-select throws_ok($$select public.respond_to_meeting_assignment(
-  (select (notification->>'id')::uuid from sync_assistant_confirmed), (select (notification->>'assignment_revision')::uuid from sync_assistant_confirmed), 'confirmed')$$,
-  '40001', 'meeting_assignment_revision_conflict', 'removed slot version cannot respond after reassignment');
-reset role;
+select is(pg_temp.synced_notification(pg_temp.meeting_test_id('13', 1), 'assistant_id', 3), null::jsonb,
+  'reattributed assistant still has no confirmation request');
 create temporary table sync_before_backfill as select n.id, to_jsonb(n) as notification from public.member_assignment_notifications n;
 select private.backfill_meeting_assignment_notifications();
 select is_empty($$select n.id from public.member_assignment_notifications n join sync_before_backfill s using(id)
@@ -498,10 +476,8 @@ select is(public.resolve_personal_assignment(pg_temp.meeting_test_id('04',1),pg_
   '/assignments/meetings?assignment='||pg_temp.meeting_test_id('04',1)::text||'&revision='||
     (select assignment_revision::text from public.member_assignment_notifications where id=pg_temp.meeting_test_id('04',1)),
   'only intended recipient gets current assignment path after revision mismatch');
-select is(public.resolve_personal_assignment(
-  (select id from public.member_assignment_notifications where source_id=pg_temp.meeting_test_id('06',1) and slot_key='assistant_id'),
-  (select assignment_revision from public.member_assignment_notifications where source_id=pg_temp.meeting_test_id('06',1) and slot_key='assistant_id'))->>'kind',
-  'unavailable', 'another recipient assignment id returns generic unavailable');
+select is(public.resolve_personal_assignment(pg_temp.meeting_test_id('98',1),pg_temp.meeting_test_id('99',1))->>'kind',
+  'unavailable', 'unavailable assistant response link stays unavailable');
 reset role;
 delete from public.member_assignment_notifications where id=pg_temp.meeting_test_id('04',8);
 set local role authenticated;

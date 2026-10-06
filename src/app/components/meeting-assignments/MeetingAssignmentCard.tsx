@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { CalendarDays, Clock3, MapPin, UsersRound } from 'lucide-react';
+import { isMinistryAssistant } from '../../lib/meeting-confirmation-rules';
 import type { MeetingResponseInput, PersonalMeetingAssignment } from '../../lib/meeting-assignments';
 import type { AssignmentNotification } from '../../types';
 import { AssignmentCalendarActions } from '../AssignmentCalendarActions';
@@ -23,6 +24,7 @@ export function MeetingAssignmentCard({ assignment, onRespond, onHide = async ()
   const notification = savedResponse?.assignmentRevision === assignment.revision
     ? savedResponse
     : assignment.notification;
+  const confirmationRequired = assignment.confirmationRequired !== false && !isMinistryAssistant(notification);
   const status = notification?.status || 'revoked';
 
   const respond = async (decision: 'confirmed' | 'declined', reason?: string) => {
@@ -47,7 +49,7 @@ export function MeetingAssignmentCard({ assignment, onRespond, onHide = async ()
   const meetingDate = new Date(`${assignment.date}T12:00:00`);
   const dateLabel = meetingDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
   const timeLabel = assignment.time || 'Não informado';
-  const canRespond = responsesEnabled && assignment.canRespond && ['pending_confirmation', 'declined'].includes(status);
+  const canRespond = confirmationRequired && responsesEnabled && assignment.canRespond && ['pending_confirmation', 'declined'].includes(status);
   return (
     <>
       <article aria-label={`Designação: ${assignment.title}`} className="overflow-hidden rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50/70 to-white shadow-sm">
@@ -59,7 +61,7 @@ export function MeetingAssignmentCard({ assignment, onRespond, onHide = async ()
             </h3>
             <p className="mt-1 text-sm text-muted-foreground">Sua função: {assignment.roleLabel}</p>
           </div>
-          {notification
+          {!confirmationRequired ? <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Não precisa confirmar</span> : notification
             ? <AssignmentResponseBadge status={status} reason={notification.declineReason} />
             : <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Sem resposta registrada</span>}
         </div>
@@ -87,7 +89,7 @@ export function MeetingAssignmentCard({ assignment, onRespond, onHide = async ()
             {status === 'pending_confirmation' && <Button ref={declineTriggerRef} type="button" disabled={saving} variant="outline" onClick={() => setDeclineOpen(true)} className="min-h-11">Não posso participar</Button>}
           </>}
           {status === 'confirmed' && notification && <AssignmentCalendarActions notification={notification as AssignmentNotification} onHide={onHide} />}
-          {status === 'declined' && <p className="text-sm text-muted-foreground">O responsável poderá organizar uma substituição.</p>}
+          {confirmationRequired && status === 'declined' && <p className="text-sm text-muted-foreground">O responsável poderá organizar uma substituição.</p>}
         </div>
       </article>
 

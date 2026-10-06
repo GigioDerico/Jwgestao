@@ -44,6 +44,11 @@ describe('personal meeting assignment API', () => {
     expect(isMeetingAssignmentNotification({ category: 'audio_video', sourceType: 'audio_video_role', slotKey, assignmentRevision: 'r1' })).toBe(true);
   });
 
+  it('keeps an assistant assignment visible but disables responses to legacy requests', async () => {
+    rpc.mockResolvedValue({ data: [{ notification: { id: 'n1', source_type: 'midweek_ministry_part', slot_key: 'assistant_id', status: 'pending_confirmation', assignment_revision: 'r1' }, revision: 'r1', can_respond: true, role_label: 'Ajudante' }], error: null });
+    const [assignment] = await getPersonalMeetingAssignments('midweek', 'm1');
+    expect(assignment).toMatchObject({ roleLabel: 'Ajudante', canRespond: false, confirmationRequired: false });
+  });
   it('allows reconsidering a current declined assignment', async () => {
     rpc.mockResolvedValue({ data: [{ notification: { id: 'n1', status: 'declined', assignment_revision: 'r1' },
       revision: 'r1', can_respond: true }], error: null });
