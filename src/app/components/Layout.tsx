@@ -537,7 +537,7 @@ export function Layout() {
                                   Confirmada
                                 </span>
                               )}
-                              {['midweek', 'weekend'].includes(notification.category) && (
+                              {(['midweek', 'weekend'].includes(notification.category) || (notification.category === 'audio_video' && notification.assignmentRevision)) && (
                                 <Link
                                   to={buildMeetingResponseReviewPath(notification.id, notification.assignmentRevision)}
                                   className="rounded-lg border border-border px-2.5 py-1 text-primary transition-colors hover:bg-muted"

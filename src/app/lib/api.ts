@@ -667,6 +667,13 @@ export const api = {
   },
 
   async syncAudioVideoAssignmentNotifications(assignmentId: string) {
+    const { data: attached, error: reconcileError } = await supabase.rpc('reconcile_audio_video_meeting_notifications', {
+      p_assignment_id: assignmentId,
+    });
+    if (reconcileError) throw new Error(formatDatabaseWriteError('Erro ao sincronizar áudio e vídeo da reunião', reconcileError));
+    if (attached) return;
+    // Scales without a registered meeting keep their existing notification flow.
+
     const { data, error } = await supabase
       .from('audio_video_assignments')
       .select('*')

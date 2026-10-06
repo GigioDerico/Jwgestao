@@ -411,10 +411,16 @@ function PeriodTab({ active, onClick, children }: { active: boolean; onClick: ()
 
 function MeetingListItem({ meeting, selected, onClick }: { meeting: MeetingSummary; selected: boolean; onClick: () => void }) {
   const date = new Date(`${meeting.date}T12:00:00`);
-  return <button type="button" onClick={onClick} aria-current={selected ? 'true' : undefined} className={`w-full rounded-2xl border bg-card p-4 text-left transition-all hover:border-sky-300 ${selected ? 'border-sky-400 shadow-sm ring-1 ring-sky-100' : 'border-border'}`}>
+  const declined = (meeting.declinedCount || 0) > 0;
+  const pending = (meeting.unconfirmedCount ?? meeting.pendingCount) > 0;
+  const confirmed = meeting.assignmentCount > 0 && meeting.confirmedCount === meeting.assignmentCount;
+  const color = declined ? 'bg-rose-50' : pending ? 'bg-amber-50' : confirmed ? 'bg-emerald-50' : 'bg-card';
+  const responseLabel = declined ? 'Participação recusada' : pending ? 'Aguardando confirmação' : confirmed ? 'Participação confirmada' : '';
+  return <button type="button" onClick={onClick} aria-current={selected ? 'true' : undefined} className={`w-full rounded-2xl border ${color} p-4 text-left transition-all hover:border-sky-300 ${selected ? 'border-sky-400 shadow-sm ring-1 ring-sky-100' : 'border-border'}`}>
     <span className="flex items-center gap-3"><span className="grid size-12 shrink-0 place-items-center rounded-xl bg-muted text-center leading-none"><span><small className="block text-[9px] uppercase text-muted-foreground">{date.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}</small><strong className="mt-1 block text-xl">{date.getDate()}</strong></span></span>
       <span className="min-w-0 flex-1"><strong className="block truncate text-sm">{meetingName(meeting.kind)}</strong><small className="mt-1 block text-muted-foreground">{date.toLocaleDateString('pt-BR', { weekday: 'long' })} · {meeting.startTime || 'Não informado'}</small></span><ChevronRight size={17} className="shrink-0 text-muted-foreground" /></span>
     <span className="mt-4 flex items-center justify-between border-t pt-3 text-xs text-muted-foreground"><span>{meeting.assignmentCount ? `${meeting.assignmentCount} ${meeting.assignmentCount === 1 ? 'designação sua' : 'designações suas'}` : 'Sem designação para você'}</span>{meeting.pendingCount > 0 && <strong className="rounded-full bg-amber-50 px-2 py-1 font-medium text-amber-800">{meeting.pendingCount} pendente{meeting.pendingCount === 1 ? '' : 's'}</strong>}</span>
+    {responseLabel && <span className={`mt-2 block text-xs font-medium ${declined ? 'text-rose-800' : pending ? 'text-amber-800' : 'text-emerald-800'}`}>{responseLabel}</span>}
   </button>;
 }
 

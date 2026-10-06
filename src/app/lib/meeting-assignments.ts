@@ -15,6 +15,9 @@ export interface MeetingSummary {
   startTime: string | null;
   assignmentCount: number;
   pendingCount: number;
+  unconfirmedCount?: number;
+  confirmedCount?: number;
+  declinedCount?: number;
 }
 
 export interface PersonalMeetingAssignment {
@@ -59,8 +62,12 @@ export function buildMeetingResponseReviewPath(notificationId: string, revision?
 }
 
 export function isMeetingAssignmentNotification(
-  notification: Pick<AssignmentNotification, 'category' | 'sourceType' | 'slotKey'>,
+  notification: Pick<AssignmentNotification, 'category' | 'sourceType' | 'slotKey'> & { assignmentRevision?: string | null },
 ): boolean {
+  if (notification.category === 'audio_video' && notification.sourceType === 'audio_video_role') {
+    return Boolean(notification.assignmentRevision) && (['sound', 'image', 'stage', 'roving_mic_1', 'roving_mic_2'].includes(notification.slotKey)
+      || /^attendant:(0|[1-9]\d{0,5})$/.test(notification.slotKey));
+  }
   if (notification.category === 'midweek') {
     if (notification.sourceType === 'midweek_meeting_role') {
       return ['president_id', 'opening_prayer_id', 'closing_prayer_id', 'treasure_talk_speaker_id',
@@ -146,6 +153,9 @@ export async function getPersonalMeetings(period: 'upcoming' | 'past'): Promise<
     startTime: row.start_time ?? null,
     assignmentCount: Number(row.assignment_count ?? 0),
     pendingCount: Number(row.pending_count ?? 0),
+    unconfirmedCount: Number(row.unconfirmed_count ?? row.pending_count ?? 0),
+    confirmedCount: Number(row.confirmed_count ?? 0),
+    declinedCount: Number(row.declined_count ?? 0),
   }));
 }
 

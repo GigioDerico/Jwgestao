@@ -31,6 +31,24 @@ describe('NotificationsContext meeting responses', () => {
     api.respondToMeetingAssignment.mockResolvedValue({ ...meetingNotification, status: 'confirmed' });
   });
 
+  it('confirms associated audio/video with its loaded revision', async () => {
+    api.getMyAssignmentNotifications.mockResolvedValue([{ ...meetingNotification, category: 'audio_video', sourceType: 'audio_video_role', slotKey: 'sound' }]);
+    const { result } = renderHook(() => useNotifications(), { wrapper: NotificationsProvider });
+    await waitFor(() => expect(result.current.notifications).toHaveLength(1));
+    await act(async () => result.current.confirm('n1'));
+    expect(api.respondToMeetingAssignment).toHaveBeenCalledWith({ notificationId: 'n1', revision: 'rev1', decision: 'confirmed' });
+    expect(api.confirmAssignmentNotification).not.toHaveBeenCalled();
+  });
+
+  it('keeps legacy audio/video confirmation when no meeting revision exists', async () => {
+    api.getMyAssignmentNotifications.mockResolvedValue([{ ...meetingNotification, category: 'audio_video', sourceType: 'audio_video_role', slotKey: 'sound', assignmentRevision: null }]);
+    const { result } = renderHook(() => useNotifications(), { wrapper: NotificationsProvider });
+    await waitFor(() => expect(result.current.notifications).toHaveLength(1));
+    await act(async () => result.current.confirm('n1'));
+    expect(api.confirmAssignmentNotification).toHaveBeenCalledWith('n1');
+    expect(api.respondToMeetingAssignment).not.toHaveBeenCalled();
+  });
+
   it('requires and forwards the loaded revision to the response RPC', async () => {
     const { result } = renderHook(() => useNotifications(), { wrapper: NotificationsProvider });
     await waitFor(() => expect(result.current.notifications).toHaveLength(1));

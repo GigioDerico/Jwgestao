@@ -52,6 +52,26 @@ const member2Assignment = { ...assignment, meetingId: member2Meeting.id, title: 
   notification: { ...assignment.notification, id: 'member-2-notification', memberId: 'member-2' } };
 
 describe('PublisherMeetingsPage', () => {
+  it('keeps an unconfirmed historical meeting yellow without offering a pending response', async () => {
+    vi.mocked(getPersonalMeetings).mockResolvedValue([{ ...pastMeeting, unconfirmedCount: 1, confirmedCount: 0, declinedCount: 0 }]);
+    renderPublisher();
+    const card = await screen.findByRole('button', { name: /Aguardando confirmação/ });
+    expect(card).toHaveClass('bg-amber-50');
+  });
+
+  it.each([
+    [0, 0, 1, 'bg-emerald-50', 'Participação confirmada'],
+    [1, 0, 0, 'bg-amber-50', 'Aguardando confirmação'],
+    [0, 1, 0, 'bg-rose-50', 'Participação recusada'],
+    [1, 1, 0, 'bg-rose-50', 'Participação recusada'],
+  ])('colors meeting cards for pending=%s declined=%s confirmed=%s', async (pendingCount, declinedCount, confirmedCount, color, label) => {
+    vi.mocked(getPersonalMeetings).mockResolvedValue([{ ...meetings[0], pendingCount, declinedCount, confirmedCount }]);
+    renderPublisher();
+    const card = await screen.findByRole('button', { name: new RegExp(label as string) });
+    expect(card).toHaveClass(color as string);
+    expect(card).toHaveTextContent(label as string);
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     currentMemberId = 'member-1';

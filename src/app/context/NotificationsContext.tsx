@@ -130,7 +130,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
   const confirm = async (id: string) => {
     const notification = notifications.find(row => row.id === id);
-    if (notification && ['midweek', 'weekend'].includes(notification.category)) {
+    if (notification && (['midweek', 'weekend'].includes(notification.category) || (notification.category === 'audio_video' && notification.assignmentRevision))) {
       if (!notification.assignmentRevision) {
         throw new Error('Atualize as designações da reunião antes de confirmar.');
       }
@@ -163,7 +163,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     unreadCount: notifications.filter(notification => !notification.isRead).length,
     pendingCount: notifications.filter(notification => notification.status === 'pending_confirmation'
       && notification.status !== 'revoked'
-      && (!['midweek', 'weekend'].includes(notification.category)
+      && (!(['midweek', 'weekend'].includes(notification.category) || (notification.category === 'audio_video' && notification.assignmentRevision))
         || !notification.assignmentDate || !isMeetingDatePast(notification.assignmentDate))).length,
     loading,
     refreshNotifications,

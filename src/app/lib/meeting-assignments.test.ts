@@ -10,10 +10,21 @@ import {
   resolvePersonalAssignment,
   respondToMeetingAssignment,
   isMeetingDatePast,
+  isMeetingAssignmentNotification,
 } from './meeting-assignments';
 
 describe('personal meeting assignment API', () => {
   beforeEach(() => rpc.mockReset());
+
+  it('maps confirmed and declined counts for the meeting cards', async () => {
+    rpc.mockResolvedValue({ data: [{ id: 'm1', kind: 'midweek', date: '2026-10-08',
+      assignment_count: 3, pending_count: 1, confirmed_count: 1, declined_count: 1 }], error: null });
+    expect((await getPersonalMeetings('upcoming'))[0]).toMatchObject({ confirmedCount: 1, declinedCount: 1 });
+  });
+
+  it.each(['sound', 'image', 'stage', 'roving_mic_1', 'roving_mic_2', 'attendant:0'])('routes audio/video %s to the meeting response flow', slotKey => {
+    expect(isMeetingAssignmentNotification({ category: 'audio_video', sourceType: 'audio_video_role', slotKey, assignmentRevision: 'r1' })).toBe(true);
+  });
 
   it('allows reconsidering a current declined assignment', async () => {
     rpc.mockResolvedValue({ data: [{ notification: { id: 'n1', status: 'declined', assignment_revision: 'r1' },
