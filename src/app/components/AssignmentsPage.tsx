@@ -185,7 +185,7 @@ function getUnavailableWeekendReaderIds(
 export function AssignmentsPage() {
   const { user } = useAuth();
   const { can } = usePermissions();
-  const [viewMode, setViewMode] = useState<'scale' | 'history'>('scale');
+  const [viewMode, setViewMode] = useState<'designation' | 'confirmations' | 'history'>('designation');
   const [meetingType, setMeetingType] = useState<'midweek' | 'weekend'>('midweek');
   const [selectedMeetingIdx, setSelectedMeetingIdx] = useState(0);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -249,7 +249,7 @@ export function AssignmentsPage() {
   ];
   const meetingResponses = useMeetingAssignmentResponses(
     meetingType, selectedMeetingId, responseSourceIds,
-    canManageAssignments && canViewAssignments && viewMode === 'scale',
+    canManageAssignments && canViewAssignments && viewMode === 'confirmations',
   );
 
   if (user && (!canManageAssignments || !canViewAssignments)) {
@@ -267,6 +267,14 @@ export function AssignmentsPage() {
     setMidweekDraft(createEmptyMidweekDraft());
     setWeekendDraft(createEmptyWeekendDraft());
     setShowCreateMeetingModal(true);
+  };
+
+  const changeView = (nextView: 'designation' | 'confirmations' | 'history') => {
+    if (nextView !== 'designation') {
+      setShowCreateMeetingModal(false);
+      setShowEditModal(false);
+    }
+    setViewMode(nextView);
   };
 
   const populateMidweekDraftFromMeeting = (meeting: any) => {
@@ -674,25 +682,35 @@ export function AssignmentsPage() {
           <p className="text-muted-foreground" style={{ fontSize: '0.85rem' }}>
             Separe e organize as partes das reuniões do meio e do fim de semana em uma página própria.
           </p>
-          <div className="inline-flex rounded-xl border border-border bg-muted/30 p-1">
+          <div role="group" aria-label="Seções das designações de reuniões" className="inline-flex flex-wrap rounded-xl border border-border bg-muted/30 p-1">
             <button
+              aria-pressed={viewMode === 'designation'}
               type="button"
-              onClick={() => setViewMode('scale')}
-              className={`rounded-lg px-3 py-1.5 transition-colors ${viewMode === 'scale'
+              onClick={() => changeView('designation')}
+              className={`rounded-lg px-3 py-1.5 transition-colors ${viewMode === 'designation'
                 ? 'bg-card text-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
                 }`}
               style={{ fontSize: '0.82rem' }}
             >
-              Escala
+              Designação
             </button>
             <button
+              aria-pressed={viewMode === 'confirmations'}
               type="button"
-              onClick={() => {
-                setShowCreateMeetingModal(false);
-                setShowEditModal(false);
-                setViewMode('history');
-              }}
+              onClick={() => changeView('confirmations')}
+              className={`rounded-lg px-3 py-1.5 transition-colors ${viewMode === 'confirmations'
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+                }`}
+              style={{ fontSize: '0.82rem' }}
+            >
+              Confirmações
+            </button>
+            <button
+              aria-pressed={viewMode === 'history'}
+              type="button"
+              onClick={() => changeView('history')}
               className={`rounded-lg px-3 py-1.5 transition-colors ${viewMode === 'history'
                 ? 'bg-card text-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
@@ -703,7 +721,7 @@ export function AssignmentsPage() {
             </button>
           </div>
         </div>
-        {viewMode === 'scale' && (
+        {viewMode === 'designation' && (
           <div className="flex flex-wrap gap-2">
             {canCreateAssignments && (
               <button
@@ -727,26 +745,8 @@ export function AssignmentsPage() {
         )}
       </div>
 
-      {viewMode === 'scale' ? (
+      {viewMode === 'designation' ? (
         <>
-          {selectedMeetingId && meetingResponses.length > 0 && (
-            <section className="rounded-xl border border-border bg-card p-4 shadow-sm" aria-label="Respostas às designações">
-              <h2 className="mb-3 text-sm font-semibold text-foreground">Respostas às designações</h2>
-              <ul className="divide-y divide-border">
-                {meetingResponses.map(response => (
-                  <li key={`${response.memberId}:${response.sourceType}:${response.sourceId}:${response.slotKey}`} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                    <div className="min-w-0">
-                      <p className="font-medium text-foreground">{response.memberName}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {response.partNumber ? `${response.partNumber}. ` : ''}{response.assignmentTitle} · {response.roleLabel}
-                      </p>
-                    </div>
-                    <AssignmentResponseBadge status={response.status} reason={response.declineReason} />
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
           <MeetingsAssignmentsContent
             midweekMeetings={midweekMeetings}
             weekendMeetings={weekendMeetings}
@@ -780,6 +780,29 @@ export function AssignmentsPage() {
             />
           )}
         </>
+      ) : viewMode === 'confirmations' ? (
+        <section className="rounded-xl border border-border bg-card p-4 shadow-sm" aria-label="Confirmações das designações">
+          <h2 className="mb-3 text-sm font-semibold text-foreground">Confirmações das designações</h2>
+          {!selectedMeetingId ? (
+            <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">Nenhuma reunião disponível para consultar. Crie uma reunião na aba Designação.</p>
+          ) : meetingResponses.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">Ainda não há respostas às designações desta reunião.</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {meetingResponses.map(response => (
+                <li key={`${response.memberId}:${response.sourceType}:${response.sourceId}:${response.slotKey}`} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground">{response.memberName}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {response.partNumber ? `${response.partNumber}. ` : ''}{response.assignmentTitle} · {response.roleLabel}
+                    </p>
+                  </div>
+                  <AssignmentResponseBadge status={response.status} reason={response.declineReason} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       ) : (
         <AssignmentHistory
           allowedSources={['midweek', 'weekend']}

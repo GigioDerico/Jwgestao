@@ -187,6 +187,27 @@ describe('PublisherMeetingsPage', () => {
     expect(screen.queryByRole('button', { name: 'Confirmar designação' })).not.toBeInTheDocument();
   });
 
+  it('navigates historical meetings by month and updates the selected meeting', async () => {
+    const juneMeeting = { ...pastMeeting, id: 'past-meeting-june', date: '2026-06-15' };
+    vi.mocked(getPersonalMeetings).mockImplementation(async period => period === 'past'
+      ? [pastMeeting, juneMeeting]
+      : meetings);
+    vi.mocked(getPersonalMeetingAssignments).mockImplementation(async (_kind, meetingId) =>
+      meetingId === 'past-meeting' ? [pastAssignment] : []);
+    const user = userEvent.setup();
+    renderPublisher();
+    await user.click(await screen.findByRole('tab', { name: 'Histórico' }));
+    expect(await screen.findByText('Participação confirmada')).toBeVisible();
+    expect(screen.getByText('outubro de 2026')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Mês anterior' }));
+    expect(await screen.findByText('junho de 2026')).toBeVisible();
+    expect(await screen.findByText('Você não tem designação nesta reunião')).toBeVisible();
+    expect(screen.queryByText('Participação confirmada')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Próximo mês' }));
+    expect(await screen.findByText('outubro de 2026')).toBeVisible();
+    expect(await screen.findByText('Participação confirmada')).toBeVisible();
+  });
+
   it('offers retry after a load failure', async () => {
     vi.mocked(getPersonalMeetings).mockRejectedValueOnce(new Error('offline')).mockResolvedValue(meetings);
     const user = userEvent.setup();

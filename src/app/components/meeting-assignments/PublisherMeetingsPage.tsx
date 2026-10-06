@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { ArrowLeft, CalendarDays, ChevronRight, Clock3, RefreshCw } from 'lucide-react';
+import { ArrowLeft, CalendarDays, ChevronLeft, ChevronRight, Clock3, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationsContext';
 import {
@@ -30,6 +30,7 @@ export function PublisherMeetingsPage() {
   const [targetState, setTargetState] = useState<{ key: string; status: 'loading' | 'ready' | 'unavailable' | 'changed' | 'resolver-error' | 'list-error'; changedPath?: string }>({ key: '', status: 'loading' });
   const memberLinked = Boolean(memberId);
   const [period, setPeriod] = useState<Period>('upcoming');
+  const [historyMonth, setHistoryMonth] = useState<string | null>(null);
   const [meetings, setMeetings] = useState<MeetingSummary[]>([]);
   const [selected, setSelected] = useState<MeetingSummary | null>(null);
   const [assignments, setAssignments] = useState<PersonalMeetingAssignment[]>([]);
@@ -47,6 +48,7 @@ export function PublisherMeetingsPage() {
   const selectedIdentityRef = useRef<string | null>(null);
   const meetingsRequestRef = useRef(0);
   const detailsRequestRef = useRef(0);
+  const historyMonthIdentityRef = useRef('');
   memberIdRef.current = memberId;
   periodRef.current = period;
   selectedRef.current = selected;
@@ -99,6 +101,13 @@ export function PublisherMeetingsPage() {
       if (requestId !== meetingsRequestRef.current || memberIdRef.current !== requestedMember || periodRef.current !== requestedPeriod) return;
       setMeetings(result);
       setMeetingsIdentity(identity);
+      if (requestedPeriod === 'past' && (targetAssignment || historyMonthIdentityRef.current !== identity)) {
+        historyMonthIdentityRef.current = identity;
+        const targetMonth = targetAssignment?.date.slice(0, 7);
+        const availableMonths = result.map(meeting => meeting.date.slice(0, 7)).sort();
+        const latestMonth = availableMonths[availableMonths.length - 1];
+        setHistoryMonth(targetMonth || latestMonth || null);
+      }
       const currentKey = selectedIdentityRef.current;
       const linkedMeeting = targetAssignment && result.find(meeting => meeting.id === targetAssignment!.meetingId && meeting.kind === targetAssignment!.meetingKind);
       if (targetAssignment && !linkedMeeting) {
@@ -150,6 +159,12 @@ export function PublisherMeetingsPage() {
     setSelected(meeting);
   };
 
+  const chooseHistoryMonth = (month: string) => {
+    setHistoryMonth(month);
+    const firstMeeting = meetings.find(meeting => meeting.date.slice(0, 7) === month) || null;
+    selectMeeting(firstMeeting);
+  };
+
   const loadAssignments = useCallback(async (meeting: MeetingSummary | null, requestedPeriod = period, failureMessage = 'Não foi possível carregar os detalhes da sua designação.') => {
     if (!meeting || !memberId) { setAssignments([]); setDetailsReady(false); return; }
     const requestedMember = memberId;
@@ -187,6 +202,11 @@ export function PublisherMeetingsPage() {
   useEffect(() => { void loadAssignments(selected); }, [loadAssignments, selected]);
 
   const pendingCount = useMemo(() => meetings.reduce((sum, meeting) => sum + meeting.pendingCount, 0), [meetings]);
+  const historyMonths = useMemo(() => [...new Set(meetings.map(meeting => meeting.date.slice(0, 7)))].sort().reverse(), [meetings]);
+  const historyMonthIndex = historyMonths.indexOf(historyMonth || '');
+  const visibleMeetings = useMemo(() => period !== 'past' || !historyMonth
+    ? meetings
+    : meetings.filter(meeting => meeting.date.slice(0, 7) === historyMonth), [historyMonth, meetings, period]);
   const choosePeriod = (next: Period) => {
     if (next === period) return;
     if (targetAssignmentId || targetRevision) {
@@ -303,12 +323,17 @@ export function PublisherMeetingsPage() {
 
       <section className="mt-5 grid gap-5 md:grid-cols-[minmax(250px,330px)_minmax(0,1fr)] lg:gap-7" aria-label="Reuniões e designações pessoais">
         <div className={mobileDetail ? 'hidden md:block' : 'block'}>
+          {period === 'past' && meetingsAreCurrent && historyMonths.length > 0 && <nav aria-label="Navegação por mês do histórico" className="mb-4 flex items-center justify-between rounded-2xl border bg-card px-2 py-2">
+            <Button type="button" variant="ghost" size="icon" aria-label="Mês anterior" disabled={historyMonthIndex < 0 || historyMonthIndex >= historyMonths.length - 1} onClick={() => chooseHistoryMonth(historyMonths[historyMonthIndex + 1])}><ChevronLeft aria-hidden="true" /></Button>
+            <p className="text-sm font-semibold capitalize" aria-live="polite">{historyMonth ? formatHistoryMonth(historyMonth) : 'Histórico'}</p>
+            <Button type="button" variant="ghost" size="icon" aria-label="Próximo mês" disabled={historyMonthIndex <= 0} onClick={() => chooseHistoryMonth(historyMonths[historyMonthIndex - 1])}><ChevronRight aria-hidden="true" /></Button>
+          </nav>}
           {loadingMeetings && (!meetingsAreCurrent || meetings.length === 0) ? <LoadingState label="Carregando reuniões…" />
             : loadError ? <ErrorState message={loadError} onRetry={() => void loadMeetings(period)} />
               : !meetingsAreCurrent ? <LoadingState label="Carregando reuniões…" />
-                : meetings.length === 0 ? <EmptyMeetings period={period} />
+                : visibleMeetings.length === 0 ? <EmptyMeetings period={period} />
                 : <div className="space-y-3" aria-label="Reuniões cadastradas">
-                  {meetings.map(meeting => <MeetingListItem key={`${meeting.kind}:${meeting.id}`} meeting={meeting}
+                  {visibleMeetings.map(meeting => <MeetingListItem key={`${meeting.kind}:${meeting.id}`} meeting={meeting}
                     selected={selected?.id === meeting.id && selected.kind === meeting.kind}
                     onClick={() => { selectMeeting(meeting); setMobileDetail(true); }} />)}
                 </div>}
@@ -400,6 +425,7 @@ function EmptyMeetings({ period }: { period: Period }) {
 function LoadingState({ label }: { label: string }) { return <div role="status" className="flex min-h-36 items-center justify-center gap-2 rounded-xl bg-muted/30 text-sm text-muted-foreground"><RefreshCw className="animate-spin" size={17} aria-hidden="true" />{label}</div>; }
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) { return <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-5 text-center"><p role="alert" className="text-sm">{message}</p><Button variant="outline" className="mt-3" onClick={onRetry}>Tentar novamente</Button></div>; }
 function formatMeetingDate(date: string) { return new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }); }
+function formatHistoryMonth(month: string) { return new Date(`${month}-01T12:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }); }
 function meetingName(kind: MeetingKind) { return kind === 'midweek' ? 'Reunião de meio de semana' : 'Reunião de fim de semana'; }
 function listIdentity(memberId: string, period: Period) { return `${memberId}|${period}`; }
 function meetingIdentity(memberId: string, period: Period, meeting: MeetingSummary) {
