@@ -108,7 +108,7 @@ function mapAssignment(row: any): PersonalMeetingAssignment {
   const revision = row.revision ?? null;
   const canRespond = row.can_respond === true && notification !== null && typeof revision === 'string'
     && notification.id.length > 0 && notification.assignmentRevision === revision
-    && notification.status === 'pending_confirmation';
+    && ['pending_confirmation', 'declined'].includes(notification.status);
   return {
     notification,
     revision,

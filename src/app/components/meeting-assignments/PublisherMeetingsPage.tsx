@@ -368,7 +368,7 @@ export function PublisherMeetingsPage() {
                             const saved = await respondToMeetingAssignment(input);
                             if (selectedIdentityRef.current === detailsKey && memberIdRef.current === memberId && periodRef.current === period) {
                               setAssignments(current => current.map(item => item.notification?.id === saved.id
-                                ? { ...item, notification: saved, canRespond: false } : item));
+                                ? { ...item, notification: saved, canRespond: item.canRespond && saved.status === 'declined' } : item));
                               if (assignment.notification?.status === 'pending_confirmation') {
                                 setMeetings(current => current.map(meeting => meetingIdentity(memberId || '', period, meeting) === detailsKey
                                   ? { ...meeting, pendingCount: Math.max(0, meeting.pendingCount - 1) } : meeting));

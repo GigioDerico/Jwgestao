@@ -68,7 +68,7 @@ export function DeclineAssignmentDialog({ open, assignment, onOpenChange, onSubm
         {error && <p id="decline-error" role="alert" className="flex items-start gap-2 text-sm text-destructive"><AlertCircle size={16} className="mt-0.5 shrink-0" />{error}</p>}
         <DialogFooter>
           <Button type="button" variant="ghost" disabled={submitting} onClick={() => onOpenChange(false)}>Voltar</Button>
-          <Button type="button" variant="destructive" disabled={submitting} onClick={submit}>{submitting ? 'Enviando…' : 'Enviar recusa'}</Button>
+          <Button type="button" variant="destructive" className="bg-red-600 text-white hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700" disabled={submitting} onClick={submit}>{submitting ? 'Enviando…' : 'Enviar recusa'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

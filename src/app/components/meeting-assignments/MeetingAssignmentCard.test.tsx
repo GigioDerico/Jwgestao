@@ -16,6 +16,22 @@ const assignment = {
 } as any;
 
 describe('MeetingAssignmentCard', () => {
+  it('lets a declined participant confirm and removes the refusal reason', async () => {
+    const onRespond = vi.fn(async () => ({ ...assignment.notification, status: 'confirmed', declineReason: null }));
+    render(<MeetingAssignmentCard assignment={{ ...assignment,
+      notification: { ...assignment.notification, status: 'declined', declineReason: 'Engano' } }} onRespond={onRespond} />);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Decidi participar' }));
+    expect(await screen.findByText('Participação confirmada')).toBeVisible();
+    expect(screen.queryByText('Motivo: Engano')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Decidi participar' })).not.toBeInTheDocument();
+  });
+
+  it('does not offer reconsideration when responses are unavailable', () => {
+    render(<MeetingAssignmentCard assignment={{ ...assignment, canRespond: false,
+      notification: { ...assignment.notification, status: 'declined' } }} onRespond={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Decidi participar' })).not.toBeInTheDocument();
+  });
+
   it('offers only the personal response actions for a pending assignment', () => {
     render(<MeetingAssignmentCard assignment={assignment} onRespond={vi.fn()} />);
     expect(screen.getByRole('heading', { name: /4\. Iniciando conversas/ })).toBeVisible();

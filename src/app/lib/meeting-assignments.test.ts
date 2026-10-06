@@ -15,6 +15,13 @@ import {
 describe('personal meeting assignment API', () => {
   beforeEach(() => rpc.mockReset());
 
+  it('allows reconsidering a current declined assignment', async () => {
+    rpc.mockResolvedValue({ data: [{ notification: { id: 'n1', status: 'declined', assignment_revision: 'r1' },
+      revision: 'r1', can_respond: true }], error: null });
+    const [assignment] = await getPersonalMeetingAssignments('midweek', 'm1');
+    expect(assignment.canRespond).toBe(true);
+  });
+
   it('maps an empty meeting list without caching personal data', async () => {
     rpc.mockResolvedValue({ data: [], error: null });
     await expect(getPersonalMeetings('upcoming')).resolves.toEqual([]);

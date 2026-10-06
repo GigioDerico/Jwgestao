@@ -182,6 +182,15 @@ select set_config('request.jwt.claim.sub', pg_temp.meeting_test_id('01', 4)::tex
 select is((select count(*) from public.member_assignment_notifications where id = pg_temp.meeting_test_id('04', 2)), 0::bigint, 'secretary legacy role cannot read meeting refusal');
 select set_config('request.jwt.claim.sub', pg_temp.meeting_test_id('01', 3)::text, true);
 select is((select decline_reason from public.member_assignment_notifications where id = pg_temp.meeting_test_id('04', 2)), repeat('á', 500), 'coordinator can inspect refusal');
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', pg_temp.meeting_test_id('01', 1)::text, true);
+select is(public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 2), pg_temp.meeting_test_id('05', 2), 'confirmed')->>'status',
+  'confirmed', 'participant can reconsider refusal on current assignment');
+select is((select decline_reason from public.member_assignment_notifications where id=pg_temp.meeting_test_id('04', 2)),
+  null::text, 'reconsidering clears the refusal reason');
+select set_config('request.jwt.claim.sub', pg_temp.meeting_test_id('01', 3)::text, true);
+
 -- UPDATE policies give managers no meeting rows. Zero changes is also protection.
 select is_empty($$update public.member_assignment_notifications set status = 'pending_confirmation' where id = pg_temp.meeting_test_id('04', 2) returning id$$, 'manager cannot directly change another response');
 reset role;
