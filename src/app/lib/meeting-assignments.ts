@@ -46,7 +46,7 @@ export type AssignmentResolution =
 export interface MeetingResponseInput {
   notificationId: string;
   revision: string;
-  decision: 'confirmed' | 'declined';
+  decision: 'confirmed' | 'declined' | 'pending_confirmation';
   reason?: string;
 }
 
@@ -119,7 +119,7 @@ function mapAssignment(row: any): PersonalMeetingAssignment {
   const confirmationRequired = row.confirmation_required !== false && !isMinistryAssistant(notification);
   const canRespond = confirmationRequired && row.can_respond === true && notification !== null && typeof revision === 'string'
     && notification.id.length > 0 && notification.assignmentRevision === revision
-    && ['pending_confirmation', 'declined'].includes(notification.status);
+    && ['pending_confirmation', 'declined', 'confirmed'].includes(notification.status);
   return {
     notification,
     revision,

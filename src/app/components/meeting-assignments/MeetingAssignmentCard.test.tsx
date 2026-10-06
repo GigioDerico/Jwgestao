@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { MeetingAssignmentCard } from './MeetingAssignmentCard';
 
 vi.mock('../AssignmentCalendarActions', () => ({ AssignmentCalendarActions: () => <button>Adicionar ao calendário</button> }));
-vi.mock('./DeclineAssignmentDialog', () => ({ DeclineAssignmentDialog: () => null }));
+vi.mock('./DeclineAssignmentDialog', () => ({ DeclineAssignmentDialog: ({ open, onSubmit }: any) => open ? <button onClick={() => onSubmit('Imprevisto familiar')}>Enviar recusa de teste</button> : null }));
 
 const assignment = {
   notification: { id: 'notification-1', memberId: 'member-1', category: 'midweek', sourceType: 'midweek_ministry_part',
@@ -16,6 +16,24 @@ const assignment = {
 } as any;
 
 describe('MeetingAssignmentCard', () => {
+  it('lets a confirmed participant return to pending and then confirm again', async () => {
+    const onRespond = vi.fn(async (input: any) => ({ ...assignment.notification, status: input.decision, declineReason: null }));
+    render(<MeetingAssignmentCard assignment={{ ...assignment, notification: { ...assignment.notification, status: 'confirmed' } }} onRespond={onRespond} />);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Marcar como não confirmada' }));
+    expect(onRespond).toHaveBeenCalledWith({ notificationId: 'notification-1', revision: 'revision-1', decision: 'pending_confirmation', reason: undefined });
+    expect(await screen.findByText('Aguardando resposta')).toBeVisible();
+    await userEvent.setup().click(screen.getByRole('button', { name: /Confirmar designação/ }));
+    expect(await screen.findByText('Participação confirmada')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Marcar como não confirmada' })).toBeVisible();
+  });
+  it('lets a confirmed participant decline with a reason', async () => {
+    const onRespond = vi.fn(async (input: any) => ({ ...assignment.notification, status: input.decision, declineReason: input.reason }));
+    render(<MeetingAssignmentCard assignment={{ ...assignment, notification: { ...assignment.notification, status: 'confirmed' } }} onRespond={onRespond} />);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Não posso participar' }));
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Enviar recusa de teste' }));
+    expect(onRespond).toHaveBeenCalledWith({ notificationId: 'notification-1', revision: 'revision-1', decision: 'declined', reason: 'Imprevisto familiar' });
+    expect(await screen.findByText('Recusa enviada')).toBeVisible();
+  });
   it('shows the assistant assignment without asking for a response', () => {
     render(<MeetingAssignmentCard assignment={{ ...assignment, roleLabel: 'Ajudante',
       notification: { ...assignment.notification, slotKey: 'assistant_id' } }} onRespond={vi.fn()} />);
@@ -56,6 +74,8 @@ describe('MeetingAssignmentCard', () => {
       notification: { ...assignment.notification, status: 'confirmed' } }} onRespond={vi.fn()} />);
     expect(screen.queryByRole('button', { name: /Confirmar designação/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Adicionar ao calendário' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Marcar como não confirmada' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Não posso participar' })).not.toBeInTheDocument();
   });
 
   it.each([

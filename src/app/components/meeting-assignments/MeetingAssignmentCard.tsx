@@ -27,7 +27,7 @@ export function MeetingAssignmentCard({ assignment, onRespond, onHide = async ()
   const confirmationRequired = assignment.confirmationRequired !== false && !isMinistryAssistant(notification);
   const status = notification?.status || 'revoked';
 
-  const respond = async (decision: 'confirmed' | 'declined', reason?: string) => {
+  const respond = async (decision: MeetingResponseInput['decision'], reason?: string) => {
     if (!notification || !assignment.revision || saving) return;
     setSaving(true);
     setActionError('');
@@ -49,7 +49,7 @@ export function MeetingAssignmentCard({ assignment, onRespond, onHide = async ()
   const meetingDate = new Date(`${assignment.date}T12:00:00`);
   const dateLabel = meetingDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
   const timeLabel = assignment.time || 'Não informado';
-  const canRespond = confirmationRequired && responsesEnabled && assignment.canRespond && ['pending_confirmation', 'declined'].includes(status);
+  const canRespond = confirmationRequired && responsesEnabled && assignment.canRespond && ['pending_confirmation', 'declined', 'confirmed'].includes(status);
   return (
     <>
       <article aria-label={`Designação: ${assignment.title}`} className="overflow-hidden rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50/70 to-white shadow-sm">
@@ -83,10 +83,11 @@ export function MeetingAssignmentCard({ assignment, onRespond, onHide = async ()
 
         <div className="flex flex-col gap-2 px-5 py-5 sm:flex-row sm:px-6">
           {canRespond && <>
-            <Button type="button" disabled={saving} onClick={() => { void respond('confirmed').catch(() => {}); }} className="min-h-11 flex-1 bg-sky-700 hover:bg-sky-800">
+            {status !== 'confirmed' && <Button type="button" disabled={saving} onClick={() => { void respond('confirmed').catch(() => {}); }} className="min-h-11 flex-1 bg-sky-700 hover:bg-sky-800">
               {saving ? 'Salvando…' : status === 'declined' ? 'Decidi participar' : '✓  Confirmar designação'}
-            </Button>
-            {status === 'pending_confirmation' && <Button ref={declineTriggerRef} type="button" disabled={saving} variant="outline" onClick={() => setDeclineOpen(true)} className="min-h-11">Não posso participar</Button>}
+            </Button>}
+            {status === 'confirmed' && <Button type="button" disabled={saving} variant="outline" onClick={() => { void respond('pending_confirmation').catch(() => {}); }} className="min-h-11">{saving ? 'Salvando…' : 'Marcar como não confirmada'}</Button>}
+            {(status === 'pending_confirmation' || status === 'confirmed') && <Button ref={declineTriggerRef} type="button" disabled={saving} variant="outline" onClick={() => setDeclineOpen(true)} className="min-h-11">Não posso participar</Button>}
           </>}
           {status === 'confirmed' && notification && <AssignmentCalendarActions notification={notification as AssignmentNotification} onHide={onHide} />}
           {confirmationRequired && status === 'declined' && <p className="text-sm text-muted-foreground">O responsável poderá organizar uma substituição.</p>}

@@ -368,11 +368,18 @@ export function PublisherMeetingsPage() {
                             const saved = await respondToMeetingAssignment(input);
                             if (selectedIdentityRef.current === detailsKey && memberIdRef.current === memberId && periodRef.current === period) {
                               setAssignments(current => current.map(item => item.notification?.id === saved.id
-                                ? { ...item, notification: saved, canRespond: item.canRespond && saved.status === 'declined' } : item));
-                              if (assignment.notification?.status === 'pending_confirmation') {
-                                setMeetings(current => current.map(meeting => meetingIdentity(memberId || '', period, meeting) === detailsKey
-                                  ? { ...meeting, pendingCount: Math.max(0, meeting.pendingCount - 1) } : meeting));
-                              }
+                                ? { ...item, notification: saved, canRespond: item.canRespond } : item));
+                              const previousStatus = assignment.notification?.status;
+                              const pendingDelta = Number(saved.status === 'pending_confirmation') - Number(previousStatus === 'pending_confirmation');
+                              const confirmedDelta = Number(saved.status === 'confirmed') - Number(previousStatus === 'confirmed');
+                              const declinedDelta = Number(saved.status === 'declined') - Number(previousStatus === 'declined');
+                              setMeetings(current => current.map(meeting => meetingIdentity(memberId || '', period, meeting) === detailsKey
+                                ? { ...meeting,
+                                  pendingCount: Math.max(0, meeting.pendingCount + pendingDelta),
+                                  unconfirmedCount: Math.max(0, (meeting.unconfirmedCount ?? meeting.pendingCount) + pendingDelta),
+                                  confirmedCount: Math.max(0, (meeting.confirmedCount ?? 0) + confirmedDelta),
+                                  declinedCount: Math.max(0, (meeting.declinedCount ?? 0) + declinedDelta),
+                                } : meeting));
                             }
                             await refreshSelected(
                               'Sua resposta foi salva, mas não foi possível atualizar os detalhes. Tente atualizar.',

@@ -75,7 +75,7 @@ describe('PublisherMeetingsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     currentMemberId = 'member-1';
-    respondToMeetingAssignment = vi.fn(async (input: { notificationId: string; revision: string; decision: 'confirmed' | 'declined' }) => ({
+    respondToMeetingAssignment = vi.fn(async (input: { notificationId: string; revision: string; decision: 'confirmed' | 'declined' | 'pending_confirmation' }) => ({
       ...assignment.notification,
       id: input.notificationId,
       assignmentRevision: input.revision,
@@ -203,7 +203,7 @@ describe('PublisherMeetingsPage', () => {
     renderPublisher();
     await screen.findByRole('heading', { name: /4\. Iniciando conversas/ });
     await user.click(screen.getByRole('tab', { name: 'Histórico' }));
-    expect(await screen.findByText('Participação confirmada')).toBeVisible();
+    expect((await screen.findAllByText('Participação confirmada'))[0]).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Confirmar designação' })).not.toBeInTheDocument();
   });
 
@@ -217,7 +217,7 @@ describe('PublisherMeetingsPage', () => {
     const user = userEvent.setup();
     renderPublisher();
     await user.click(await screen.findByRole('tab', { name: 'Histórico' }));
-    expect(await screen.findByText('Participação confirmada')).toBeVisible();
+    expect((await screen.findAllByText('Participação confirmada'))[0]).toBeVisible();
     expect(screen.getByText('outubro de 2026')).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Mês anterior' }));
     expect(await screen.findByText('junho de 2026')).toBeVisible();
@@ -225,7 +225,7 @@ describe('PublisherMeetingsPage', () => {
     expect(screen.queryByText('Participação confirmada')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Próximo mês' }));
     expect(await screen.findByText('outubro de 2026')).toBeVisible();
-    expect(await screen.findByText('Participação confirmada')).toBeVisible();
+    expect((await screen.findAllByText('Participação confirmada'))[0]).toBeVisible();
   });
 
   it('offers retry after a load failure', async () => {
@@ -298,12 +298,23 @@ describe('PublisherMeetingsPage', () => {
     renderPublisher();
     await screen.findByRole('button', { name: /Confirmar designação/ });
     await user.click(screen.getByRole('button', { name: /Confirmar designação/ }));
-    expect(await screen.findByText('Participação confirmada')).toBeVisible();
+    expect((await screen.findAllByText('Participação confirmada'))[0]).toBeVisible();
     expect(screen.queryByRole('button', { name: /Confirmar designação/ })).not.toBeInTheDocument();
     expect(screen.getAllByText('0 respostas pendentes')).toHaveLength(2);
     expect(screen.getByRole('button', { name: 'Atualizar detalhes' })).toBeVisible();
   });
 
+  it('keeps a restored pending response and counter when the follow-up read fails', async () => {
+    vi.mocked(getPersonalMeetings).mockResolvedValueOnce([{ ...meetings[0], pendingCount: 0, confirmedCount: 1, unconfirmedCount: 0, declinedCount: 0 }]).mockRejectedValue(new Error('offline'));
+    vi.mocked(getPersonalMeetingAssignments).mockResolvedValueOnce([{ ...assignment, notification: { ...assignment.notification, status: 'confirmed' } }]).mockRejectedValue(new Error('offline'));
+    respondToMeetingAssignment.mockResolvedValue({ ...assignment.notification, status: 'pending_confirmation', confirmedAt: null, respondedAt: null });
+    renderPublisher();
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Marcar como não confirmada' }));
+    expect(await screen.findByText('Aguardando resposta')).toBeVisible();
+    expect(screen.getByText('1 resposta pendente')).toBeVisible();
+    expect(screen.getByText('1 respostas pendentes')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Atualizar detalhes' })).toBeVisible();
+  });
   it('invalidates a declined response on revision conflict until a successful retry', async () => {
     respondToMeetingAssignment.mockRejectedValueOnce(new Error('Erro ao acessar designação da reunião: meeting_assignment_revision_conflict'));
     vi.mocked(getPersonalMeetingAssignments).mockResolvedValueOnce([assignment]).mockRejectedValueOnce(new Error('offline'))

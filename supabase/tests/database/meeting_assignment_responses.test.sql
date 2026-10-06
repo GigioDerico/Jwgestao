@@ -136,13 +136,14 @@ select set_config('request.jwt.claim.sub', pg_temp.meeting_test_id('01', 1)::tex
 select is(public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 1), pg_temp.meeting_test_id('05', 1), 'confirmed')->>'status', 'confirmed', 'own current assignment confirms');
 select ok((select responded_at is not null and responded_at = confirmed_at from public.member_assignment_notifications where id = pg_temp.meeting_test_id('04', 1)), 'confirmation saves the known timestamp');
 select lives_ok($$select public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 1), pg_temp.meeting_test_id('05', 1), 'confirmed')$$, 'same confirmation is idempotent');
-select throws_ok($$select public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 1), pg_temp.meeting_test_id('05', 1), 'declined', 'Troca')$$, '40001', 'meeting_assignment_response_conflict', 'opposite response conflicts');
+select is(public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 1), pg_temp.meeting_test_id('05', 1), 'declined', 'Troca')->>'status', 'declined', 'confirmed participant may decline after changing their mind');
+select public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 1), pg_temp.meeting_test_id('05', 1), 'confirmed');
 select throws_ok($$select public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 2), pg_temp.meeting_test_id('05', 2), 'declined', '')$$, '22023', 'meeting_assignment_reason_invalid', 'empty refusal rejected');
 select throws_ok($$select public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 2), pg_temp.meeting_test_id('05', 2), 'declined', E' \t\n ')$$, '22023', 'meeting_assignment_reason_invalid', 'whitespace refusal rejected');
 select throws_ok($$select public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 2), pg_temp.meeting_test_id('05', 2), 'declined', repeat('a', 501))$$, '22023', 'meeting_assignment_reason_invalid', '501 characters rejected');
 select is(public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 2), pg_temp.meeting_test_id('05', 2), 'declined', repeat('á', 500))->>'status', 'declined', '500 Unicode characters accepted');
 select lives_ok($$select public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 2), pg_temp.meeting_test_id('05', 2), 'declined', repeat('á', 500))$$, 'identical refusal is idempotent');
-select throws_ok($$select public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 2), pg_temp.meeting_test_id('05', 2), 'declined', 'Outro motivo')$$, '40001', 'meeting_assignment_response_conflict', 'changed reason conflicts');
+select is(public.respond_to_meeting_assignment(pg_temp.meeting_test_id('04', 2), pg_temp.meeting_test_id('05', 2), 'declined', 'Outro motivo')->>'decline_reason', 'Outro motivo', 'participant can update the refusal reason');
 reset role;
 create temporary table saved_responses_before_backfill as
 select id, to_jsonb(n) as notification from public.member_assignment_notifications n

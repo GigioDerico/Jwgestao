@@ -49,6 +49,10 @@ describe('personal meeting assignment API', () => {
     const [assignment] = await getPersonalMeetingAssignments('midweek', 'm1');
     expect(assignment).toMatchObject({ roleLabel: 'Ajudante', canRespond: false, confirmationRequired: false });
   });
+  it('allows a current confirmed assignment to change its response', async () => {
+    rpc.mockResolvedValue({ data: [{ notification: { id: 'n1', status: 'confirmed', assignment_revision: 'r1' }, revision: 'r1', can_respond: true }], error: null });
+    expect((await getPersonalMeetingAssignments('midweek', 'm1'))[0].canRespond).toBe(true);
+  });
   it('allows reconsidering a current declined assignment', async () => {
     rpc.mockResolvedValue({ data: [{ notification: { id: 'n1', status: 'declined', assignment_revision: 'r1' },
       revision: 'r1', can_respond: true }], error: null });
