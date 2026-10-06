@@ -42,7 +42,7 @@ As areas principais do sistema sao:
 - `Dashboard`: visao geral, atalhos e minhas designacoes
 - `Membros`: cadastro e manutencao dos membros
 - `Reunioes`: consulta e exportacao de materiais
-- `Designacoes > Reunioes`: montagem das partes das reunioes
+- `Designacoes > Reunioes`: abas `Designacao`, `Confirmacoes` e `Historico` para montar reunioes, acompanhar respostas e consultar designacoes anteriores
 - `Designacoes > Audio e Video`: escala tecnica mensal
 - `Designacoes > Saida de Campo`: organizacao mensal da saida de campo
 - `Designacoes > Carrinho`: escala mensal do carrinho
@@ -221,7 +221,7 @@ The main areas of the system are:
 - `Dashboard`: overview, shortcuts, and personal assignments
 - `Members`: member records and maintenance
 - `Meetings`: meeting review and exports
-- `Assignments > Meetings`: detailed meeting assignment management
+- `Assignments > Meetings`: `Assignments`, `Confirmations`, and `History` sections for meeting setup, response tracking, and past assignments
 - `Assignments > Audio and Video`: monthly technical scheduling
 - `Assignments > Field Service`: monthly field service scheduling
 - `Assignments > Cart`: monthly cart scheduling

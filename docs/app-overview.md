@@ -177,12 +177,15 @@ Principais funcoes:
 
 - gerenciar designacoes de reunioes de meio de semana e fim de semana
 - criar ou editar registros completos de reuniao
+- separar a pagina em abas de **Designacao**, **Confirmacoes** e **Historico**
+- acompanhar confirmacoes e recusas dos membros na aba **Confirmacoes**
 - definir horarios, canticos e estrutura da reuniao
 - preencher partes do bloco de meio de semana
 - preencher partes do fim de semana
 - editar designacoes ja existentes por modal
 
 Este modulo cobre o fluxo mais detalhado de escalas da reuniao, incluindo distribuicao de partes e responsaveis.
+As acoes para criar e editar reunioes ficam na aba **Designacao**; as respostas dos membros sao consultadas separadamente em **Confirmacoes**.
 
 ### 6.5 Designacoes de Audio e Video
 

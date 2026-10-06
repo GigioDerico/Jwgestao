@@ -257,6 +257,12 @@ Se a ideia for montar ou alterar as designacoes da reuniao, o caminho principal 
 
 Essa area concentra a montagem das designacoes ligadas as reunioes congregacionais.
 
+A pagina administrativa e organizada em tres abas:
+
+- **Designacao**: consultar e editar as reunioes e suas partes. Os botoes **Nova Reuniao** e **Editar Reuniao** ficam nesta aba.
+- **Confirmacoes**: acompanhar as respostas dos membros para a reuniao selecionada, incluindo confirmacoes e recusas com o motivo informado.
+- **Historico**: consultar designacoes de reunioes anteriores.
+
 ### O que pode ser feito
 
 - criar registros de reuniao
@@ -270,12 +276,14 @@ Essa area concentra a montagem das designacoes ligadas as reunioes congregaciona
 ### Como usar na pratica
 
 1. Abra `Designacoes > Reunioes`.
-2. Escolha a reuniao ou o periodo desejado.
+2. Na aba **Designacao**, escolha a reuniao ou o periodo desejado.
 3. Preencha os campos da reuniao.
 4. Defina os responsaveis por cada parte.
 5. Confira se todas as partes foram preenchidas.
 6. Revise a distribuicao com calma.
 7. Salve as alteracoes.
+
+Para acompanhar as respostas, abra **Confirmacoes**. Se ainda nao houver respostas para a reuniao selecionada, a pagina informa isso. Use **Historico** para consultar designacoes anteriores.
 
 ### Quando revisar com atencao
 
