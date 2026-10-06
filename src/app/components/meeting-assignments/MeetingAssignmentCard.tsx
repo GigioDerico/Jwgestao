@@ -83,7 +83,7 @@ export function MeetingAssignmentCard({ assignment, onRespond, onHide = async ()
 
         <div className="flex flex-col gap-2 px-5 py-5 sm:flex-row sm:px-6">
           {canRespond && <>
-            {status !== 'confirmed' && <Button type="button" disabled={saving} onClick={() => { void respond('confirmed').catch(() => {}); }} className="min-h-11 flex-1 bg-sky-700 hover:bg-sky-800">
+            {status !== 'confirmed' && <Button type="button" disabled={saving} onClick={() => { void respond('confirmed').catch(() => {}); }} className="min-h-11 flex-1 bg-green-600 text-white hover:bg-green-700">
               {saving ? 'Salvando…' : status === 'declined' ? 'Decidi participar' : '✓  Confirmar designação'}
             </Button>}
             {status === 'confirmed' && <Button type="button" disabled={saving} variant="outline" onClick={() => { void respond('pending_confirmation').catch(() => {}); }} className="min-h-11">{saving ? 'Salvando…' : 'Marcar como não confirmada'}</Button>}
