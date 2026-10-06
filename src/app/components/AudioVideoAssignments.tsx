@@ -1,3 +1,4 @@
+import { useLocation } from 'react-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Eye, EyeOff, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -94,7 +95,9 @@ export function AudioVideoAssignments({
   canExportPdf?: boolean;
 }) {
   const { user } = useAuth();
-  const today = new Date();
+  const location = useLocation();
+  const targetDate = new URLSearchParams(location.search).get('date');
+  const today = targetDate && /^\d{4}-\d{2}-\d{2}$/.test(targetDate) ? new Date(`${targetDate}T12:00:00`) : new Date();
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [data, setData] = useState<AudioVideoAssignment[]>([]);

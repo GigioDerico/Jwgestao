@@ -217,11 +217,30 @@ export async function getMeetingAssignmentResponses(kind: MeetingKind, meetingId
     p_meeting_id: meetingId,
   });
   if (error) throwRPCError(error);
-  return (data || []).map((row: any) => ({
+  return (data || []).map(mapManagedMeetingResponse);
+}
+
+function mapManagedMeetingResponse(row: any): ManagedMeetingAssignmentResponse {
+  return {
     ...mapNotification(row.notification),
     memberName: row.member_name,
     roleLabel: row.role_label,
     assignmentTitle: row.assignment_title,
     partNumber: row.part_number === null || row.part_number === undefined ? null : Number(row.part_number),
-  }));
+  };
+}
+
+export interface ManagedMeetingConfirmationGroup {
+  id: string;
+  kind: MeetingKind;
+  date: string;
+  responses: ManagedMeetingAssignmentResponse[];
+}
+
+export async function getManagedMeetingConfirmations(month: string): Promise<ManagedMeetingConfirmationGroup[]> {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error('Mês inválido.');
+  const { data, error } = await supabase.rpc('get_managed_meeting_confirmations', { p_month: `${month}-01` });
+  if (error) throwRPCError(error);
+  return (data || []).map((row: any) => ({ id: row.id, kind: row.kind, date: row.date,
+    responses: (row.responses || []).map(mapManagedMeetingResponse) }));
 }

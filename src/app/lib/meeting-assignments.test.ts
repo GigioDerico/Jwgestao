@@ -7,6 +7,7 @@ import {
   getPersonalMeetings,
   getPersonalMeetingAssignments,
   getMeetingAssignmentResponses,
+  getManagedMeetingConfirmations,
   resolvePersonalAssignment,
   respondToMeetingAssignment,
   isMeetingDatePast,
@@ -15,6 +16,23 @@ import {
 
 describe('personal meeting assignment API', () => {
   beforeEach(() => rpc.mockReset());
+
+  it('loads monthly confirmations grouped by meeting including audio/video refusal reasons', async () => {
+    rpc.mockResolvedValue({ data: [{ id: 'm1', kind: 'midweek', date: '2026-10-08', responses: [{
+      notification: { id: 'n1', member_id: 'member1', source_type: 'audio_video_role', category: 'audio_video',
+        source_id: 'audio1', slot_key: 'sound', status: 'declined', decline_reason: 'Viagem', assignment_revision: 'r1' },
+      member_name: 'Ana', role_label: 'Som', assignment_title: 'Áudio e vídeo · Som', part_number: null,
+    }] }], error: null });
+    const [meeting] = await getManagedMeetingConfirmations('2026-10');
+    expect(meeting).toMatchObject({ id: 'm1', kind: 'midweek', date: '2026-10-08' });
+    expect(meeting.responses[0]).toMatchObject({ memberName: 'Ana', declineReason: 'Viagem', category: 'audio_video' });
+    expect(rpc).toHaveBeenCalledWith('get_managed_meeting_confirmations', { p_month: '2026-10-01' });
+  });
+
+  it('rejects an invalid confirmations month before querying', async () => {
+    await expect(getManagedMeetingConfirmations('2026-13')).rejects.toThrow('Mês inválido');
+    expect(rpc).not.toHaveBeenCalled();
+  });
 
   it('maps confirmed and declined counts for the meeting cards', async () => {
     rpc.mockResolvedValue({ data: [{ id: 'm1', kind: 'midweek', date: '2026-10-08',

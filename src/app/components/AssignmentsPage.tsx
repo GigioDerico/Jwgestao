@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Navigate } from 'react-router';
+import { Navigate, useNavigate } from 'react-router';
 import { api } from '../lib/api';
 import {
   MIDWEEK_PRIMARY_ROOM,
@@ -23,8 +23,7 @@ import { Plus, X, ChevronDown, BookOpen, MessageCircle, ChevronLeft, ChevronRigh
 import { toast } from 'sonner';
 import { sendDesignationWhatsApp, openDesignationInWhatsAppWithLink } from '../lib/whatsapp';
 import { AssignmentHistory } from './AssignmentHistory';
-import { AssignmentResponseBadge } from './meeting-assignments/AssignmentResponseBadge';
-import { useMeetingAssignmentResponses } from '../hooks/useMeetingAssignmentResponses';
+import { ManagedMeetingConfirmations } from './meeting-assignments/ManagedMeetingConfirmations';
 import { getMeetingAssignmentResponses } from '../lib/meeting-assignments';
 import { getRecipientMeetingAssignmentUrl } from '../lib/meeting-assignment-links';
 
@@ -183,9 +182,11 @@ function getUnavailableWeekendReaderIds(
 }
 
 export function AssignmentsPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { can } = usePermissions();
   const [viewMode, setViewMode] = useState<'designation' | 'confirmations' | 'history'>('designation');
+  const [confirmationMonth, setConfirmationMonth] = useState<string>();
   const [meetingType, setMeetingType] = useState<'midweek' | 'weekend'>('midweek');
   const [selectedMeetingIdx, setSelectedMeetingIdx] = useState(0);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -238,19 +239,6 @@ export function AssignmentsPage() {
   const canViewAssignments = can('view_assignments');
   const canCreateAssignments = canManageAssignments && can('create_assignments');
   const canEditAssignments = canManageAssignments && can('edit_assignments');
-  const selectedMeeting = meetingType === 'midweek'
-    ? midweekMeetings[selectedMeetingIdx]
-    : weekendMeetings[selectedMeetingIdx];
-  const selectedMeetingId = selectedMeeting?.id as string | undefined;
-  const responseSourceIds = [
-    ...(selectedMeetingId ? [selectedMeetingId] : []),
-    ...(selectedMeeting?.ministry_parts || []).map((part: any) => part.id),
-    ...(selectedMeeting?.christian_life_parts || []).map((part: any) => part.id),
-  ];
-  const meetingResponses = useMeetingAssignmentResponses(
-    meetingType, selectedMeetingId, responseSourceIds,
-    canManageAssignments && canViewAssignments && viewMode === 'confirmations',
-  );
 
   if (user && (!canManageAssignments || !canViewAssignments)) {
     return <Navigate to="/dashboard" replace />;
@@ -781,28 +769,30 @@ export function AssignmentsPage() {
           )}
         </>
       ) : viewMode === 'confirmations' ? (
-        <section className="rounded-xl border border-border bg-card p-4 shadow-sm" aria-label="Confirmações das designações">
-          <h2 className="mb-3 text-sm font-semibold text-foreground">Confirmações das designações</h2>
-          {!selectedMeetingId ? (
-            <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">Nenhuma reunião disponível para consultar. Crie uma reunião na aba Designação.</p>
-          ) : meetingResponses.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">Ainda não há respostas às designações desta reunião.</p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {meetingResponses.map(response => (
-                <li key={`${response.memberId}:${response.sourceType}:${response.sourceId}:${response.slotKey}`} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                  <div className="min-w-0">
-                    <p className="font-medium text-foreground">{response.memberName}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {response.partNumber ? `${response.partNumber}. ` : ''}{response.assignmentTitle} · {response.roleLabel}
-                    </p>
-                  </div>
-                  <AssignmentResponseBadge status={response.status} reason={response.declineReason} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        <>
+          <ManagedMeetingConfirmations refreshToken={historyRefreshToken} managerId={user?.id} initialMonth={confirmationMonth} onMonthChange={setConfirmationMonth} canEdit={canEditAssignments} onTreat={(group, response) => {
+            if (response.sourceType === 'audio_video_role') {
+              navigate(`/assignments/audio-video?date=${group.date}`);
+              return;
+            }
+            const tables: Record<string, MeetingEditField['table']> = {
+              midweek_meeting_role: 'midweek_meetings', weekend_meeting_role: 'weekend_meetings',
+              midweek_ministry_part: 'midweek_ministry_parts', midweek_christian_life_part: 'midweek_christian_life_parts',
+            };
+            const table = tables[response.sourceType];
+            if (table && response.slotKey) openEdit({ label: `${response.roleLabel} · ${group.date}`, mode: 'member',
+              currentValue: response.memberName, table, rowId: response.sourceId, column: response.slotKey });
+          }} />
+          {canEditAssignments && showEditModal && editField && <EditModal field={editField}
+            members={editField.table !== 'weekend_meetings' ? allMembers : allMembers.filter(member => {
+              if (editField.column === 'president_id') return member.gender === 'M' && (member.spiritual_status === 'anciao' || member.spiritual_status === 'servo_ministerial');
+              if (member.gender !== 'M') return false;
+              if (editField.column !== 'watchtower_reader_id') return true;
+              const meeting = weekendMeetings.find(item => item.id === editField.rowId);
+              return !getUnavailableWeekendReaderIds(meeting?.date, audioVideoAssignments).has(member.id);
+            })}
+            onClose={() => setShowEditModal(false)} onSave={saveAssignment} />}
+        </>
       ) : (
         <AssignmentHistory
           allowedSources={['midweek', 'weekend']}
