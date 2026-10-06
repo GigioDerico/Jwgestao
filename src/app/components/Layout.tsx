@@ -48,14 +48,7 @@ export function Layout() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [assignmentsMenuOpen, setAssignmentsMenuOpen] = useState(location.pathname.startsWith('/assignments'));
-  const [ministryMenuOpen, setMinistryMenuOpen] = useState(location.pathname.startsWith('/ministry'));
   const canViewAssignments = can('view_assignments');
-
-  const ministryChildren = [
-    { path: '/ministry/field-record', label: 'Campo' },
-    { path: '/ministry/journal', label: 'Diário Espiritual' },
-    { path: '/ministry/settings', label: 'Configurações' },
-  ];
 
   const canManageAssignments = user?.role === 'coordenador' || user?.role === 'designador';
   const visibleNotifications = notifications.filter(notification => !notification.hiddenAt);
@@ -105,11 +98,10 @@ export function Layout() {
       }]
       : []),
     {
-      path: '/ministry',
+      path: '/ministry/field-record',
       label: 'Ministério',
       icon: BookMarked,
       roles: ['coordenador', 'secretario', 'designador', 'publicador'],
-      children: ministryChildren,
     },
     { path: '/settings', label: 'Configurações', icon: Settings, roles: ['coordenador'] },
   ];
@@ -125,12 +117,6 @@ export function Layout() {
   useEffect(() => {
     if (location.pathname.startsWith('/assignments')) {
       setAssignmentsMenuOpen(true);
-    }
-  }, [location.pathname]);
-
-  useEffect(() => {
-    if (location.pathname.startsWith('/ministry')) {
-      setMinistryMenuOpen(true);
     }
   }, [location.pathname]);
 
@@ -278,14 +264,8 @@ export function Layout() {
             const hasChildren = Boolean(item.children?.length);
 
             if (hasChildren) {
-              const isAssignments = item.path === '/assignments';
-              const isMinistry = item.path === '/ministry';
-              const menuOpen = isAssignments ? assignmentsMenuOpen : (isMinistry ? ministryMenuOpen : false);
-              const toggleMenu = isAssignments
-                ? () => setAssignmentsMenuOpen(v => !v)
-                : isMinistry
-                  ? () => setMinistryMenuOpen(v => !v)
-                  : () => { };
+              const menuOpen = assignmentsMenuOpen;
+              const toggleMenu = () => setAssignmentsMenuOpen(v => !v);
               const isExpanded = menuOpen || isActive;
 
               return (
@@ -329,7 +309,6 @@ export function Layout() {
                             navigate(child.path);
                             setSidebarOpen(false);
                             setAssignmentsMenuOpen(false);
-                            setMinistryMenuOpen(false);
                           }}
                           className={`w-full rounded-lg px-3 py-2 text-left transition-colors ${isChildActive
                             ? 'bg-white/12 text-white'
