@@ -61,7 +61,8 @@ export function ManagedMeetingConfirmations({ managerId, initialMonth = currentM
     return () => { active = false; clearTimeout(refreshTimer); window.removeEventListener('focus', refresh); void supabase.removeChannel(channel); };
   }, [managerId, month, reload, key, refreshToken]);
 
-  const groups = state.key === key ? state.groups : [];
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+  const groups = useMemo(() => state.key === key ? state.groups.filter(group => group.date >= today) : [], [state.key, state.groups, key, today]);
   const loading = state.key !== key || state.loading;
   const error = state.key === key ? state.error : '';
   const counts = useMemo(() => groups.flatMap(group => group.responses).reduce((total, row) => {
@@ -82,7 +83,7 @@ export function ManagedMeetingConfirmations({ managerId, initialMonth = currentM
 
   return <section className="space-y-4" aria-label="Confirmações por reunião">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><h2 className="font-semibold text-foreground">Respostas por reunião</h2><p className="mt-1 text-sm text-muted-foreground">Acompanhe as confirmações e trate as recusas das partes e de áudio e vídeo.</p></div>
+      <div><h2 className="font-semibold text-foreground">Respostas por reunião</h2><p className="mt-1 text-sm text-muted-foreground">Acompanhe as confirmações das reuniões de hoje em diante e trate as recusas das partes e de áudio e vídeo.</p></div>
       <Button variant="outline" disabled={loading} onClick={() => setReload(value => value + 1)}><RefreshCw size={15} className={loading ? 'animate-spin' : ''} />Atualizar</Button>
     </div>
     <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
@@ -102,7 +103,7 @@ export function ManagedMeetingConfirmations({ managerId, initialMonth = currentM
     </div>
     {error ? <div role="alert" className="rounded-xl border border-destructive/30 bg-card p-5"><p className="text-sm">{error}</p><Button className="mt-3" variant="outline" onClick={() => setReload(value => value + 1)}>Tentar novamente</Button></div>
       : loading ? <p role="status" className="rounded-xl border bg-card p-6 text-center text-muted-foreground">Carregando respostas…</p>
-      : !groups.length ? <p className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">Nenhuma reunião cadastrada neste mês.</p>
+      : !groups.length ? <p className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">Nenhuma reunião de hoje em diante neste mês.</p>
       : !visible.length ? <p className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">Nenhuma resposta corresponde aos filtros.</p>
       : <div className="space-y-3">{visible.map((group, index) => {
         const original = groups.find(item => item.id === group.id && item.kind === group.kind)!;

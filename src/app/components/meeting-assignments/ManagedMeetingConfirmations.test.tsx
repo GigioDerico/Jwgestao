@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ManagedMeetingConfirmations } from './ManagedMeetingConfirmations';
 import { getManagedMeetingConfirmations } from '../../lib/meeting-assignments';
 vi.mock('../../lib/meeting-assignments', () => ({ getManagedMeetingConfirmations: vi.fn() }));
@@ -18,7 +18,36 @@ const groups = [{ id: 'meeting-1', kind: 'midweek', date: '2026-10-08', response
   { id: 'meeting-2', kind: 'weekend', date: '2026-10-11', responses: [] }];
 function renderPanel(props = {}) { return render(<MemoryRouter><ManagedMeetingConfirmations managerId="manager-1" initialMonth="2026-10" canEdit {...props} /></MemoryRouter>); }
 describe('ManagedMeetingConfirmations', () => {
-  beforeEach(() => { vi.clearAllMocks(); vi.mocked(getManagedMeetingConfirmations).mockResolvedValue(groups as any); });
+  afterEach(() => { vi.useRealTimers(); });
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-06T15:00:00Z')); vi.clearAllMocks(); vi.mocked(getManagedMeetingConfirmations).mockResolvedValue(groups as any); });
+  it('excludes past meetings from the list and every counter, keeping today and future meetings', async () => {
+    vi.setSystemTime(new Date('2026-10-07T01:00:00Z')); // Still October 6 in São Paulo.
+    vi.mocked(getManagedMeetingConfirmations).mockResolvedValue([
+      { id: 'past', kind: 'midweek', date: '2026-10-05', responses: [
+        ...responses.map(row => ({ ...row, id: `past-${row.id}`, memberName: `Anterior ${row.memberName}` })),
+        { ...responses[0], id: 'past-pending', status: 'pending_confirmation' },
+      ] },
+      { id: 'today', kind: 'midweek', date: '2026-10-06', responses: [responses[0]] },
+      { id: 'future', kind: 'weekend', date: '2026-10-11', responses: [responses[1],
+        { ...responses[0], id: 'future-pending', memberName: 'Pedro', status: 'pending_confirmation' }] },
+    ] as any);
+    renderPanel();
+    await screen.findByText('Ana Lima');
+    expect(screen.queryByText(/Anterior/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/5 de outubro/)).not.toBeInTheDocument();
+    expect(screen.getByText(/6 de outubro/)).toBeInTheDocument();
+    expect(screen.getByText(/11 de outubro/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Todas/ })).toHaveTextContent('3Todas');
+    for (const label of ['Recusadas', 'Pendentes', 'Confirmadas']) {
+      expect(screen.getByRole('button', { name: new RegExp(label) })).toHaveTextContent(`1${label}`);
+    }
+  });
+  it('shows an appropriate empty state when all meetings have passed', async () => {
+    vi.setSystemTime(new Date('2026-11-01T15:00:00Z'));
+    renderPanel();
+    expect(await screen.findByText('Nenhuma reunião de hoje em diante neste mês.')).toBeVisible();
+    expect(screen.getByRole('button', { name: /Todas/ })).toHaveTextContent('0Todas');
+  });
   it('groups responses by dated meeting and displays the audio/video refusal reason', async () => {
     const onTreat = vi.fn();
     renderPanel({ onTreat });
@@ -51,7 +80,7 @@ describe('ManagedMeetingConfirmations', () => {
     vi.mocked(getManagedMeetingConfirmations).mockResolvedValue([]);
     await userEvent.setup().click(screen.getByRole('button', { name: 'Próximo mês' }));
     await waitFor(() => expect(getManagedMeetingConfirmations).toHaveBeenLastCalledWith('2026-11'));
-    expect(await screen.findByText('Nenhuma reunião cadastrada neste mês.')).toBeVisible();
+    expect(await screen.findByText('Nenhuma reunião de hoje em diante neste mês.')).toBeVisible();
     expect(screen.queryByText('Vou viajar com a família.')).not.toBeInTheDocument();
   });
   it('does not expose response controls without edit permission', async () => {
@@ -64,7 +93,7 @@ describe('ManagedMeetingConfirmations', () => {
     await screen.findByText('Ana Lima');
     vi.mocked(getManagedMeetingConfirmations).mockResolvedValue([]);
     panel.rerender(<ManagedMeetingConfirmations managerId="manager" initialMonth="2026-10" refreshToken={1} />);
-    expect(await screen.findByText('Nenhuma reunião cadastrada neste mês.')).toBeVisible();
+    expect(await screen.findByText('Nenhuma reunião de hoje em diante neste mês.')).toBeVisible();
     expect(screen.queryByText('Vou viajar com a família.')).not.toBeInTheDocument();
   });
 
