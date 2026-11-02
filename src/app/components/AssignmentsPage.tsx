@@ -19,7 +19,7 @@ import {
 } from '../helpers';
 import { filterMembersEligibleForAssignments } from '../lib/assignment-member-eligibility';
 import { mapChristianLifeDraftsForSave, mapMinistryDraftsForSave } from '../lib/midweek-program-form';
-import { Plus, X, ChevronDown, BookOpen, MessageCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, X, ChevronDown, BookOpen, MessageCircle, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { sendDesignationWhatsApp, openDesignationInWhatsAppWithLink } from '../lib/whatsapp';
 import { AssignmentHistory } from './AssignmentHistory';
@@ -659,6 +659,34 @@ export function AssignmentsPage() {
     }
   };
 
+  // Usa o tipo da aba aberta, não o seletor do modal, para excluir a reunião que está sendo editada.
+  const handleDeleteMeeting = async () => {
+    const targetMeeting = meetingType === 'midweek'
+      ? midweekMeetings[selectedMeetingIdx]
+      : weekendMeetings[selectedMeetingIdx];
+    if (!targetMeeting) return;
+
+    const label = meetingType === 'midweek' ? 'meio de semana' : 'fim de semana';
+    const dateLabel = new Date(`${targetMeeting.date}T12:00:00`).toLocaleDateString('pt-BR');
+    if (!window.confirm(`Excluir a reunião de ${label} de ${dateLabel}? As designações dela também serão removidas.`)) return;
+
+    try {
+      if (meetingType === 'midweek') {
+        await api.deleteMidweekMeeting(targetMeeting.id);
+        setMidweekMeetings(prev => prev.filter(item => item.id !== targetMeeting.id));
+      } else {
+        await api.deleteWeekendMeeting(targetMeeting.id);
+        setWeekendMeetings(prev => prev.filter(item => item.id !== targetMeeting.id));
+      }
+      setSelectedMeetingIdx(0);
+      setShowCreateMeetingModal(false);
+      setHistoryRefreshToken(prev => prev + 1);
+      toast.success(`Reunião de ${label} excluída.`);
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao excluir reunião.');
+    }
+  };
+
   if (loading) return <div className="rounded-xl border border-border bg-card p-8 text-center text-muted-foreground">Carregando designações do banco de dados...</div>;
 
   return (
@@ -765,6 +793,7 @@ export function AssignmentsPage() {
               audioVideoAssignments={audioVideoAssignments}
               onClose={() => setShowCreateMeetingModal(false)}
               onSave={handleCreateMeeting}
+              onDelete={handleDeleteMeeting}
             />
           )}
         </>
@@ -1983,6 +2012,7 @@ function CreateMeetingModal({
   audioVideoAssignments,
   onClose,
   onSave,
+  onDelete,
 }: {
   mode: MeetingFormMode;
   meetingType: 'midweek' | 'weekend';
@@ -1995,6 +2025,7 @@ function CreateMeetingModal({
   audioVideoAssignments: AudioVideoRestrictionAssignment[];
   onClose: () => void;
   onSave: () => void;
+  onDelete?: () => void;
 }) {
   const memberOptions = members.map((member: any) => ({
     id: member.id,
@@ -2607,6 +2638,16 @@ function CreateMeetingModal({
         </div>
 
         <div className="flex flex-col-reverse gap-2 border-t border-border px-5 pt-4 pb-5 sm:flex-row sm:justify-end">
+          {mode === 'edit' && onDelete && (
+            <button
+              onClick={onDelete}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-destructive/30 px-4 py-2 text-destructive transition-colors hover:bg-destructive/10 sm:mr-auto"
+              style={{ fontSize: '0.9rem' }}
+            >
+              <Trash2 size={14} />
+              Excluir reunião
+            </button>
+          )}
           <button
             onClick={onClose}
             className="rounded-lg border border-border px-4 py-2 text-foreground transition-colors hover:bg-muted"

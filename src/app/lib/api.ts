@@ -1726,6 +1726,25 @@ export const api = {
     return data;
   },
 
+  // As designações e notificações ligadas à reunião são revogadas pelos triggers do banco.
+  async deleteMidweekMeeting(meetingId: string) {
+    const { error } = await supabase
+      .from('midweek_meetings')
+      .delete()
+      .eq('id', meetingId);
+
+    if (error) throw new Error(formatDatabaseWriteError('Erro ao excluir reunião de meio de semana', error));
+  },
+
+  async deleteWeekendMeeting(meetingId: string) {
+    const { error } = await supabase
+      .from('weekend_meetings')
+      .delete()
+      .eq('id', meetingId);
+
+    if (error) throw new Error(formatDatabaseWriteError('Erro ao excluir reunião de fim de semana', error));
+  },
+
   async getDesignationHistory(months = 12): Promise<DesignationHistoryEntry[]> {
     const parsedMonths = Number.isFinite(months) ? Math.trunc(months) : 12;
     const safeMonths = Math.min(Math.max(parsedMonths || 12, 1), 24);

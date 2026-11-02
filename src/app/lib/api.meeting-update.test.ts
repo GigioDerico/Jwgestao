@@ -1,13 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { rpc, from, select, eq, single, maybeSingle } = vi.hoisted(() => {
+const { rpc, from, select, eq, single, maybeSingle, deleteEq } = vi.hoisted(() => {
   const rpc = vi.fn();
   const single = vi.fn();
   const maybeSingle = vi.fn();
   const eq = vi.fn(() => ({ single, maybeSingle }));
   const select = vi.fn(() => ({ eq }));
-  const from = vi.fn(() => ({ select }));
-  return { rpc, from, select, eq, single, maybeSingle };
+  const deleteEq = vi.fn();
+  const del = vi.fn(() => ({ eq: deleteEq }));
+  const from = vi.fn(() => ({ select, delete: del }));
+  return { rpc, from, select, eq, single, maybeSingle, deleteEq };
 });
 
 vi.mock('./supabase', () => ({ supabase: { from, rpc } }));
@@ -74,5 +76,32 @@ describe('api.updateMidweekMeeting', () => {
     expect(rpc).toHaveBeenCalledWith('reconcile_meeting_assignment_notifications', {
       p_kind: 'midweek', p_meeting_id: 'meeting-id',
     });
+  });
+});
+
+describe('api.deleteMidweekMeeting / api.deleteWeekendMeeting', () => {
+  beforeEach(() => {
+    from.mockClear();
+    deleteEq.mockReset().mockResolvedValue({ error: null });
+  });
+
+  it('deletes the midweek meeting row by id', async () => {
+    await api.deleteMidweekMeeting('meeting-id');
+
+    expect(from).toHaveBeenCalledWith('midweek_meetings');
+    expect(deleteEq).toHaveBeenCalledWith('id', 'meeting-id');
+  });
+
+  it('deletes the weekend meeting row by id', async () => {
+    await api.deleteWeekendMeeting('weekend-id');
+
+    expect(from).toHaveBeenCalledWith('weekend_meetings');
+    expect(deleteEq).toHaveBeenCalledWith('id', 'weekend-id');
+  });
+
+  it('surfaces the database error instead of reporting success', async () => {
+    deleteEq.mockResolvedValue({ error: { message: 'permission denied' } });
+
+    await expect(api.deleteWeekendMeeting('weekend-id')).rejects.toThrow();
   });
 });
