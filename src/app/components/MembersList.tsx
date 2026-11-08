@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { type Member, type FieldServiceGroup } from '../types';
+import { isMemberEligibleForAssignments } from '../lib/assignment-member-eligibility';
 import { getStatusLabel, getStatusColor, getRoleLabel, formatPhoneDisplay } from '../helpers';
 import { api, type CreateMemberInput } from '../lib/api';
 import { supabase } from '../lib/supabase';
@@ -582,12 +583,17 @@ export function MembersList() {
     return fieldServiceGroups.find(g => g.id === groupId)?.name || 'Sem grupo';
   };
 
+  const getGroupOverseerName = (group: FieldServiceGroup) => {
+    const overseer = allMembers.find(m => m.id === group.overseer_id);
+    return overseer && isMemberEligibleForAssignments(overseer) ? overseer.full_name : '—';
+  };
+
   const getFamilyHead = (familyHeadId?: string) => {
-    return allMembers.find(m => m.id === familyHeadId);
+    return allMembers.find(m => m.id === familyHeadId && !m.activeTransfer);
   };
 
   const getFamilyMembers = (headId: string) => {
-    return allMembers.filter(m => m.familyHeadId === headId);
+    return allMembers.filter(m => m.familyHeadId === headId && !m.activeTransfer);
   };
 
   // ---------- grouped by service group ----------
@@ -750,7 +756,7 @@ export function MembersList() {
               <Users size={10} />
               {getGroupName(member.groupId)}
             </span>
-            {member.familyHeadId && viewMode !== 'family' && (
+            {getFamilyHead(member.familyHeadId) && viewMode !== 'family' && (
               <span
                 className="flex items-center gap-0.5 text-amber-600"
                 style={{ fontSize: '0.7rem' }}
@@ -816,7 +822,7 @@ export function MembersList() {
                 </span>
               </div>
             )}
-            {member.familyHeadId && (
+            {getFamilyHead(member.familyHeadId) && (
               <div
                 className="sm:col-span-2 flex items-center gap-2 text-amber-700 mt-1"
                 style={{ fontSize: '0.85rem' }}
@@ -1316,7 +1322,7 @@ export function MembersList() {
                 >
                   <GroupHeader
                     title={group.name}
-                    subtitle={`Dirigente: ${group.overseer}`}
+                    subtitle={`Dirigente: ${getGroupOverseerName(group)}`}
                     count={groupMembers.length}
                     color="blue"
                     expanded={expanded}
@@ -1723,7 +1729,7 @@ export function MembersList() {
                       style={{ fontSize: '0.9rem' }}
                     >
                       <option value="">Nenhuma família</option>
-                      {allMembers.filter(m => m.isFamilyHead).map(head => (
+                      {allMembers.filter(m => m.isFamilyHead && !m.activeTransfer).map(head => (
                         <option key={head.id} value={head.id}>Família {head.full_name}</option>
                       ))}
                     </select>
@@ -1971,7 +1977,7 @@ export function MembersList() {
                       style={{ fontSize: '0.9rem' }}
                     >
                       <option value="">Nenhuma família</option>
-                      {allMembers.filter(m => m.isFamilyHead && m.id !== editingMember?.id).map(head => (
+                      {allMembers.filter(m => m.isFamilyHead && !m.activeTransfer && m.id !== editingMember?.id).map(head => (
                         <option key={head.id} value={head.id}>Família {head.full_name}</option>
                       ))}
                     </select>

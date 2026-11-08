@@ -29,6 +29,12 @@ export function isMemberEligibleForAssignments(
   );
 }
 
+export function excludeTransferredMembers<T extends { activeTransfer?: unknown }>(
+  members: T[],
+): T[] {
+  return members.filter(member => !member.activeTransfer);
+}
+
 export function filterMembersEligibleForAssignments<T extends MemberStatusLike>(
   members: T[],
 ): T[] {

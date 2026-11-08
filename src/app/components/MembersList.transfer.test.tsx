@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { supabase } from '../lib/supabase';
 import { MembersList } from './MembersList';
 
 const mocks = vi.hoisted(() => ({
@@ -165,6 +166,41 @@ describe('MembersList member transfer workflow', () => {
     mocks.canEdit = false;
     view.rerender(<MembersList />);
     expect(screen.queryByRole('button', { name: 'Cancelar transferência' })).not.toBeInTheDocument();
+  });
+
+  it('shows the group overseer name and hides a transferred overseer', async () => {
+    const user = userEvent.setup();
+    vi.mocked(supabase.from).mockReturnValueOnce({
+      select: vi.fn().mockResolvedValue({
+        data: [
+          { id: 'group-active', name: 'Grupo Centro', overseer_id: 'overseer-active' },
+          { id: 'group-transferred', name: 'Grupo Norte', overseer_id: 'overseer-transferred' },
+        ],
+        error: null,
+      }),
+    } as never);
+    mocks.getMembers.mockResolvedValue([
+      rawMember('overseer-active', 'Dirigente Ativo'),
+      { ...rawMember('publisher-center', 'Publicador Centro'), group_id: 'group-active' },
+      { ...rawMember('publisher-north', 'Publicador Norte'), group_id: 'group-transferred' },
+      {
+        ...rawMember('overseer-transferred', 'Dirigente Transferido', {
+          id: 'overseer-transfer-id',
+          transferredAt: '2026-08-09',
+          destinationCongregation: null,
+          createdAt: '2026-08-09T12:00:00Z',
+        }),
+        spiritual_status: 'inativo',
+      },
+    ]);
+
+    render(<MembersList />);
+    await screen.findByText('Publicador Centro');
+    await user.click(screen.getByRole('button', { name: /Por Grupo/ }));
+
+    expect(await screen.findByText('Dirigente: Dirigente Ativo')).toBeInTheDocument();
+    expect(screen.getByText('Dirigente: —')).toBeInTheDocument();
+    expect(screen.queryByText(/undefined/)).not.toBeInTheDocument();
   });
 
   it('ignores a stale transfer preview after opening a different member', async () => {

@@ -36,6 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
+import { isMemberEligibleForAssignments } from '../../lib/assignment-member-eligibility';
 import { supabase } from '../../lib/supabase';
 import { sendTextWhatsApp, openTextInWhatsApp } from '../../lib/whatsapp';
 
@@ -316,12 +317,12 @@ export function GoalsPage() {
 
         const { data: overseerData, error: overseerError } = await supabase
           .from('members')
-          .select('full_name, phone')
+          .select('full_name, phone, spiritual_status')
           .eq('id', groupData.overseer_id)
           .maybeSingle();
 
         if (overseerError) throw overseerError;
-        if (!overseerData?.phone) {
+        if (!overseerData?.phone || !isMemberEligibleForAssignments(overseerData)) {
           setServiceOverseer(null);
           return;
         }

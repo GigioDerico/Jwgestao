@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationsContext';
 import { api } from '../lib/api';
+import { excludeTransferredMembers } from '../lib/assignment-member-eligibility';
 import { formatPhoneDisplay } from '../helpers';
 import { toast } from 'sonner';
 import { AssignmentCalendarActions } from './AssignmentCalendarActions';
@@ -135,7 +136,7 @@ export function Dashboard() {
   useEffect(() => {
     (async () => {
       try {
-        const members = await api.getMembers();
+        const members = excludeTransferredMembers(await api.getMembers());
         setMembersCount(members.length);
         setEldersCount(
           members.filter((member: any) =>

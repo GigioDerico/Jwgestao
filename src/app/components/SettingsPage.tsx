@@ -4,6 +4,10 @@ import { Shield, Check, Plus, Users, Trash2, Edit2, Loader2, X } from 'lucide-re
 import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { api } from '../lib/api';
+import {
+  RESTRICTED_ASSIGNMENT_STATUSES,
+  isMemberEligibleForAssignments,
+} from '../lib/assignment-member-eligibility';
 import { DEFAULT_CONGREGATION_NAME, isValidTimeValue } from '../lib/midweek-schedule';
 import { supabase } from '../lib/supabase';
 import { WhatsAppConnectionCard } from './WhatsAppConnectionCard';
@@ -27,6 +31,13 @@ const permissionDefs = [
   { key: 'manage_permissions', label: 'Gerenciar Permissões' },
   { key: 'view_reports', label: 'Visualizar Relatórios' },
 ];
+
+const RESTRICTED_STATUS_FILTER = `(${RESTRICTED_ASSIGNMENT_STATUSES.join(',')})`;
+
+function getActiveGroupAssistants(group: any): any[] {
+  const assistants = Array.isArray(group.assistants) ? group.assistants : [];
+  return assistants.filter((a: any) => isMemberEligibleForAssignments(a.assistant));
+}
 
 export function SettingsPage() {
   const { user } = useAuth();
@@ -59,18 +70,18 @@ export function SettingsPage() {
       ids = (byStatus || []).map((m: any) => m.id);
     }
     if (ids.length === 0) {
-      const { data: all } = await supabase.from('members').select('id, full_name').order('full_name');
+      const { data: all } = await supabase.from('members').select('id, full_name').not('spiritual_status', 'in', RESTRICTED_STATUS_FILTER).order('full_name');
       if (all) setEligibleMembers(all);
       return;
     }
-    const { data: members } = await supabase.from('members').select('id, full_name').in('id', ids).order('full_name');
+    const { data: members } = await supabase.from('members').select('id, full_name').in('id', ids).not('spiritual_status', 'in', RESTRICTED_STATUS_FILTER).order('full_name');
     if (members) setEligibleMembers(members);
   };
 
   const fetchGroups = async () => {
     const { data, error } = await supabase
       .from('field_service_groups')
-      .select('*, overseer:members!overseer_id(full_name), assistants:field_service_group_assistants(member_id, assistant:members(full_name))');
+      .select('*, overseer:members!overseer_id(full_name, spiritual_status), assistants:field_service_group_assistants(member_id, assistant:members(full_name, spiritual_status))');
     // #region agent log
     fetch('http://127.0.0.1:7243/ingest/01de7b58-075b-4ec4-b2be-533b4a69e95c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'SettingsPage:fetchGroups', message: 'fetch groups result', data: { count: data?.length, error: error?.message, sampleGroup: data?.[0] ? { keys: Object.keys(data[0]), overseer_id: data[0].overseer_id } : null }, timestamp: Date.now(), hypothesisId: 'H3' }) }).catch(() => { });
     // #endregion
@@ -146,13 +157,13 @@ export function SettingsPage() {
     // #region agent log
     fetch('http://127.0.0.1:7243/ingest/01de7b58-075b-4ec4-b2be-533b4a69e95c', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'SettingsPage:handleOpenEdit', message: 'group object', data: { groupKeys: Object.keys(group), overseer_id: group.overseer_id, overseer: group.overseer, assistants: group.assistants, assistantsLen: (group.assistants || []).length }, timestamp: Date.now(), hypothesisId: 'H1' }) }).catch(() => { });
     // #endregion
-    const assistants = group.assistants || [];
-    const assistantIds = Array.isArray(assistants) ? assistants.map((a: any) => a.member_id) : [];
+    const assistantIds = getActiveGroupAssistants(group).map((a: any) => a.member_id);
+    const overseerIsActive = isMemberEligibleForAssignments(group.overseer as any);
     setEditingGroup({
       id: group.id,
       name: group.name,
-      overseer_id: group.overseer_id || '',
-      overseer_name: (group.overseer as any)?.full_name,
+      overseer_id: overseerIsActive ? group.overseer_id || '' : '',
+      overseer_name: overseerIsActive ? (group.overseer as any)?.full_name : undefined,
       assistant_ids: assistantIds,
     });
   };
@@ -505,12 +516,12 @@ export function SettingsPage() {
                 <h4 className="text-foreground font-bold">{group.name}</h4>
                 <div className="flex items-center gap-2 mt-2 text-muted-foreground" style={{ fontSize: '0.85rem' }}>
                   <span className="font-medium text-foreground/70">Dirigente:</span>
-                  <span>{(group.overseer as any)?.full_name ?? group.overseer ?? '—'}</span>
+                  <span>{isMemberEligibleForAssignments(group.overseer as any) ? ((group.overseer as any)?.full_name ?? group.overseer ?? '—') : '—'}</span>
                 </div>
-                {((group.assistants as any[])?.length ?? 0) > 0 && (
+                {getActiveGroupAssistants(group).length > 0 && (
                   <div className="flex items-start gap-2 mt-1.5 text-muted-foreground" style={{ fontSize: '0.85rem' }}>
                     <span className="font-medium text-foreground/70 shrink-0">Ajudantes:</span>
-                    <span>{(group.assistants as any[]).map((a: any) => a.assistant?.full_name ?? a.member_id).filter(Boolean).join(', ')}</span>
+                    <span>{getActiveGroupAssistants(group).map((a: any) => a.assistant?.full_name ?? a.member_id).filter(Boolean).join(', ')}</span>
                   </div>
                 )}
                 <div className="mt-4 pt-4 border-t border-border">

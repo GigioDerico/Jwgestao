@@ -524,13 +524,17 @@ export function AssignmentHistory({
     }
 
     // Comportamento padrão sem filtro por privilégio
+    const eligibleIds = new Set(eligibleMembers.map(m => m.id as string));
+    const isSuggestable = (item: MemberHistoryStats) =>
+      item.memberId !== null && (eligibleIds.size === 0 || eligibleIds.has(item.memberId));
+
     const byPriority = memberStats
-      .filter(item => item.memberId !== null)
+      .filter(isSuggestable)
       .sort(sortByPriority)
       .slice(0, 6);
 
     const overloaded = memberStats
-      .filter(item => item.memberId !== null && item.last60 > 0)
+      .filter(item => isSuggestable(item) && item.last60 > 0)
       .sort((a, b) => {
         if (b.last60 !== a.last60) return b.last60 - a.last60;
         return b.total - a.total;
