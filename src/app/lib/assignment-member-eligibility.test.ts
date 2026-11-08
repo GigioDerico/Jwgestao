@@ -1,8 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import {
+  excludeTransferredMembers,
   filterMembersEligibleForAssignments,
   isMemberEligibleForAssignments,
 } from './assignment-member-eligibility';
+
+describe('excludeTransferredMembers', () => {
+  it('removes only members with an active transfer', () => {
+    const result = excludeTransferredMembers([
+      { id: 'active' },
+      { id: 'transferred', activeTransfer: { id: 'transfer-id' } },
+      { id: 'cancelled', activeTransfer: undefined },
+    ]);
+
+    expect(result.map(member => member.id)).toEqual(['active', 'cancelled']);
+  });
+});
 
 describe('filterMembersEligibleForAssignments', () => {
   it('removes inactive and disassociated members', () => {

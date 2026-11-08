@@ -68,11 +68,24 @@ function AssignmentInnerMenu({
   );
 }
 
+function useHistoryMembers(view: AssignmentInnerView): any[] {
+  const [members, setMembers] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (view !== 'history') return;
+    api.getMembers()
+      .then(loadedMembers => setMembers(filterMembersEligibleForAssignments(loadedMembers)))
+      .catch(() => {});
+  }, [view]);
+
+  return members;
+}
+
 export function AudioVideoAssignmentsPage() {
   const { user } = useAuth();
   const { can } = usePermissions();
   const [view, setView] = useState<AssignmentInnerView>('scale');
-  const [members, setMembers] = useState<any[]>([]);
+  const members = useHistoryMembers(view);
   const canManageAssignments = user?.role === 'coordenador' || user?.role === 'designador';
   const canAccess = can('view_assignments') && (
     canManageAssignments ||
@@ -84,13 +97,6 @@ export function AudioVideoAssignmentsPage() {
     Boolean(user?.approved_indicadores)
   );
   const canDownloadAssignments = can('download_assignments');
-
-  useEffect(() => {
-    if (view !== 'history') return;
-    api.getMembers()
-      .then(loadedMembers => setMembers(filterMembersEligibleForAssignments(loadedMembers)))
-      .catch(() => {});
-  }, [view]);
 
   if (!canAccess) {
     return <Navigate to="/dashboard" replace />;
@@ -127,6 +133,7 @@ export function FieldServiceAssignmentsPage() {
   const { user } = useAuth();
   const { can } = usePermissions();
   const [view, setView] = useState<AssignmentInnerView>('scale');
+  const members = useHistoryMembers(view);
   const canManageAssignments = user?.role === 'coordenador' || user?.role === 'designador';
   const canDownloadAssignments = can('download_assignments');
 
@@ -152,6 +159,7 @@ export function FieldServiceAssignmentsPage() {
           allowedSources={['field_service']}
           title="Histórico de Saída de Campo"
           description="Histórico por responsável e arranjo mensal de saída de campo."
+          members={members}
         />
       )}
     </AssignmentTypePage>
@@ -162,6 +170,7 @@ export function CartAssignmentsPage() {
   const { user } = useAuth();
   const { can } = usePermissions();
   const [view, setView] = useState<AssignmentInnerView>('scale');
+  const members = useHistoryMembers(view);
   const canManageAssignments = user?.role === 'coordenador' || user?.role === 'designador';
   const canAccess = can('view_assignments') && (canManageAssignments || Boolean(user?.approved_carrinho));
   const canDownloadAssignments = can('download_assignments');
@@ -188,6 +197,7 @@ export function CartAssignmentsPage() {
           allowedSources={['cart']}
           title="Histórico de Carrinho"
           description="Histórico das últimas designações de publicador 1 e 2 no carrinho."
+          members={members}
         />
       )}
     </AssignmentTypePage>
